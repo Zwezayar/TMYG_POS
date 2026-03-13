@@ -2622,83 +2622,12 @@ export default function PosPage() {
                     <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Category
                     </label>
-                    <div className="flex gap-2">
-                      <select
-                        value={quickCategory}
-                        onChange={(e) => setQuickCategory(e.target.value)}
-                        className="h-[44px] min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
-                      >
-                        <option value="">Select Category</option>
-                        {dbCategories.length > 0
-                          ? dbCategories.map((cat) => {
-                              const parent = dbCategories.find(c => c.id === cat.parent_id);
-                              const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
-                              return (
-                                <option key={cat.id} value={label}>
-                                  {label}
-                                </option>
-                              );
-                            })
-                          : allCategories.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-[44px] w-[44px] shrink-0 rounded-xl"
-                        title="Add Category"
-                        onClick={async () => {
-                          const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
-                          if (newCat && newCat.trim()) {
-                            const parts = newCat.split('/').map(s => s.trim());
-                            const mainName = parts[0];
-                            const subName = parts.length > 1 ? parts[1] : null;
-
-                            try {
-                              let parentId = null;
-                              const { data: mainData, error: mainError } = await supabaseClient
-                                .from('categories')
-                                .select('id')
-                                .eq('name', mainName)
-                                .is('parent_id', null)
-                                .maybeSingle();
-
-                              if (mainError) throw mainError;
-
-                              if (mainData) {
-                                parentId = mainData.id;
-                              } else {
-                                const { data: newMain, error: createError } = await supabaseClient
-                                  .from('categories')
-                                  .insert({ name: mainName })
-                                  .select('id')
-                                  .single();
-                                if (createError) throw createError;
-                                parentId = newMain.id;
-                              }
-
-                              if (subName) {
-                                await supabaseClient
-                                  .from('categories')
-                                  .insert({ name: subName, parent_id: parentId });
-                              }
-
-                              addToast('success', `Category "${newCat}" created.`);
-                              await refreshCategories();
-                              setQuickCategory(newCat);
-                            } catch (e) {
-                              addToast('error', 'Failed to create category.');
-                            }
-                          }
-                        }}
-                      >
-                        <Plus className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </div>
+                    <Input
+                      value={quickCategory}
+                      onChange={(e) => setQuickCategory(e.target.value)}
+                      placeholder="Skin Care"
+                      className="h-[44px] rounded-xl"
+                    />
                   </div>
                 </div>
 

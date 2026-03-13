@@ -4,7 +4,6 @@ import * as React from 'react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
 import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
@@ -22,6 +21,7 @@ type PendingAction = {
     purchase_price: number | null;
     stock_quantity: number | null;
     default_code: string | null;
+    image_url: string | null;
       size: string | null;
       variant: string | null;
     description_en: string | null;
@@ -423,7 +423,7 @@ export default function AdminInventoryPage() {
       product_name: payload.product_name,
       default_code: payload.default_code,
       barcode: payload.barcode,
-      image_url: item.imageDataUrl ?? null,
+      image_url: item.imageDataUrl ?? payload.image_url ?? null,
       category: payload.category,
       size: payload.size,
       variant: payload.variant,
@@ -454,7 +454,7 @@ export default function AdminInventoryPage() {
         if (item.mode === 'create') {
           const { data, error: insertError } = await supabaseClient
             .from('products')
-            .insert({ ...item.payload, image_url: null })
+            .insert({ ...item.payload, image_url: item.imageDataUrl ? null : item.payload.image_url ?? null })
             .select()
             .single();
           if (insertError || !data) {
@@ -1161,7 +1161,7 @@ export default function AdminInventoryPage() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 aspect-[4/3] overflow-hidden rounded-2xl bg-black relative">
+            <div className="mt-4 h-[26vh] overflow-hidden rounded-2xl bg-black relative">
               <div id="admin-inventory-scanner" className="h-full w-full" />
               <div className="absolute inset-6 rounded-2xl border-2 border-primary/60 pointer-events-none" />
               {scanFlash && (
