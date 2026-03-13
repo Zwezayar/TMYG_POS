@@ -1,0 +1,3083 @@
+'use client';
+
+import * as React from 'react';
+import { useProducts, type Product } from '@/lib/useProducts';
+import { supabaseClient } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useDashboardAuth } from '@/lib/dashboard-auth-context';
+import { compressImageFile } from '@/lib/image';
+import {
+  Loader2, Camera, Zap, Search, Pencil, Check,
+  Menu, ChevronLeft, ChevronRight, X, Phone, MapPin, Plus,
+  ClipboardList, Package, Settings, ShoppingCart, Truck, Trash2, Smartphone,
+  Minus, ShoppingBag, Store, Calendar, Hash, Banknote, CreditCard, Waves,
+  ScanLine, Sparkles, Droplets, Wind, Palette, Scissors, ChevronsLeft, ChevronsRight, CheckCircle2,
+  LayoutGrid, User, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon
+} from 'lucide-react';
+import { useCategories } from '@/lib/useCategories';
+import { cn } from "@/lib/utils";
+
+// --- Types & Helpers ---
+type CartLine = {
+  product: Product;
+  quantity: number;
+  manualPrice?: number;
+};
+
+type ReceiptItem = {
+  name: string;
+  qty: number;
+  price: number;
+  amount: number;
+};
+
+type ReceiptData = {
+  invoiceId: string;
+  date: string;
+  time: string;
+  staffName: string | null;
+  saleType: 'Shop' | 'Delivery';
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  customer: {
+    name: string;
+    phone: string;
+    address: string;
+  };
+  items: ReceiptItem[];
+  total: number;
+  discount: number;
+  netAmount: number;
+};
+
+type Toast = {
+  id: number;
+  type: 'success' | 'error';
+  message: string;
+};
+
+type CameraState = 'IDLE' | 'STARTING' | 'SCANNING' | 'RUNNING' | 'STOPPING';
+
+const normalizeBarcode = (bc: string | null | undefined) => bc?.trim() || "";
+
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat("en-US").format(price) + " Ks";
+};
+
+const formatStaffName = (value: string | null) => {
+  if (!value) return null;
+  const base = value.split('@')[0]?.trim();
+  if (!base) return null;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+};
+
+// Helper function to validate and format image URLs
+const getValidImageUrl = (url: string | null | undefined) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:') || url.includes('supabase.co/storage')) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return url;
+  }
+  return null;
+};
+
+// --- Icons Map for Categories ---
+const iconMap: Record<string, React.ElementType> = {
+  Sparkles,
+  Droplets,
+  Wind,
+  Palette,
+  Scissors,
+};
+
+// Redundant NavSidebar removed since navigation is now centrally located in App Sidebar.
+
+function ProductCard({
+  product,
+  onAddToCart,
+  onClick,
+}: {
+  product: Product;
+  onAddToCart: (p: Product) => void;
+  onClick: (p: Product) => void;
+}) {
+  const stock = product.stock_quantity ?? 0;
+  const isOutOfStock = stock <= 0;
+
+  const [imgError, setImgError] = React.useState(false);
+
+  const finalImageUrl = getValidImageUrl(product.image_url);
+
+  return (
+    <div
+      onClick={() => onClick(product)}
+      className={cn(
+        "group flex flex-col rounded-xl border border-border bg-card p-2 text-left transition-all relative overflow-hidden h-auto min-h-[280px] cursor-pointer touch-manipulation",
+        isOutOfStock ? "opacity-60" : "hover:border-primary/30 hover:shadow-lg"
+      )}
+    >
+      <div className="relative h-32 w-full overflow-hidden rounded-md bg-muted flex items-center justify-center shrink-0 flex-none">
+        {finalImageUrl && !imgError ? (
+          <img
+            src={finalImageUrl}
+            alt={product.product_name || ''}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full w-full text-muted-foreground">
+            <Package className="h-8 w-8 opacity-30 mb-1" />
+            <span className="text-[10px] uppercase font-medium">No Image</span>
+          </div>
+        )}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="bg-destructive text-white text-[9px] font-black uppercase px-2 py-1 rounded">Sold Out</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col min-w-0 justify-between pt-2 overflow-hidden">
+        <p className="line-clamp-3 min-h-[3.5rem] text-[12px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+          {product.product_name || '—'}
+        </p>
+        <div className="flex flex-col gap-1 mt-1">
+          <span className="text-[11px] text-muted-foreground truncate">
+            {product.variant || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[14px] font-black text-[#8B5CF6]">
+              {formatPrice(product.sale_price ?? 0)}
+            </span>
+            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", stock > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
+              {stock} left
+            </span>
+          </div>
+        </div>
+        <div className="mt-auto pt-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isOutOfStock) onAddToCart(product);
+            }}
+            disabled={isOutOfStock}
+            className={cn(
+              "flex w-full h-[44px] items-center justify-center gap-2 rounded-lg text-[12px] font-black transition-all border-none touch-manipulation shadow-sm active:scale-95",
+              isOutOfStock
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MemoProductCard = React.memo(ProductCard);
+
+function ProductArea({
+  products,
+  query,
+  onQueryChange,
+  onScanClick,
+  onAddToCart,
+  onProductClick,
+  categories,
+  activeCategory,
+  onCategoryChange,
+  loading,
+  missingBarcode,
+  onQuickAdd,
+}: {
+  products: Product[];
+  query: string;
+  onQueryChange: (q: string) => void;
+  onScanClick: () => void;
+  onAddToCart: (p: Product) => void;
+  onProductClick: (p: Product) => void;
+  categories: { id: string; name: string }[];
+  activeCategory: string | null;
+  onCategoryChange: (id: string | null) => void;
+  loading: boolean;
+  missingBarcode: string | null;
+  onQuickAdd: () => void;
+}) {
+  const [isCategoryOpen, setCategoryOpen] = React.useState(false);
+
+  return (
+    <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-background/50">
+      <div className="h-[72px] flex items-center border-b border-border bg-card px-4 gap-2 shrink-0">
+        {/* Category Dropdown */}
+        <div className="relative shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => setCategoryOpen(!isCategoryOpen)}
+            className={cn(
+              "h-[48px] px-3 gap-1.5 rounded-xl border-border transition-all font-bold active:scale-95 shadow-sm min-w-[100px]",
+              activeCategory ? "border-primary text-primary" : "text-muted-foreground"
+            )}
+          >
+            <LayoutGrid className="h-5 w-5" />
+            <span className="truncate max-w-[60px] hidden sm:inline-block text-[13px]">
+              {activeCategory || "Category"}
+            </span>
+            <span className="truncate max-w-[60px] sm:hidden text-[13px]">
+              {activeCategory || "Cat"}
+            </span>
+            <ChevronRight className={cn("h-4 w-4 transition-transform ml-auto", isCategoryOpen && "rotate-90")} />
+          </Button>
+
+          {isCategoryOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setCategoryOpen(false)} 
+              />
+              <div className="absolute left-0 top-full mt-2 z-50 w-64 rounded-xl border border-border bg-card shadow-xl p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="max-h-[60vh] overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                  <button
+                    onClick={() => {
+                      onCategoryChange(null);
+                      setCategoryOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 w-full px-4 py-3 rounded-lg text-sm font-bold transition-colors",
+                      activeCategory === null
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted text-muted-foreground"
+                    )}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    All Products
+                  </button>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        onCategoryChange(cat.name);
+                        setCategoryOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 w-full px-4 py-3 rounded-lg text-sm font-bold transition-colors text-left",
+                        activeCategory === cat.name
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Search & Scan */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <div className="relative flex-1 min-w-[140px]">
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
+            <Input
+              type="text"
+              placeholder="Search..."
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              className="h-[48px] w-full rounded-xl border border-border bg-muted/30 pl-10 pr-8 text-base focus-visible:ring-primary/20 focus-visible:border-primary/50 transition-all font-medium"
+            />
+            {query && (
+              <button
+                onClick={() => onQueryChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-none p-1.5 transition-colors touch-manipulation"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            onClick={onScanClick}
+            className="h-[48px] px-3 sm:px-4 gap-2 rounded-xl border-border hover:bg-muted hover:border-primary/30 text-muted-foreground hover:text-primary transition-all font-bold transition-all active:scale-95 shadow-sm shrink-0"
+          >
+            <ScanLine className="h-5 w-5" />
+            <span className="hidden min-[800px]:inline text-xs">Scan</span>
+          </Button>
+        </div>
+      </div>
+      {missingBarcode && (
+        <div className="px-4 py-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium">
+            Barcode not found: <span className="font-bold">{missingBarcode}</span>
+          </div>
+          <Button className="h-[48px] px-5" onClick={onQuickAdd}>
+            Quick Add
+          </Button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto bg-background p-3 sm:p-4 custom-scrollbar">
+        {loading ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+          </div>
+        ) : products.length > 0 ? (
+          <div className="grid grid-cols-2 min-[800px]:grid-cols-3 gap-3 pb-20">
+            {products.map((product) => (
+              <MemoProductCard
+                key={product.id}
+                product={product}
+                onAddToCart={onAddToCart}
+                onClick={onProductClick}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-8 text-center">
+            <div className="p-4 rounded-full bg-muted mb-4">
+              <Package className="h-8 w-8 opacity-20" />
+            </div>
+            <p className="text-sm font-bold">No products found</p>
+            <p className="text-xs opacity-60">Try adjusting your search or category</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const MemoProductArea = React.memo(ProductArea);
+
+function CartSidebar({
+  cart,
+  onUpdateQuantity,
+  onUpdatePrice,
+  onRemoveItem,
+  totalAmount,
+  customerName,
+  onCustomerNameChange,
+  customerPhone,
+  onCustomerPhoneChange,
+  customerAddress,
+  onCustomerAddressChange,
+  customerMatch,
+  saleType,
+  onSaleTypeChange,
+  paymentMethod,
+  onPaymentMethodChange,
+  courierName,
+  onCourierNameChange,
+  deliFee,
+  onDeliFeeChange,
+  isBagoSpecial,
+  onBagoSpecialChange,
+  remark,
+  onRemarkChange,
+  onCheckout,
+  isCheckingOut,
+  canCheckout,
+  checkoutError,
+  collapsed,
+  onToggleCollapse,
+  onClearCart,
+  checkoutMode,
+  onToggleCheckout,
+}: {
+  cart: CartLine[];
+  onUpdateQuantity: (id: number, qty: number) => void;
+  onUpdatePrice: (id: number, price: number) => void;
+  onRemoveItem: (id: number) => void;
+  totalAmount: number;
+  customerName: string;
+  onCustomerNameChange: (v: string) => void;
+  customerPhone: string;
+  onCustomerPhoneChange: (v: string) => void;
+  customerAddress: string;
+  onCustomerAddressChange: (v: string) => void;
+  customerMatch: { name: string | null; address: string | null; phone: string } | null;
+  saleType: 'Shop' | 'Delivery';
+  onSaleTypeChange: (v: 'Shop' | 'Delivery') => void;
+  paymentMethod: string;
+  onPaymentMethodChange: (v: string) => void;
+  courierName: string;
+  onCourierNameChange: (v: string) => void;
+  deliFee: string;
+  onDeliFeeChange: (v: string) => void;
+  isBagoSpecial: boolean;
+  onBagoSpecialChange: (v: boolean) => void;
+  remark: string;
+  onRemarkChange: (v: string) => void;
+  onCheckout: () => void;
+  isCheckingOut: boolean;
+  canCheckout: boolean;
+  checkoutError: string | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onClearCart: () => void;
+  checkoutMode: boolean;
+  onToggleCheckout: () => void;
+}) {
+  const [editingId, setEditingId] = React.useState<number | null>(null);
+  const [editPrice, setEditPrice] = React.useState("");
+
+  const invoiceId = React.useMemo(() => {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
+    return `INV-${yy}${mm}${dd}-${seq}`;
+  }, []);
+  const saleTypeValue = saleType;
+
+  const formatDateTime = () => {
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date());
+  };
+
+  const paymentMethodsList: { id: string; label: string; icon: React.ElementType }[] = [
+    { id: "cash", label: "Cash", icon: Banknote },
+    { id: "kpay", label: "KPay", icon: Smartphone },
+    { id: "wave", label: "Wave", icon: Waves },
+    { id: "bank", label: "Bank", icon: CreditCard },
+  ];
+
+  const [paymentTier, setPaymentTier] = React.useState<'cash' | 'pay' | 'banking'>('cash');
+
+  const handleEditPrice = (id: number, currentPrice: number) => {
+    setEditingId(id);
+    setEditPrice(String(currentPrice));
+  };
+
+  const handleSavePrice = (id: number) => {
+    const newPrice = parseInt(editPrice, 10);
+    if (!isNaN(newPrice) && newPrice >= 0) {
+      onUpdatePrice(id, newPrice);
+    }
+    setEditingId(null);
+    setEditPrice("");
+  };
+
+  const deliveryFeeNum = saleType === "Delivery" ? parseInt(deliFee, 10) || 0 : 0;
+  const finalTotal = totalAmount + deliveryFeeNum;
+  const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+
+  const [isCustomerInfoCollapsed, setIsCustomerInfoCollapsed] = React.useState(true);
+
+  return (
+    <aside
+      className={cn(
+        "flex h-full flex-col border-l border-border bg-card transition-all duration-300 shrink-0",
+        checkoutMode ? "w-full" : "w-[300px] lg:w-[350px]"
+      )}
+    >
+      <div className="flex h-[72px] flex-col justify-center border-b border-border px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {checkoutMode && (
+              <button
+                onClick={onToggleCheckout}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary bg-transparent border-none"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+            <ShoppingBag className="h-4.5 w-4.5 text-primary" />
+            <h2 className="text-sm font-bold text-foreground">
+              {checkoutMode ? "Checkout" : "Current Order"}
+            </h2>
+          </div>
+          {cart.length > 0 && (
+            <button
+              onClick={onClearCart}
+              className="flex h-[44px] w-[44px] items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-xl bg-transparent border-none transition-colors"
+              title="Clear Cart"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><Hash className="h-3 w-3" /> {invoiceId}</span>
+          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDateTime()}</span>
+        </div>
+      </div>
+
+      <div className="border-b border-border px-4 py-3">
+        <div className="flex h-[48px] rounded-xl bg-muted/60 p-1 gap-0.5">
+          <button
+            type="button"
+            onClick={() => onSaleTypeChange("Shop")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-bold transition-all border-none",
+              saleType === "Shop"
+                ? "bg-[#8B5CF6] text-white shadow-md"
+                : "bg-transparent text-muted-foreground hover:bg-muted/50"
+            )}
+          >
+            <Store className="h-4 w-4" /> Shop
+          </button>
+          <button
+            type="button"
+            onClick={() => onSaleTypeChange("Delivery")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-bold transition-all border-none",
+              saleType === "Delivery"
+                ? "bg-[#F97316] text-white shadow-md"
+                : "bg-transparent text-muted-foreground hover:bg-muted/50"
+            )}
+          >
+            <Truck className="h-4 w-4" /> Delivery
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+        {cart.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground opacity-50 px-4 text-center">
+            <ShoppingBag className="mb-3 h-10 w-10" />
+            <p className="text-sm font-medium">Cart is empty</p>
+          </div>
+        ) : (
+          <div className={cn("flex flex-col", checkoutMode && "mx-auto max-w-lg")}>
+            {cart.map((item, idx) => {
+              const price = item.manualPrice ?? item.product.sale_price ?? 0;
+              const isEditing = editingId === item.product.id;
+              return (
+                <div key={item.product.id} className={cn("px-4 py-3", idx < cart.length - 1 && "border-b border-border")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="flex-1 text-[13px] font-bold leading-snug line-clamp-2">{item.product.product_name}</p>
+                    <button
+                      onClick={() => onRemoveItem(item.product.id)}
+                      className="flex h-[44px] w-[44px] items-center justify-center text-muted-foreground hover:text-destructive bg-transparent border-none transition-colors"
+                      title="Remove Item"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            className="h-[44px] w-24 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none"
+                            autoFocus
+                          />
+                          <button onClick={() => handleSavePrice(item.product.id)} className="h-[44px] w-[44px] rounded-lg bg-primary text-primary-foreground flex items-center justify-center border-none shadow-sm">
+                            <Check className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={cn("text-sm font-bold", item.manualPrice !== undefined && "text-[#D4AF37]")}>{price.toLocaleString()} Ks</span>
+                          <button onClick={() => handleEditPrice(item.product.id, price)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary bg-transparent active:scale-95 transition-all">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center bg-transparent active:scale-95 transition-all">
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-10 text-center text-sm font-bold">{item.quantity}</span>
+                      <button onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center bg-transparent active:scale-95 transition-all">
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className={cn("border-t border-border bg-card p-4 flex flex-col min-h-0", checkoutMode && "mx-auto w-full max-w-lg")}>
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 max-h-[calc(100vh-200px)] pr-1">
+          {saleType === "Delivery" && (
+            <div className="rounded-2xl border-2 border-[#3b82f6] bg-[#3b82f6]/10 p-3 space-y-3">
+              <button
+                onClick={() => setIsCustomerInfoCollapsed(!isCustomerInfoCollapsed)}
+                className="flex items-center justify-between w-full text-sm font-black text-foreground transition-colors"
+              >
+                <span>Customer Info</span>
+                {isCustomerInfoCollapsed ? <ChevronRightIcon className="h-5 w-5" /> : <ChevronLeftIcon className="h-5 w-5 -rotate-90" />}
+              </button>
+
+              {!isCustomerInfoCollapsed && (
+                <div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex h-[52px] rounded-xl bg-muted/60 p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onSaleTypeChange("Shop")}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-bold transition-all border-none",
+                        saleTypeValue === "Shop"
+                          ? "bg-[#8B5CF6] text-white shadow-md"
+                          : "bg-transparent text-muted-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      <Store className="h-4 w-4" /> Shop
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSaleTypeChange("Delivery")}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-bold transition-all border-none",
+                        saleTypeValue === "Delivery"
+                          ? "bg-[#F97316] text-white shadow-md"
+                          : "bg-transparent text-muted-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      <Truck className="h-4 w-4" /> Delivery
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">Customer Name</label>
+                    <Input
+                      value={customerName}
+                      onChange={(e) => onCustomerNameChange(e.target.value)}
+                      placeholder="Customer Name"
+                      className="h-12"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">Phone Number</label>
+                    <Input
+                      value={customerPhone}
+                      onChange={(e) => onCustomerPhoneChange(e.target.value)}
+                      placeholder="Phone Number"
+                      className="h-12"
+                    />
+                  {customerMatch?.phone === customerPhone.trim() && (
+                    <div className="text-[10px] text-muted-foreground">
+                      Customer found: {customerMatch.name || 'Unknown'}
+                    </div>
+                  )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">Address</label>
+                    <textarea
+                      value={customerAddress}
+                      onChange={(e) => onCustomerAddressChange(e.target.value)}
+                      placeholder="Address"
+                      rows={4}
+                      className="min-h-[96px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold">Courier</label>
+                      <Input
+                        value={courierName}
+                        onChange={(e) => onCourierNameChange(e.target.value)}
+                        placeholder="Courier"
+                        className="h-12"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold">Delivery Fee</label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={deliFee}
+                        onChange={(e) => onDeliFeeChange(e.target.value)}
+                        placeholder="Fee"
+                        className="h-12"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => {
+                  onPaymentMethodChange('cash');
+                  setPaymentTier('cash');
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 rounded-xl h-[56px] transition-all border-none",
+                  paymentMethod === 'cash' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-muted/50 text-muted-foreground hover:bg-muted bg-transparent"
+                )}
+              >
+                <Banknote className="h-5 w-5" />
+                <span className="text-[10px] font-bold">Cash</span>
+              </button>
+              <button
+                onClick={() => {
+                  onPaymentMethodChange('pay');
+                  setPaymentTier('pay');
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 rounded-xl h-[56px] transition-all border-none",
+                  paymentTier === 'pay' ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted bg-transparent"
+                )}
+              >
+                <Smartphone className="h-5 w-5" />
+                <span className="text-[10px] font-bold">Pay</span>
+              </button>
+              <button
+                onClick={() => {
+                  onPaymentMethodChange('bank');
+                  setPaymentTier('banking');
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 rounded-xl h-[56px] transition-all border-none",
+                  paymentTier === 'banking' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "bg-muted/50 text-muted-foreground hover:bg-muted bg-transparent"
+                )}
+              >
+                <CreditCard className="h-5 w-5" />
+                <span className="text-[10px] font-bold">Banking</span>
+              </button>
+            </div>
+
+            {paymentTier === 'pay' && (
+              <div className="grid grid-cols-3 gap-1 px-0.5">
+                {[
+                  { id: 'kpay', label: 'KBZ Pay', color: '#0056B3' },
+                  { id: 'aya_pay', label: 'AYA Pay', color: '#ED1C24' },
+                  { id: 'cb_pay', label: 'CB Pay', color: '#008A45' },
+                  { id: 'uab_pay', label: 'UAB Pay', color: '#6A2A8F' },
+                  { id: 'wave_pay', label: 'Wave Pay', color: '#F47920' },
+                  { id: 'others_pay', label: 'Others', color: '#4B5563' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => onPaymentMethodChange(opt.id)}
+                    style={{
+                      backgroundColor: paymentMethod === opt.id ? opt.color : 'transparent',
+                      color: paymentMethod === opt.id ? 'white' : undefined,
+                      borderColor: opt.color
+                    }}
+                    className={cn(
+                      "rounded-lg h-[44px] text-[9px] font-bold transition-all border",
+                      paymentMethod === opt.id
+                        ? "shadow-md brightness-110"
+                        : "text-muted-foreground hover:bg-muted/10 bg-transparent"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {paymentTier === 'banking' && (
+              <div className="grid grid-cols-3 gap-1 px-0.5">
+                {[
+                  { id: 'kbz_bank', label: 'KBZ', color: '#0056B3' },
+                  { id: 'aya_bank', label: 'AYA', color: '#ED1C24' },
+                  { id: 'cb_bank', label: 'CB', color: '#008A45' },
+                  { id: 'uab_bank', label: 'UAB', color: '#6A2A8F' },
+                  { id: 'others_bank', label: 'Others', color: '#4B5563' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => onPaymentMethodChange(opt.id)}
+                    style={{
+                      backgroundColor: paymentMethod === opt.id ? opt.color : 'transparent',
+                      color: paymentMethod === opt.id ? 'white' : undefined,
+                      borderColor: opt.color
+                    }}
+                    className={cn(
+                      "rounded-lg h-[44px] text-[9px] font-bold transition-all border",
+                      paymentMethod === opt.id
+                        ? "shadow-md brightness-110"
+                        : "text-muted-foreground hover:bg-muted/10 bg-transparent"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1 px-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{totalAmount.toLocaleString()} Ks</span>
+            </div>
+            {saleType === "Delivery" && deliveryFeeNum > 0 && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Deli Fee</span>
+                <span>{deliveryFeeNum.toLocaleString()} Ks</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-dashed pt-2 text-base font-bold">
+              <span>Total</span>
+              <span>{finalTotal.toLocaleString()} Ks</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-card pt-3 border-t border-border">
+          <div className="mb-2 text-[11px] text-muted-foreground text-center">
+            Total: {itemCount} items | MMK {finalTotal.toLocaleString()}
+          </div>
+          {!checkoutMode ? (
+            <button
+              disabled={cart.length === 0}
+              onClick={onToggleCheckout}
+              className="h-12 w-full rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 disabled:opacity-50 border-none"
+            >
+              Checkout - {finalTotal.toLocaleString()} Ks
+            </button>
+          ) : (
+            <button
+              disabled={!canCheckout || isCheckingOut}
+              onClick={onCheckout}
+              className="h-12 w-full rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2 border-none"
+            >
+              {isCheckingOut && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saleType === "Shop" ? "Confirm & Pay" : "Confirm Delivery"}
+            </button>
+          )}
+          {checkoutError && <p className="mt-2 text-[10px] text-destructive text-center">{checkoutError}</p>}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ScannerComponent() {
+  return <div id="reader" className="w-full h-full" />;
+}
+
+
+export default function PosPage() {
+  const { username } = useDashboardAuth();
+  const { products: hookProducts, loading: productsLoading, refresh: refreshProducts } = useProducts();
+  const [productsOverride, setProductsOverride] = React.useState<Product[] | null>(null);
+  const products = productsOverride ?? hookProducts;
+  const { categories: dbCategories, refresh: refreshCategories } = useCategories();
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const scannerRef = React.useRef<any | null>(null);
+  const cameraStateRef = React.useRef<CameraState>('IDLE');
+  const scannerLockIdRef = React.useRef(`pos-${Math.random().toString(36).slice(2)}`);
+  const [cameras, setCameras] = React.useState<{ id: string; label: string }[]>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = React.useState(0);
+
+  const [activeView, setActiveView] = React.useState('pos');
+  const [navCollapsed, setNavCollapsed] = React.useState(false);
+  const [catCollapsed, setCatCollapsed] = React.useState(false);
+  const [cartCollapsed, setCartCollapsed] = React.useState(false);
+  const [checkoutMode, setCheckoutMode] = React.useState(false);
+
+  const [query, setQuery] = React.useState('');
+  const [cart, setCart] = React.useState<CartLine[]>([]);
+  const [checkingOut, setCheckingOut] = React.useState(false);
+  const [isConfirmingCheckout, setIsConfirmingCheckout] = React.useState(false);
+  const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
+  const [checkoutSuccessOpen, setCheckoutSuccessOpen] = React.useState(false);
+  const [checkoutInvoiceId, setCheckoutInvoiceId] = React.useState<string | null>(null);
+  const [lastReceipt, setLastReceipt] = React.useState<ReceiptData | null>(null);
+  const [cartSidebarKey, setCartSidebarKey] = React.useState(0);
+
+  const [scanOpen, setScanOpen] = React.useState(false);
+  const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
+  const [missingBarcode, setMissingBarcode] = React.useState<string | null>(null);
+  const [scanFlash, setScanFlash] = React.useState(false);
+  const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
+  const [cameraLoading, setCameraLoading] = React.useState(false);
+  const [torchOn, setTorchOn] = React.useState(false);
+  const [zoomValue, setZoomValue] = React.useState(1);
+  const [cameraCapabilities, setCameraCapabilities] = React.useState<{
+    torchSupported: boolean;
+    zoomSupported: boolean;
+    zoomMin: number;
+    zoomMax: number;
+  } | null>(null);
+  const videoTrackRef = React.useRef<MediaStreamTrack | null>(null);
+  const isProcessingScan = React.useRef(false);
+  const scanUnlockTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cleanupCamera = React.useCallback(() => {
+    const container = typeof document === 'undefined' ? null : document.getElementById('reader');
+    const video = (container?.querySelector('video') as HTMLVideoElement | null) ?? null;
+    const stream = (video?.srcObject as MediaStream | null) ?? null;
+    
+    if (stream) {
+      const tracks = stream.getTracks();
+      tracks.forEach(track => {
+        try {
+          track.stop();
+          stream.removeTrack(track);
+        } catch { }
+      });
+    }
+    
+    if (video) {
+      try {
+        video.srcObject = null;
+        video.load(); // Force reset
+      } catch { }
+    }
+    
+    videoTrackRef.current = null;
+    isProcessingScan.current = false;
+  }, []);
+
+  const releaseScanner = React.useCallback(async () => {
+    const scanner = scannerRef.current;
+    if (scanner) {
+      try {
+        if (scanner.isScanning) {
+          await scanner.stop();
+        }
+      } catch { }
+      try {
+        scanner.clear();
+      } catch { }
+    }
+    scannerRef.current = null;
+    cameraStateRef.current = 'IDLE';
+    cleanupCamera();
+    if (typeof window !== 'undefined') {
+      const state = (window as any).__tmygScannerLockState as { id?: string; release?: () => Promise<void> | void } | undefined;
+      if (state?.id === scannerLockIdRef.current) {
+        (window as any).__tmygScannerLockState = null;
+      }
+    }
+  }, [cleanupCamera]);
+
+  const handleCloseScanner = React.useCallback(async () => {
+    await releaseScanner();
+    setScanOpen(false);
+    setManualBarcodeInput('');
+    setCameraLoading(false);
+  }, [releaseScanner]);
+
+  const handleResetScanner = React.useCallback(async () => {
+    await releaseScanner();
+    setCameraLoading(true);
+    setScanStatus('scanning');
+    setScanOpen(false);
+    setTimeout(() => {
+      setScanOpen(true);
+    }, 300);
+  }, [releaseScanner]);
+
+  const acquireGlobalScannerLock = React.useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const state = (window as any).__tmygScannerLockState as { id?: string; release?: () => Promise<void> | void } | undefined;
+    if (state?.id && state.id !== scannerLockIdRef.current) {
+      await state.release?.();
+      (window as any).__tmygScannerLockState = null;
+    }
+    (window as any).__tmygScannerLockState = {
+      id: scannerLockIdRef.current,
+      release: async () => {
+        await releaseScanner();
+      },
+    };
+  }, [releaseScanner]);
+
+  React.useEffect(() => {
+    return () => {
+      releaseScanner();
+    };
+  }, [releaseScanner]);
+
+  const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  const [quickBarcode, setQuickBarcode] = React.useState('');
+  const [quickName, setQuickName] = React.useState('');
+  const [quickDefaultCode, setQuickDefaultCode] = React.useState('');
+  const [quickSize, setQuickSize] = React.useState('');
+  const [quickCategory, setQuickCategory] = React.useState('');
+  const [quickVariant, setQuickVariant] = React.useState('');
+  const [quickDescription, setQuickDescription] = React.useState('');
+  const [quickDescriptionMm, setQuickDescriptionMm] = React.useState('');
+  const [quickSalePrice, setQuickSalePrice] = React.useState('');
+  const [quickStock, setQuickStock] = React.useState('');
+  const [quickImageUrl, setQuickImageUrl] = React.useState('');
+  const [quickImageFile, setQuickImageFile] = React.useState<File | null>(null);
+  const [quickImagePreviewUrl, setQuickImagePreviewUrl] = React.useState<string | null>(null);
+  const [quickRemark, setQuickRemark] = React.useState('');
+  const [quickPurchasePrice, setQuickPurchasePrice] = React.useState('');
+  const [quickError, setQuickError] = React.useState<string | null>(null);
+
+  const [toasts, setToasts] = React.useState<Toast[]>([]);
+  const [selectedMainCategory, setSelectedMainCategory] = React.useState<string | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = React.useState<string | null>(null);
+
+  // Delivery & Customer State
+  const [customerName, setCustomerName] = React.useState('');
+  const [customerPhone, setCustomerPhone] = React.useState('');
+  const [customerAddress, setCustomerAddress] = React.useState('');
+  const [saleType, setSaleType] = React.useState<'Shop' | 'Delivery'>('Shop');
+  const [courierName, setCourierName] = React.useState('');
+  const [deliFee, setDeliFee] = React.useState('');
+  const [isBagoSpecial, setIsBagoSpecial] = React.useState(false);
+  const [remark, setRemark] = React.useState('');
+  const [paymentMethod, setPaymentMethod] = React.useState('cash');
+  const [customerMatch, setCustomerMatch] = React.useState<{ name: string | null; address: string | null; phone: string } | null>(null);
+  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
+  
+  // Last Toast Time Ref
+  const lastToastRef = React.useRef<{ msg: string; time: number } | null>(null);
+
+  const mainCategoriesList = React.useMemo(() => {
+    const fromDb = (dbCategories ?? []).length > 0
+      ? (dbCategories.some(c => c.parent_id)
+          ? dbCategories.filter(c => !c.parent_id)
+          : dbCategories
+        ).map((c, idx) => ({
+          id: String(c.id ?? idx),
+          name: c.name || '',
+          icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5]
+        }))
+      : [];
+    if (fromDb.length > 0) return fromDb;
+    // Fallback: derive from product.category so the category bar shows more than "All Products"
+    const fromProducts = new Set<string>();
+    (products ?? []).forEach((p) => {
+      if (p?.category) {
+        const main = p.category.split(' / ').map((s: string) => s.trim())[0];
+        if (main) fromProducts.add(main);
+      }
+    });
+    return Array.from(fromProducts).sort().map((name, idx) => ({
+      id: `prod-${idx}`,
+      name,
+      icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5]
+    }));
+  }, [dbCategories, products]);
+
+  const [editingProductId, setEditingProductId] = React.useState<number | null>(null);
+  const [tempPrice, setTempPrice] = React.useState('');
+
+  const addToast = React.useCallback((type: Toast['type'], message: string) => {
+    const now = Date.now();
+    if (lastToastRef.current && lastToastRef.current.msg === message && now - lastToastRef.current.time < 2000) {
+      return; // Prevent duplicate toasts
+    }
+    lastToastRef.current = { msg: message, time: now };
+    
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  React.useEffect(() => {
+    setProductsOverride(null);
+  }, [hookProducts]);
+
+  React.useEffect(() => {
+    searchRef.current?.focus();
+    if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost') {
+      addToast('error', 'Camera requires HTTPS. Please use an SSL tunnel or local dev tools.');
+    }
+  }, [addToast]);
+  React.useEffect(() => {
+    if (saleType !== 'Delivery') {
+      setCustomerMatch(null);
+      return;
+    }
+    const phone = customerPhone.trim();
+    if (phone.length < 4) {
+      setCustomerMatch(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabaseClient
+        .from('customers')
+        .select('phone, name, address')
+        .eq('phone', phone)
+        .maybeSingle();
+      if (error) {
+        console.error('Customer lookup error:', error);
+        return;
+      }
+      if (data?.phone) {
+        setCustomerMatch({ phone: data.phone, name: data.name ?? null, address: data.address ?? null });
+        if (data.name) setCustomerName(data.name);
+        if (data.address) setCustomerAddress(data.address);
+      } else {
+        setCustomerMatch(null);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [customerPhone, saleType]);
+  React.useEffect(() => {
+    if (!scanOpen) {
+      releaseScanner();
+      return;
+    }
+    return () => {
+      releaseScanner();
+    };
+  }, [scanOpen, releaseScanner]);
+  React.useEffect(() => {
+    return () => {
+      if (scanUnlockTimeoutRef.current) {
+        clearTimeout(scanUnlockTimeoutRef.current);
+      }
+      releaseScanner();
+    };
+  }, [releaseScanner]);
+
+  const normalizeString = (str: string) =>
+    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const matches = React.useMemo(() => {
+    const q = normalizeString(query.trim());
+    const items = products || [];
+    return items.filter((p) => {
+      const name = normalizeString(p?.product_name ?? '');
+      const barcode = normalizeBarcode(p?.barcode).toLowerCase();
+      const sku = (p?.default_code ?? '').toLowerCase();
+      const categoryStr = (p?.category ?? '');
+      const parts = categoryStr.split(' / ').map(s => s.trim());
+      const main = parts[0];
+      const sub = parts.length > 1 ? parts.slice(1).join(' / ') : '';
+
+      const matchesQuery = name.includes(q) || barcode.includes(q) || sku.includes(q);
+
+      let matchesCategory = true;
+      if (selectedMainCategory) {
+        if (main !== selectedMainCategory && categoryStr !== selectedMainCategory) {
+          matchesCategory = false;
+        } else if (selectedSubCategory && sub !== selectedSubCategory) {
+          matchesCategory = false;
+        }
+      }
+
+      return matchesQuery && matchesCategory;
+    });
+  }, [products, query, selectedMainCategory, selectedSubCategory]);
+
+  const { mainCategories, subCategoriesMap, allCategories } = React.useMemo(() => {
+    const mainCats = new Set<string>();
+    const subCatsMap = new Map<string, Set<string>>();
+    const allCats = new Set<string>();
+
+    products.forEach((p) => {
+      if (p.category) {
+        allCats.add(p.category);
+        const parts = p.category.split(' / ').map(s => s.trim());
+        const main = parts[0];
+        const sub = parts.length > 1 ? parts.slice(1).join(' / ') : '';
+
+        mainCats.add(main);
+        if (!subCatsMap.has(main)) {
+          subCatsMap.set(main, new Set<string>());
+        }
+        if (sub) {
+          subCatsMap.get(main)!.add(sub);
+        }
+      }
+    });
+
+    const mainArray = Array.from(mainCats).sort();
+    const map = new Map<string, string[]>();
+    for (const main of mainArray) {
+      map.set(main, Array.from(subCatsMap.get(main) || []).sort());
+    }
+
+    return { mainCategories: mainArray, subCategoriesMap: map, allCategories: Array.from(allCats).sort() };
+  }, [products]);
+
+  const categories = allCategories; // For Quick Add backward compatibility
+
+  const totalAmount = React.useMemo(
+    () =>
+      cart.reduce(
+        (sum, line) => sum + (line.manualPrice ?? line.product.sale_price ?? 0) * line.quantity,
+        0
+      ),
+    [cart]
+  );
+
+  const cartQtyByProductId = React.useMemo(() => {
+    const m = new Map<number, number>();
+    for (const line of cart) {
+      m.set(line.product.id, (m.get(line.product.id) ?? 0) + line.quantity);
+    }
+    return m;
+  }, [cart]);
+
+  function addToCart(product: Product, qty: number = 1) {
+    const stock = product.stock_quantity ?? 0;
+    const inCart = cartQtyByProductId.get(product.id) ?? 0;
+    const maxAdd = Math.max(0, stock - inCart);
+    if (maxAdd === 0) {
+      addToast('error', 'Out of stock for this product.');
+      return;
+    }
+    const add = Math.min(qty, maxAdd);
+    setCart((prev) => {
+      const i = prev.findIndex((l) => l.product.id === product.id);
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], quantity: next[i].quantity + add };
+        return next;
+      }
+      return [...prev, { product, quantity: add }];
+    });
+    setQuery('');
+    searchRef.current?.focus();
+  }
+
+  function setCartQuantity(productId: number, quantity: number) {
+    if (quantity <= 0) {
+      setCart((prev) => prev.filter((l) => l.product.id !== productId));
+      return;
+    }
+    const product = products.find((p) => p.id === productId);
+    const stock = product?.stock_quantity ?? 0;
+    const clamped = Math.min(quantity, stock);
+    setCart((prev) => {
+      const i = prev.findIndex((l) => l.product.id === productId);
+      if (i < 0) return prev;
+      const next = [...prev];
+      next[i] = { ...next[i], quantity: clamped };
+      return next;
+    });
+  }
+
+  function setCartPrice(productId: number, price: number) {
+    setCart((prev) => {
+      const i = prev.findIndex((l) => l.product.id === productId);
+      if (i < 0) return prev;
+      const next = [...prev];
+      next[i] = { ...next[i], manualPrice: price };
+      return next;
+    });
+  }
+
+  function removeFromCart(productId: number) {
+    setCart((prev) => prev.filter((l) => l.product.id !== productId));
+  }
+
+  const canCheckout = React.useMemo(() => {
+    if (cart.length === 0) return false;
+    
+    // Stock check
+    const stockOk = cart.every((line) => {
+      const stock = line.product.stock_quantity ?? 0;
+      return line.quantity <= stock;
+    });
+    if (!stockOk) return false;
+
+    // Mode specific checks
+    if (saleType === 'Delivery') {
+      // Make customer fields optional for delivery if needed, but at least allow checkout if user confirms
+      // Assuming 'Confirm Delivery' implies user has filled what's necessary.
+      // If we want to make them optional:
+      return true; 
+    }
+    
+    // For Shop mode, we allow checkout without customer details
+    return true;
+  }, [cart, saleType, customerName, customerPhone, customerAddress]);
+
+  async function handleCheckout() {
+    if (!canCheckout || checkingOut) return;
+    setCheckoutError(null);
+    setCheckoutSuccessOpen(false);
+    setCheckingOut(true);
+    try {
+      const {
+        data: { session },
+      } = await supabaseClient.auth.getSession();
+      if (!session) {
+        setCheckoutError('Not logged in.');
+        setCheckingOut(false);
+        return;
+      }
+      const now = new Date();
+      const deliveryFee = saleType === 'Delivery' ? Number(deliFee) || 0 : 0;
+      const receiptItems: ReceiptItem[] = cart.map((line) => {
+        const price = line.manualPrice ?? line.product.sale_price ?? 0;
+        return {
+          name: line.product.product_name ?? 'Item',
+          qty: line.quantity,
+          price,
+          amount: price * line.quantity,
+        };
+      });
+      const receiptTotal = totalAmount + deliveryFee;
+      const receiptSnapshot: ReceiptData = {
+        invoiceId: '',
+        date: now.toLocaleDateString('en-US'),
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        staffName: formatStaffName(username),
+        saleType,
+        customerName,
+        customerPhone,
+        customerAddress,
+        customer: {
+          name: customerName,
+          phone: customerPhone,
+          address: customerAddress,
+        },
+        items: receiptItems,
+        total: receiptTotal,
+        discount: 0,
+        netAmount: receiptTotal,
+      };
+      const items = cart.map((line) => ({
+        product_id: Number(line.product.id),
+        quantity: line.quantity,
+        sale_price: line.manualPrice ?? line.product.sale_price ?? 0,
+      }));
+      const res = await fetch('/api/pos/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          items,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: customerAddress,
+          sale_type: saleType === 'Delivery' ? 'Delivery' : 'Shop',
+          payment_method: paymentMethod,
+          remark: remark,
+          receipt_payload: receiptSnapshot,
+          delivery_info: saleType === 'Delivery' ? {
+            courier_name: courierName,
+            deli_fee: Number(deliFee),
+            is_bago_special: isBagoSpecial
+          } : null
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = data?.error ?? res.statusText ?? 'Checkout failed';
+        const finalMessage = `Error: ${message}`;
+        setCheckoutError(finalMessage);
+        addToast('error', finalMessage);
+        setCheckingOut(false);
+        return;
+      }
+      setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+      setSaleType('Shop');
+      setCourierName('');
+      setDeliFee('');
+      setIsBagoSpecial(false);
+      setRemark('');
+      setPaymentMethod('cash');
+      setIsConfirmingCheckout(false);
+      const invoiceIdValue = data?.invoiceId ?? '';
+      setCheckoutInvoiceId(invoiceIdValue || null);
+      const finalReceipt = { ...receiptSnapshot, invoiceId: invoiceIdValue };
+      setLastReceipt(finalReceipt);
+      setCheckoutSuccessOpen(true);
+      if (Array.isArray(data?.products)) {
+        setProductsOverride(data.products as Product[]);
+      } else {
+        await refreshProducts();
+      }
+      searchRef.current?.focus();
+      addToast('success', 'Sale Successful - Stock Updated');
+    } catch (e) {
+      console.error('FULL API ERROR:', e);
+      const msg = e instanceof Error ? e.message : 'Checkout failed';
+      const finalMessage = `Error: ${msg}`;
+      setCheckoutError(finalMessage);
+      addToast('error', finalMessage);
+      setCheckingOut(false);
+    } finally {
+      setCheckingOut(false);
+    }
+  }
+
+  const handlePrintReceipt = () => {
+    if (!lastReceipt) return;
+    window.print();
+  };
+
+  const handleCloseSuccessModal = () => {
+    setCheckoutSuccessOpen(false);
+    setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setSaleType('Shop');
+    setCourierName('');
+    setDeliFee('');
+    setIsBagoSpecial(false);
+    setRemark('');
+    setPaymentMethod('cash');
+    setCustomerMatch(null);
+    setCheckoutInvoiceId(null);
+    setLastReceipt(null);
+    setCheckoutError(null);
+    setCheckoutMode(false);
+    setQuery('');
+    setMissingBarcode(null);
+    setProductsOverride(null);
+    setCartSidebarKey((value) => value + 1);
+  };
+
+  const isLocked = React.useRef(false);
+
+  const openQuickAddForBarcode = (code: string) => {
+    setQuickBarcode(code);
+    setQuickName('');
+    setQuickDefaultCode('');
+    setQuickSize('');
+    setQuickCategory('');
+    setQuickVariant('');
+    setQuickDescription('');
+    setQuickDescriptionMm('');
+    setQuickSalePrice('');
+    setQuickStock('');
+    setQuickImageUrl('');
+    setQuickImageFile(null);
+    setQuickImagePreviewUrl(null);
+    setQuickRemark('');
+    setQuickPurchasePrice('');
+    setQuickError(null);
+    setMissingBarcode(null);
+    setQuickAddOpen(true);
+  };
+
+  function handleScannedBarcode(raw: string) {
+    if (isLocked.current) return false;
+    if (typeof window !== 'undefined' && (window as any).isProcessingScan) return false;
+    
+    isLocked.current = true;
+    if (typeof window !== 'undefined') {
+      (window as any).isProcessingScan = true;
+    }
+
+    const code = normalizeBarcode(raw);
+    if (!code) {
+      if (scanUnlockTimeoutRef.current) {
+        clearTimeout(scanUnlockTimeoutRef.current);
+      }
+      scanUnlockTimeoutRef.current = setTimeout(() => {
+        isLocked.current = false;
+      }, 3000);
+      return false;
+    }
+
+    const existing = products.find(
+      (p) => normalizeBarcode(p.barcode).toLowerCase() === code.toLowerCase()
+    );
+    
+    if (existing) {
+      setMissingBarcode(null);
+      setScanStatus('found');
+      addToCart(existing, 1);
+      addToast('success', 'Product added from scanner.');
+      if (scanUnlockTimeoutRef.current) {
+        clearTimeout(scanUnlockTimeoutRef.current);
+      }
+      scanUnlockTimeoutRef.current = setTimeout(() => {
+        isLocked.current = false;
+        isProcessingScan.current = false;
+        if (typeof window !== 'undefined') {
+          (window as any).isProcessingScan = false;
+        }
+      }, 800);
+      return true;
+    }
+
+    setMissingBarcode(code);
+    setScanStatus('missing');
+    addToast('error', 'Product not found.');
+    if (scanUnlockTimeoutRef.current) {
+      clearTimeout(scanUnlockTimeoutRef.current);
+    }
+    scanUnlockTimeoutRef.current = setTimeout(() => {
+      isLocked.current = false;
+      isProcessingScan.current = false;
+      if (typeof window !== 'undefined') {
+        (window as any).isProcessingScan = false;
+      }
+    }, 800);
+    return false;
+  }
+
+  const isScannerModalOpen = scanOpen && !quickAddOpen && !selectedProduct && !isConfirmingCheckout;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    let startTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    /** Log every state transition so it's visible in DevTools. */
+    const transition = (from: CameraState, to: CameraState) => {
+      console.log(`[POS] Camera state: ${from} → ${to}`);
+      cameraStateRef.current = to;
+      if (to === 'STARTING') {
+        setCameraLoading(true);
+      }
+      if (to === 'RUNNING' || to === 'IDLE') {
+        setCameraLoading(false);
+      }
+    };
+
+    /**
+     * Safely stop + clear the current scanner instance and move to IDLE.
+     * Returns a Promise that resolves once the scanner is fully torn down.
+     */
+    const stopScanner = async (from: CameraState) => {
+      transition(from, 'STOPPING');
+      videoTrackRef.current = null;
+      setCameraCapabilities(null);
+      setTorchOn(false);
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (scanner) {
+        try {
+          if (scanner.isScanning) {
+            await scanner.stop().catch((e: Error) => console.warn('[POS] Scanner stop ignored:', e));
+          }
+        } catch (e) {
+          console.warn('[POS] Scanner stop error:', e);
+        }
+        try {
+          const videoElement = document.querySelector('#reader video') as HTMLVideoElement;
+          if (videoElement && videoElement.srcObject) {
+            const stream = videoElement.srcObject as MediaStream;
+            stream.getTracks().forEach(t => t.stop());
+            videoElement.srcObject = null;
+          }
+          scanner.clear();
+        } catch (e) { }
+      }
+      transition('STOPPING', 'IDLE');
+    };
+
+    const isScannerActive = () => {
+      const scanner = scannerRef.current;
+      if (!scanner) return false;
+      try {
+        if (scanner.isScanning) return true;
+        if (typeof scanner.getState === 'function') {
+          const state = scanner.getState();
+          return state > 1 && state !== 3;
+        }
+      } catch { }
+      return false;
+    };
+
+    const cleanup = () => {
+      try {
+        cancelled = true;
+        cleanupCamera();
+        if (startTimeoutId) {
+          clearTimeout(startTimeoutId);
+          startTimeoutId = null;
+        }
+        const cur = cameraStateRef.current;
+        if (cur === 'STARTING' || cur === 'RUNNING') {
+          if (isScannerActive()) {
+            try {
+              stopScanner(cur).catch(() => { });
+            } catch { }
+          }
+        }
+      } catch { }
+    };
+
+    // ── Modal closed ────────────────────────────────────────────────────────
+    if (!isScannerModalOpen) {
+      const cur = cameraStateRef.current;
+      cleanupCamera();
+      if (cur === 'STARTING' || cur === 'RUNNING') {
+        if (isScannerActive()) {
+          try {
+            stopScanner(cur).catch(() => { });
+          } catch { }
+        }
+      }
+      return cleanup;
+    }
+
+    // ── Modal open – only start if we're truly IDLE ──────────────────────
+    if (cameraStateRef.current !== 'IDLE') {
+      console.log(
+        `[POS] Camera start requested but state is ${cameraStateRef.current} – skipping.`
+      );
+      return cleanup;
+    }
+
+    // ── Global Keyboard Listener ──────────────────────────────────────────
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (quickAddOpen) setQuickAddOpen(false);
+        else if (scanOpen) {
+          setScanOpen(false);
+          releaseScanner();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    (async () => {
+      try {
+        console.log('[POS] Initializing html5-qrcode scanner...');
+        const html5 = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = html5 as any;
+        if (!Html5Qrcode || !Html5QrcodeSupportedFormats) {
+          console.error(
+            '[POS] Html5Qrcode / Html5QrcodeSupportedFormats not found in html5-qrcode import:',
+            html5
+          );
+          addToast('error', 'html5-qrcode library not available.');
+          if (typeof window !== 'undefined') {
+            alert('Camera scanner failed to load (Html5Qrcode missing). Check console for details.');
+          }
+          return;
+        }
+
+        if (
+          typeof navigator === 'undefined' ||
+          !navigator.mediaDevices ||
+          typeof navigator.mediaDevices.getUserMedia !== 'function'
+        ) {
+          const msg = 'Camera API (mediaDevices.getUserMedia) is not available in this browser.';
+          console.error('[POS] ' + msg);
+          addToast('error', msg);
+          if (typeof window !== 'undefined') {
+            alert(msg);
+          }
+          return;
+        }
+
+        // This call triggers camera permission in Firefox/Chrome.
+        const devices = await (Html5Qrcode.getCameras() as Promise<
+          { id: string; label: string }[]
+        >);
+        console.log('[POS] Available cameras:', devices);
+        if (!devices || devices.length === 0) {
+          const msg = 'No camera devices found. Check Firefox site permissions.';
+          console.error('[POS] ' + msg);
+          addToast('error', msg);
+          if (typeof window !== 'undefined') {
+            alert(msg);
+          }
+          return;
+        }
+
+        setCameras(devices);
+
+        // Prefer a back/environment camera if available.
+        let index = currentCameraIndex;
+        if (!Number.isInteger(index) || index < 0 || index >= devices.length) {
+          const backIndex = devices.findIndex((d) =>
+            /back|rear|environment/i.test(d.label || '')
+          );
+          index = backIndex >= 0 ? backIndex : 0;
+          setCurrentCameraIndex(index);
+        }
+
+        // Tear down any stale instance before starting fresh.
+        if (scannerRef.current) {
+          await stopScanner(cameraStateRef.current);
+          if (cancelled) return;
+        }
+
+        const startCamera = async () => {
+          if (cancelled) return;
+          // Stricter guard: return instantly if we are already transitioning.
+          const currentState = cameraStateRef.current as CameraState;
+          if (currentState === 'STARTING' || currentState === 'STOPPING' || currentState === 'RUNNING') {
+            console.log(`[POS] startCamera: already in ${currentState} state - ignoring start request.`);
+            return;
+          }
+
+          transition('IDLE', 'STARTING');
+          await acquireGlobalScannerLock();
+
+          // Ensure no stale instance.
+          if (scannerRef.current) {
+            try {
+              const state = scannerRef.current.getState();
+              if (state > 1 && state !== 3) {
+                await scannerRef.current.stop().catch(() => { });
+              }
+            } catch (e) { }
+            try {
+              scannerRef.current.clear();
+            } catch (e) { }
+            scannerRef.current = null;
+          }
+
+          const qr = new Html5Qrcode('reader');
+          scannerRef.current = qr;
+
+          const preferred = devices[index];
+          const isBackLike = preferred
+            ? /back|rear|environment/i.test(preferred.label || '')
+            : false;
+
+          // Advanced video constraints to help iOS/Safari decode EAN/UPC barcodes.
+          const videoConstraints: MediaTrackConstraints = {
+            facingMode: 'environment',
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 },
+            advanced: [{ zoom: 1 }],
+            ...(preferred && preferred.id
+              ? { deviceId: { exact: preferred.id } }
+              : {}),
+          } as any;
+
+          const fallbackStartConfig = isBackLike
+            ? { facingMode: 'environment' as const }
+            : { facingMode: 'environment' as const };
+
+          const scanConfig = {
+            fps: 20,
+            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+              const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.6);
+              return { width: size, height: size };
+            },
+            aspectRatio: 1.0,
+            disableFlip: false,
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.CODE_128,
+            ],
+            useBarCodeDetectorIfSupported: true,
+          };
+
+          const successCallback = async (decodedText: string) => {
+            if (isLocked.current) return;
+            if (isProcessingScan.current) return;
+            if (typeof window !== 'undefined' && (window as any).isProcessingScan) return;
+            isProcessingScan.current = true;
+            if (typeof window !== 'undefined') {
+              (window as any).isProcessingScan = true;
+              setTimeout(() => {
+                (window as any).isProcessingScan = false;
+              }, 1000);
+            }
+            
+            console.log('[POS] Barcode decoded:', decodedText);
+            setScanFlash(true);
+            setTimeout(() => setScanFlash(false), 150);
+            try {
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.value = 880;
+              gain.gain.value = 0.05;
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start();
+              setTimeout(() => {
+                osc.stop();
+                ctx.close();
+              }, 120);
+            } catch { }
+            const matched = handleScannedBarcode(decodedText);
+            if (!matched) {
+              return;
+            }
+
+            setScanOpen(false);
+
+            if (cameraStateRef.current === 'RUNNING') {
+              transition('RUNNING', 'STOPPING');
+            }
+
+            try {
+              const state = qr.getState();
+              if (state > 1 && state !== 3) {
+                await qr.stop().catch(() => { });
+              }
+            } catch (e) { }
+            
+            cleanupCamera();
+            cameraStateRef.current = 'IDLE';
+            scannerRef.current = null;
+          };
+
+          const errorCallback = (errorMessage: string) => {
+            console.debug('[POS] Scanner decode error:', errorMessage);
+          };
+
+          console.log(
+            '[POS] Starting camera with constraints:',
+            videoConstraints,
+            'preferred device:',
+            preferred
+          );
+
+          const setupTorchZoom = () => {
+            setTimeout(() => {
+              if (cancelled) return;
+              const video = document.querySelector('#reader video');
+              if (video && (video as HTMLVideoElement).srcObject) {
+                const stream = (video as HTMLVideoElement).srcObject as MediaStream;
+                const track = stream.getVideoTracks()[0];
+                if (track) {
+                  videoTrackRef.current = track;
+                  const caps = track.getCapabilities() as unknown as {
+                    torch?: boolean;
+                    zoom?: { min?: number; max?: number; step?: number };
+                  };
+                  const zoom = caps?.zoom;
+                  const zoomMin = zoom?.min ?? 1;
+                  const zoomMax = zoom?.max ?? 1;
+                  setCameraCapabilities({
+                    torchSupported: caps?.torch === true,
+                    zoomSupported: zoomMax > 1,
+                    zoomMin,
+                    zoomMax,
+                  });
+                  setZoomValue(zoomMin);
+                }
+              }
+            }, 300);
+          };
+
+          try {
+            await qr.start(videoConstraints as any, scanConfig, successCallback, errorCallback);
+
+            // Verify state hasn't changed while we were awaiting start().
+            if ((cameraStateRef.current as CameraState) !== 'STARTING') {
+              console.log(
+                `[POS] State changed to ${cameraStateRef.current} during start – tearing down.`
+              );
+              try {
+                const state = qr.getState();
+                if (state > 1 && state !== 3) {
+                  await qr.stop().catch(() => { });
+                }
+              } catch (e) { }
+              try {
+                qr.clear();
+              } catch (e) { }
+              transition(cameraStateRef.current, 'IDLE');
+              return;
+            }
+            transition('STARTING', 'RUNNING');
+            setupTorchZoom();
+          } catch (startErr) {
+            console.warn(
+              '[POS] Advanced constraints failed, falling back after delay:',
+              startErr
+            );
+            // 1. Thoroughly teardown the failed instance.
+            try {
+              const state = qr.getState();
+              if (state > 1 && state !== 3) {
+                await qr.stop().catch(() => { });
+              }
+            } catch (e) { }
+            try {
+              qr.clear();
+            } catch (e) { }
+            if (scannerRef.current === qr) {
+              scannerRef.current = null;
+            }
+
+            // 2. Wait for browser to release resources.
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            if (cancelled || (cameraStateRef.current as CameraState) !== 'STARTING') return;
+
+            // 3. Create a FRESH instance for the fallback attempt.
+            // This is the CRITICAL fix for "already under transition".
+            const fallbackQr = new Html5Qrcode('reader');
+            scannerRef.current = fallbackQr;
+
+            try {
+              await fallbackQr.start(fallbackStartConfig, scanConfig, successCallback, errorCallback);
+              if ((cameraStateRef.current as CameraState) !== 'STARTING') {
+                try {
+                  const state = fallbackQr.getState();
+                  if (state > 1 && state !== 3) {
+                    await fallbackQr.stop().catch(() => { });
+                  }
+                } catch (e) { }
+                try {
+                  fallbackQr.clear();
+                } catch (e) { }
+                transition(cameraStateRef.current, 'IDLE');
+                return;
+              }
+              transition('STARTING', 'RUNNING');
+              setupTorchZoom();
+            } catch (fallbackErr) {
+              console.error('[POS] Fallback camera start failed:', fallbackErr);
+              cameraStateRef.current = 'IDLE';
+              const msg =
+                fallbackErr instanceof Error
+                  ? fallbackErr.message
+                  : 'Unable to start camera scanner.';
+              addToast('error', msg);
+              if (typeof window !== 'undefined') {
+                alert('Camera failed to start: ' + msg);
+              }
+            }
+          }
+        };
+
+        // Delay slightly so the DOM node is fully rendered.
+        startTimeoutId = setTimeout(() => {
+          if (cancelled) return;
+          startCamera().catch((err) => {
+            console.error('[POS] startCamera error:', err);
+            cameraStateRef.current = 'IDLE';
+          });
+        }, 500);
+      } catch (e) {
+        console.error('[POS] Scanner init failed', e);
+        cameraStateRef.current = 'IDLE';
+        const msg =
+          e instanceof Error ? e.message : 'Unable to start camera scanner.';
+        addToast('error', msg);
+        if (typeof window !== 'undefined') {
+          alert('Camera failed to start: ' + msg);
+        }
+      }
+    })();
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      cleanup();
+    };
+  }, [isScannerModalOpen, quickAddOpen, currentCameraIndex, addToast, cleanupCamera, acquireGlobalScannerLock]);
+
+  React.useEffect(() => {
+    if (scanOpen) {
+      isLocked.current = false;
+      setScanStatus('scanning');
+      if (typeof window !== 'undefined') {
+        (window as any).isProcessingScan = false;
+      }
+    }
+  }, [scanOpen]);
+
+  React.useEffect(() => {
+    if (quickImageFile) {
+      const url = URL.createObjectURL(quickImageFile);
+      setQuickImagePreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+    const trimmed = quickImageUrl.trim();
+    if (trimmed) {
+      setQuickImagePreviewUrl(trimmed);
+      return;
+    }
+    setQuickImagePreviewUrl(null);
+  }, [quickImageFile, quickImageUrl]);
+
+  const uploadQuickAddImage = React.useCallback(
+    async (productId: number, file: File) => {
+      const compressed = await compressImageFile(file, 600);
+      const path = `public/product-${productId}-${Date.now()}.jpg`;
+      const contentType = compressed.type || 'image/jpeg';
+      const { error: uploadError } = await supabaseClient.storage
+        .from('product-images')
+        .upload(path, compressed, { upsert: true, contentType });
+      if (uploadError) {
+        return { error: uploadError.message || 'Image upload failed.' };
+      }
+      const { data: publicData } = supabaseClient.storage
+        .from('product-images')
+        .getPublicUrl(path);
+      if (!publicData?.publicUrl) {
+        return { error: 'Image uploaded but public URL was not returned.' };
+      }
+      const separator = publicData.publicUrl.includes('?') ? '&' : '?';
+      return { url: `${publicData.publicUrl}${separator}t=${Date.now()}` };
+    },
+    []
+  );
+
+  async function handleQuickAddSave() {
+    setQuickError(null);
+    const name = quickName.trim();
+    const salePrice = Number(quickSalePrice);
+    const stockQty = Number(quickStock);
+    if (!name) {
+      setQuickError('Product name is required.');
+      return;
+    }
+    if (!Number.isFinite(salePrice) || salePrice < 0) {
+      setQuickError('Sale price must be a non-negative number.');
+      return;
+    }
+    if (!Number.isFinite(stockQty) || stockQty < 0) {
+      setQuickError('Stock quantity must be a non-negative number.');
+      return;
+    }
+    if (quickPurchasePrice.trim()) {
+      const purchase = Number(quickPurchasePrice);
+      if (!Number.isFinite(purchase) || purchase < 0) {
+        setQuickError('Purchase price must be a non-negative number.');
+        return;
+      }
+    }
+
+    try {
+      // Check if barcode already exists
+      if (quickBarcode) {
+        const { data: existing } = await supabaseClient
+          .from('products')
+          .select('id, stock_quantity, product_name')
+          .eq('barcode', quickBarcode)
+          .maybeSingle();
+
+        if (existing) {
+          const newStock = (existing.stock_quantity ?? 0) + stockQty;
+          const { error: updateError } = await supabaseClient
+            .from('products')
+            .update({ stock_quantity: newStock })
+            .eq('id', existing.id);
+
+          if (updateError) {
+            setQuickError(updateError.message);
+            return;
+          }
+
+          addToast('success', `Updated stock for existing product: ${existing.product_name}`);
+          await refreshProducts();
+          const updatedProduct = products.find(p => p.id === existing.id);
+          if (updatedProduct) {
+            addToCart({ ...updatedProduct, stock_quantity: newStock }, 1);
+          }
+          setQuickAddOpen(false);
+          return;
+        }
+      }
+
+      const payload = {
+        product_name: name || null,
+        barcode: quickBarcode || null,
+        category: quickCategory || null,
+        default_code: quickDefaultCode || null,
+        size: quickSize || null,
+        variant: quickVariant || null,
+        sale_price: salePrice,
+        purchase_price: Number(quickPurchasePrice) || null,
+        stock_quantity: stockQty,
+        description_en: quickDescription || null,
+        description_mm: quickDescriptionMm || null,
+        image_url: quickImageUrl || null,
+        remark: quickRemark || null,
+        reorder: 2,
+      } as Record<string, unknown>;
+
+      let { data, error } = await supabaseClient
+        .from('products')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error && /duplicate key value violates unique constraint/i.test(error.message)) {
+        await supabaseClient.rpc('sync_products_id_seq');
+        ({ data, error } = await supabaseClient
+          .from('products')
+          .insert(payload)
+          .select()
+          .single());
+      }
+
+      if (error || !data) {
+        const msg = error?.message ?? 'Failed to create product.';
+        setQuickError(msg);
+        addToast('error', msg);
+        return;
+      }
+
+      let created = data as Product;
+      if (quickImageFile) {
+        const uploadResult = await uploadQuickAddImage(created.id, quickImageFile);
+        if (uploadResult.error || !uploadResult.url) {
+          setQuickError(uploadResult.error ?? 'Image upload failed.');
+        } else {
+          const { data: updated } = await supabaseClient
+            .from('products')
+            .update({ image_url: uploadResult.url })
+            .eq('id', created.id)
+            .select()
+            .single();
+          if (updated) {
+            created = updated as Product;
+          }
+        }
+      }
+      // Add immediately to cart and close modal
+      addToCart(created, 1);
+      await refreshProducts();
+      setQuickAddOpen(false);
+      setQuickImageFile(null);
+      setQuickImagePreviewUrl(null);
+      addToast('success', `${created.product_name} added to inventory and cart.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create product.';
+      setQuickError(msg);
+      addToast('error', msg);
+    }
+  }
+
+  const selectedImageUrl = selectedProduct ? getValidImageUrl(selectedProduct.image_url) : null;
+
+  return (
+    <div className="flex h-screen max-h-[100vh] w-full overflow-hidden bg-background">
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.1);
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .print-only {
+          display: none;
+        }
+        @media print {
+          body {
+            background: #fff;
+            color: #000;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #print-receipt,
+          #print-receipt * {
+            visibility: visible;
+          }
+          .print-only {
+            display: block !important;
+          }
+          #print-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+            padding: 4mm;
+            font-size: 11px;
+            font-family: "Pyidaungsu", system-ui, sans-serif;
+            line-height: 1.4;
+          }
+          #print-receipt .receipt-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 6px;
+          }
+          #print-receipt .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+          }
+          #print-receipt table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+          #print-receipt th,
+          #print-receipt td {
+            padding: 2px 4px;
+            vertical-align: top;
+          }
+          #print-receipt th {
+            font-size: 10px;
+            text-transform: uppercase;
+          }
+          #print-receipt .receipt-item {
+            word-wrap: break-word;
+            white-space: normal;
+          }
+          #print-receipt .receipt-amount {
+            font-weight: 700;
+          }
+          #print-receipt .divider {
+            border-top: 1px dashed #444;
+            margin: 6px 0;
+          }
+        }
+      `}</style>
+      {lastReceipt && (
+        <div id="print-receipt" className="print-only">
+          <div className="receipt-title">THE MORE YOU GLOW BY INGYIN</div>
+          <div className="receipt-row">
+            <span>Invoice</span>
+            <span>{lastReceipt.invoiceId || '—'}</span>
+          </div>
+          <div className="receipt-row">
+            <span>Date</span>
+            <span>{lastReceipt.date}</span>
+          </div>
+          <div className="receipt-row">
+            <span>Time</span>
+            <span>{lastReceipt.time}</span>
+          </div>
+          <div className="receipt-row">
+            <span>Staff</span>
+            <span>{lastReceipt.staffName || '—'}</span>
+          </div>
+          {lastReceipt.saleType === 'Delivery' && (
+            <>
+              <div className="divider" />
+              <div className="receipt-row">
+                <span>Customer Name</span>
+                <span>{lastReceipt.customerName || '—'}</span>
+              </div>
+              <div className="receipt-row">
+                <span>Phone</span>
+                <span>{lastReceipt.customerPhone || '—'}</span>
+              </div>
+              <div className="receipt-row">
+                <span>Address</span>
+                <span>{lastReceipt.customerAddress || '—'}</span>
+              </div>
+            </>
+          )}
+          <div className="divider" />
+          <table>
+            <thead>
+              <tr>
+                <th align="left" style={{ width: '44mm' }}>Item</th>
+                <th align="right" style={{ width: '8mm' }}>Qty</th>
+                <th align="right" style={{ width: '14mm' }}>Price</th>
+                <th align="right" style={{ width: '14mm' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lastReceipt.items.map((item, index) => (
+                <tr key={`${item.name}-${index}`}>
+                  <td className="receipt-item">{item.name}</td>
+                  <td align="right">{item.qty}</td>
+                  <td align="right">{item.price.toLocaleString()}</td>
+                  <td align="right" className="receipt-amount">{item.amount.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="divider" />
+          <div className="receipt-row">
+            <span>Total</span>
+            <span>{lastReceipt.total.toLocaleString()} Ks</span>
+          </div>
+          <div className="receipt-row">
+            <span>Discount</span>
+            <span>{lastReceipt.discount.toLocaleString()} Ks</span>
+          </div>
+          <div className="receipt-row">
+            <strong>Net</strong>
+            <strong>{lastReceipt.netAmount.toLocaleString()} Ks</strong>
+          </div>
+        </div>
+      )}
+      {/* Main content area */}
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+            {/* Product area */}
+            <MemoProductArea
+              products={matches}
+              query={query}
+              onQueryChange={setQuery}
+              onScanClick={() => setScanOpen(true)}
+              onAddToCart={addToCart}
+              onProductClick={setSelectedProduct}
+              categories={mainCategoriesList}
+              activeCategory={selectedMainCategory}
+              onCategoryChange={setSelectedMainCategory}
+              loading={productsLoading}
+              missingBarcode={missingBarcode}
+              onQuickAdd={() => {
+                if (!missingBarcode) return;
+                openQuickAddForBarcode(missingBarcode);
+                setMissingBarcode(null);
+              }}
+            />
+          </div>
+
+          {/* Cart sidebar */}
+          <CartSidebar
+            key={cartSidebarKey}
+            cart={cart}
+            onUpdateQuantity={setCartQuantity}
+            onUpdatePrice={setCartPrice}
+            onRemoveItem={removeFromCart}
+            totalAmount={totalAmount}
+            customerName={customerName}
+            onCustomerNameChange={setCustomerName}
+            customerPhone={customerPhone}
+            onCustomerPhoneChange={setCustomerPhone}
+            customerAddress={customerAddress}
+            onCustomerAddressChange={setCustomerAddress}
+            customerMatch={customerMatch}
+            saleType={saleType}
+            onSaleTypeChange={setSaleType}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            courierName={courierName}
+            onCourierNameChange={setCourierName}
+            deliFee={deliFee}
+            onDeliFeeChange={setDeliFee}
+            isBagoSpecial={isBagoSpecial}
+            onBagoSpecialChange={setIsBagoSpecial}
+            remark={remark}
+            onRemarkChange={setRemark}
+            onCheckout={() => setIsConfirmingCheckout(true)}
+            isCheckingOut={checkingOut}
+            canCheckout={canCheckout}
+            checkoutError={checkoutError}
+            collapsed={cartCollapsed}
+            onToggleCollapse={() => setCartCollapsed(!cartCollapsed)}
+            onClearCart={() => setCart([])}
+            checkoutMode={checkoutMode}
+            onToggleCheckout={() => setCheckoutMode(!checkoutMode)}
+          />
+        </div>
+      </div>
+
+      {/* Modals & Overlays */}
+      {/* Camera scanner modal */}
+      {isScannerModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={handleCloseScanner}
+        >
+          <div
+            className="w-[95vw] max-h-[90vh] overflow-y-auto max-w-4xl rounded-2xl border border-border bg-card p-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute right-3 top-3 z-[9999] flex h-10 w-10 items-center justify-center rounded-xl bg-background/90 text-foreground shadow-lg"
+              onClick={handleCloseScanner}
+              aria-label="Close scanner"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mb-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Manual barcode entry..."
+                  className="h-[44px] rounded-xl"
+                  value={manualBarcodeInput}
+                  onChange={(e) => setManualBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleScannedBarcode(manualBarcodeInput);
+                      setManualBarcodeInput('');
+                      setScanOpen(false);
+                    }
+                  }}
+                />
+                <Button onClick={() => {
+                  handleScannedBarcode(manualBarcodeInput);
+                  setManualBarcodeInput('');
+                  setScanOpen(false);
+                }} className="h-[44px] rounded-xl px-6 font-bold">Add</Button>
+                <Button
+                  variant="outline"
+                  className="h-[44px] rounded-xl px-6 font-bold"
+                  onClick={() => {
+                    openQuickAddForBarcode(manualBarcodeInput.trim());
+                    setManualBarcodeInput('');
+                    setScanOpen(false);
+                  }}
+                >
+                  Quick Add Product
+                </Button>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Scanner</h2>
+                <p className="text-xs text-muted-foreground">Align barcode with scanner window</p>
+                <div
+                  className={
+                    scanStatus === 'found'
+                      ? 'text-xs font-semibold text-emerald-500'
+                      : scanStatus === 'missing'
+                        ? 'text-xs font-semibold text-red-500'
+                        : 'text-xs text-muted-foreground'
+                  }
+                >
+                  {scanStatus === 'found'
+                    ? 'Found'
+                    : scanStatus === 'missing'
+                      ? 'Not Found'
+                      : cameraLoading
+                        ? 'Initializing Camera...'
+                        : 'Scanning...'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {cameras.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-[44px] rounded-xl text-[10px] px-4 font-bold"
+                    onClick={() => setCurrentCameraIndex((prev) => (prev + 1) % cameras.length)}
+                  >
+                    Switch
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-[44px] rounded-xl text-[10px] px-4 font-bold"
+                  onClick={handleResetScanner}
+                >
+                  Reset Camera
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative h-[28vh] sm:h-[32vh] md:h-[36vh] bg-black rounded-2xl overflow-hidden">
+              {isScannerModalOpen && <ScannerComponent />}
+              {/* Scan Guide Overlay */}
+              <div className="absolute inset-6 pointer-events-none rounded-2xl border-2 border-primary/60" />
+              {scanFlash && (
+                <div className="absolute inset-0 bg-green-400/20 pointer-events-none" />
+              )}
+            </div>
+
+            {(cameraCapabilities?.torchSupported || cameraCapabilities?.zoomSupported) && (
+              <div className="mt-4 flex items-center justify-center gap-6 border-t pt-4">
+                {cameraCapabilities.torchSupported && (
+                  <Button
+                    variant={torchOn ? "default" : "outline"}
+                    className="h-[44px] rounded-xl gap-2 px-6 font-bold"
+                    onClick={() => {
+                      const track = videoTrackRef.current;
+                      if (!track) return;
+                      const next = !torchOn;
+                      track.applyConstraints({ advanced: [{ torch: next }] } as any)
+                        .then(() => setTorchOn(next))
+                        .catch(() => addToast('error', 'Flash not supported'));
+                    }}
+                  >
+                    <Zap className={cn("h-4 w-4", torchOn && "fill-current")} />
+                    <span>Flash</span>
+                  </Button>
+                )}
+                {cameraCapabilities.zoomSupported && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono">{zoomValue.toFixed(1)}x</span>
+                    <input
+                      type="range"
+                      min={cameraCapabilities.zoomMin}
+                      max={cameraCapabilities.zoomMax}
+                      step={0.1}
+                      value={zoomValue}
+                      className="w-32 accent-primary"
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setZoomValue(v);
+                        videoTrackRef.current?.applyConstraints({ advanced: [{ zoom: v }] } as any);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add modal (AI-assisted) */}
+      {
+        quickAddOpen && (
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 px-4"
+            onClick={() => {
+              setQuickAddOpen(false);
+              setQuickError(null);
+              if (scanOpen) setScanOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl scrollbar-hide max-h-[90vh] overflow-y-auto pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-4">
+                <div className="space-y-1">
+                  <h2 className="text-base font-bold">New Product</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Barcode:</span>
+                    <Input
+                      value={quickBarcode}
+                      onChange={(e) => setQuickBarcode(e.target.value)}
+                      className="h-8 w-40 text-[11px] font-mono rounded-lg"
+                      placeholder="Manual Barcode"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-[44px] px-4 rounded-xl"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    setQuickError(null);
+                    setQuickImageFile(null);
+                    setQuickImagePreviewUrl(null);
+                    if (scanOpen) setScanOpen(false);
+                  }}
+                  aria-label="Close"
+                >
+                  Close
+                </Button>
+              </div>
+
+              <div className="grid gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Product Name *
+                  </label>
+                  <Input
+                    value={quickName}
+                    onChange={(e) => setQuickName(e.target.value)}
+                    placeholder="Essential Face Cream"
+                    className="h-[44px] rounded-xl"
+                    autoFocus
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      SKU
+                    </label>
+                    <Input
+                      value={quickDefaultCode}
+                      onChange={(e) => setQuickDefaultCode(e.target.value)}
+                      placeholder="SKU-001"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Size
+                    </label>
+                    <Input
+                      value={quickSize}
+                      onChange={(e) => setQuickSize(e.target.value)}
+                      placeholder="250ml"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Variant
+                    </label>
+                    <Input
+                      value={quickVariant}
+                      onChange={(e) => setQuickVariant(e.target.value)}
+                      placeholder="Lavender"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Category
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={quickCategory}
+                        onChange={(e) => setQuickCategory(e.target.value)}
+                        className="h-[44px] min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
+                      >
+                        <option value="">Select Category</option>
+                        {dbCategories.length > 0
+                          ? dbCategories.map((cat) => {
+                              const parent = dbCategories.find(c => c.id === cat.parent_id);
+                              const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
+                              return (
+                                <option key={cat.id} value={label}>
+                                  {label}
+                                </option>
+                              );
+                            })
+                          : allCategories.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-[44px] w-[44px] shrink-0 rounded-xl"
+                        title="Add Category"
+                        onClick={async () => {
+                          const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
+                          if (newCat && newCat.trim()) {
+                            const parts = newCat.split('/').map(s => s.trim());
+                            const mainName = parts[0];
+                            const subName = parts.length > 1 ? parts[1] : null;
+
+                            try {
+                              let parentId = null;
+                              const { data: mainData, error: mainError } = await supabaseClient
+                                .from('categories')
+                                .select('id')
+                                .eq('name', mainName)
+                                .is('parent_id', null)
+                                .maybeSingle();
+
+                              if (mainError) throw mainError;
+
+                              if (mainData) {
+                                parentId = mainData.id;
+                              } else {
+                                const { data: newMain, error: createError } = await supabaseClient
+                                  .from('categories')
+                                  .insert({ name: mainName })
+                                  .select('id')
+                                  .single();
+                                if (createError) throw createError;
+                                parentId = newMain.id;
+                              }
+
+                              if (subName) {
+                                await supabaseClient
+                                  .from('categories')
+                                  .insert({ name: subName, parent_id: parentId });
+                              }
+
+                              addToast('success', `Category "${newCat}" created.`);
+                              await refreshCategories();
+                              setQuickCategory(newCat);
+                            } catch (e) {
+                              addToast('error', 'Failed to create category.');
+                            }
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Purchase Price (Ks)
+                    </label>
+                    <Input
+                      value={quickPurchasePrice}
+                      onChange={(e) => setQuickPurchasePrice(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Sale Price (Ks) *
+                    </label>
+                    <Input
+                      value={quickSalePrice}
+                      onChange={(e) => setQuickSalePrice(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Stock Quantity *
+                  </label>
+                  <Input
+                    value={quickStock}
+                    onChange={(e) => setQuickStock(e.target.value)}
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Image URL
+                  </label>
+                  <Input
+                    value={quickImageUrl}
+                    onChange={(e) => setQuickImageUrl(e.target.value)}
+                    placeholder="https://example.com/item.jpg"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Image Upload
+                  </label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setQuickImageFile(e.target.files?.[0] ?? null)}
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+
+                {quickImagePreviewUrl && (
+                  <div className="md:col-span-2">
+                    <img
+                      src={quickImagePreviewUrl}
+                      alt="Preview"
+                      className="h-28 w-28 rounded-xl border border-border object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Description (EN)
+                    </label>
+                    <textarea
+                      value={quickDescription}
+                      onChange={(e) => setQuickDescription(e.target.value)}
+                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      placeholder="Product details..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Description (MM)
+                    </label>
+                    <textarea
+                      value={quickDescriptionMm}
+                      onChange={(e) => setQuickDescriptionMm(e.target.value)}
+                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      placeholder="မြန်မာစာ ဖော်ပြချက်..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Remark
+                  </label>
+                  <Input
+                    value={quickRemark}
+                    onChange={(e) => setQuickRemark(e.target.value)}
+                    placeholder="Notes / Batch number"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+
+                {quickError && (
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-[11px] text-destructive">
+                    {quickError}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-[44px] px-6 rounded-xl"
+                  onClick={() => {
+                    setQuickAddOpen(false);
+                    if (scanOpen) setScanOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="h-[44px] px-8 rounded-xl font-bold"
+                  onClick={handleQuickAddSave}
+                >
+                  Save & Add to Cart
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Quick View Modal */}
+      {selectedProduct && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Sticky */}
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border bg-card shrink-0 z-10">
+              <h2 className="text-xl font-bold truncate pr-4">{selectedProduct.product_name}</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl shrink-0"
+                onClick={() => setSelectedProduct(null)}
+              >
+                <X className="h-6 w-6" />
+              </Button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 pt-4 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="relative aspect-square rounded-xl bg-muted overflow-hidden flex items-center justify-center border shrink-0">
+                  {selectedImageUrl ? (
+                    <img
+                      src={selectedImageUrl}
+                      alt={selectedProduct.product_name || ''}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '';
+                      }}
+                    />
+                  ) : (
+                    <Package className="h-16 w-16 opacity-10" />
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Price</span>
+                    <p className="text-2xl font-black text-[#8B5CF6]">{formatPrice(selectedProduct.sale_price ?? 0)}</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Inventory</span>
+                    <p className={cn("text-lg font-bold", (selectedProduct.stock_quantity ?? 0) > 0 ? "text-primary" : "text-destructive")}>
+                      {(selectedProduct.stock_quantity ?? 0)} available
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Details</span>
+                    <p className="text-sm text-muted-foreground">
+                      Variant: {selectedProduct.variant || 'Standard'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Barcode: {selectedProduct.barcode || 'N/A'}
+                    </p>
+                    {selectedProduct.default_code && (
+                      <p className="text-sm text-muted-foreground">
+                        SKU: {selectedProduct.default_code}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {selectedProduct.description_en && (
+                <div className="mt-6 space-y-2">
+                  <span className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Description</span>
+                  <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg leading-relaxed">
+                    {selectedProduct.description_en}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer - Sticky */}
+            <div className="p-6 pt-4 border-t border-border bg-card shrink-0 flex gap-3 z-10">
+              <Button
+                variant="outline"
+                className="flex-1 h-14 rounded-xl font-bold text-base"
+                onClick={() => setSelectedProduct(null)}
+              >
+                Close
+              </Button>
+              <Button
+                className="flex-[2] h-14 rounded-xl font-black text-base shadow-lg shadow-primary/20"
+                disabled={(selectedProduct.stock_quantity ?? 0) <= 0}
+                onClick={() => {
+                  addToCart(selectedProduct);
+                  setSelectedProduct(null);
+                  addToast('success', `${selectedProduct.product_name} added to cart.`);
+                }}
+              >
+                Confirm Add to Cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Confirmation Modal */}
+      {isConfirmingCheckout && (
+        <div
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={() => !checkingOut && setIsConfirmingCheckout(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-2 mb-6">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                <ShoppingBag className="h-6 w-6 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold">Confirm Sale</h2>
+              <p className="text-sm text-muted-foreground">
+                Please review the total amount before proceeding.
+              </p>
+            </div>
+
+            <div className="bg-muted/30 rounded-xl p-4 space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal ({cart.reduce((a, b) => a + b.quantity, 0)} items)</span>
+                <span className="font-bold">{formatPrice(totalAmount)}</span>
+              </div>
+              {saleType === 'Delivery' && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Delivery Fee</span>
+                  <span className="font-bold">{formatPrice(Number(deliFee) || 0)}</span>
+                </div>
+              )}
+              <div className="border-t border-dashed pt-3 flex justify-between items-center">
+                <span className="font-bold text-base">Total Amount</span>
+                <span className="font-black text-xl text-primary">
+                  {formatPrice(totalAmount + (saleType === 'Delivery' ? (Number(deliFee) || 0) : 0))}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 rounded-xl font-bold"
+                onClick={() => setIsConfirmingCheckout(false)}
+                disabled={checkingOut}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-[1.5] h-12 rounded-xl font-bold shadow-lg shadow-primary/20"
+                onClick={handleCheckout}
+                disabled={checkingOut}
+              >
+                {checkingOut ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Confirm Sale"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutSuccessOpen && (
+        <div
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          onClick={handleCloseSuccessModal}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-2 mb-6">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2">
+                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              </div>
+              <h2 className="text-xl font-bold">Payment Successful</h2>
+              {checkoutInvoiceId && (
+                <p className="text-sm text-muted-foreground">Invoice: {checkoutInvoiceId}</p>
+              )}
+              <p className="text-sm text-muted-foreground">Stock updated and cart cleared.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="h-12 flex-1 rounded-xl font-bold"
+                onClick={handlePrintReceipt}
+                disabled={!lastReceipt}
+              >
+                Print
+              </Button>
+              <Button
+                className="h-12 flex-1 rounded-xl font-bold"
+                onClick={handleCloseSuccessModal}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toasts */}
+      {
+        toasts.length > 0 && (
+          <div className="fixed bottom-4 right-4 z-50 space-y-2">
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                className={`rounded-md border px-3 py-2 text-sm shadow-md ${t.type === 'success'
+                  ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                  : 'border-destructive/60 bg-destructive/10 text-destructive'
+                  }`}
+              >
+                {t.message}
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </div >
+  );
+}

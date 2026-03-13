@@ -1,0 +1,1197 @@
+'use client';
+
+import * as React from 'react';
+import { supabaseClient } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
+import { compressImageFile } from '@/lib/image';
+import { useDashboardAuth } from '@/lib/dashboard-auth-context';
+import { Loader2 } from 'lucide-react';
+import type { Product } from '@/lib/useProducts';
+
+type PendingAction = {
+  id: string;
+  type: 'upsert';
+  mode: 'create' | 'update';
+  productId?: number;
+  payload: {
+    product_name: string;
+    sale_price: number;
+    purchase_price: number | null;
+    stock_quantity: number | null;
+    default_code: string | null;
+      size: string | null;
+      variant: string | null;
+    description_en: string | null;
+    description_mm: string | null;
+    category: string | null;
+    barcode: string | null;
+  };
+  imageDataUrl?: string;
+  imageMime?: string;
+  createdAt: number;
+};
+
+const CACHE_KEY = 'admin-inventory-cache-v1';
+const QUEUE_KEY = 'admin-inventory-queue-v1';
+
+type AdminProduct = Product;
+
+function loadQueue(): PendingAction[] {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(QUEUE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as PendingAction[];
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function saveQueue(items: PendingAction[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(QUEUE_KEY, JSON.stringify(items));
+}
+
+function loadCache(): AdminProduct[] {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(CACHE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as AdminProduct[];
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCache(items: AdminProduct[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(CACHE_KEY, JSON.stringify(items));
+}
+
+function dataUrlToBlob(dataUrl: string) {
+  const [meta, content] = dataUrl.split(',');
+  const match = /data:(.*);base64/.exec(meta || '');
+  const mime = match?.[1] || 'image/jpeg';
+  const binary = atob(content || '');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return { blob: new Blob([bytes], { type: mime }), mime };
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<{ dataUrl: string; mime: string }>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const match = /data:(.*);base64/.exec(result);
+      const mime = match?.[1] || file.type || 'image/jpeg';
+      resolve({ dataUrl: result, mime });
+    };
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatPrice(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return new Intl.NumberFormat('en-US').format(value) + ' Ks';
+}
+
+function withCacheBust(url: string) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${Date.now()}`;
+}
+
+const InventoryRow = React.memo(function InventoryRow({
+  product,
+  onEdit,
+  onDelete,
+  isAdmin,
+  deleting,
+}: {
+  product: AdminProduct;
+  onEdit: (p: Product) => void;
+  onDelete: (p: Product) => void;
+  isAdmin: boolean;
+  deleting: boolean;
+}) {
+  return (
+    <tr className="border-t border-border/40 hover:bg-secondary/40 h-[48px]">
+      <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground">{product.id}</td>
+      <td className="px-3 py-3">
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.product_name ?? 'Product'}
+            className="h-12 w-12 rounded-md border border-border/70 object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '';
+            }}
+          />
+        ) : (
+          <div className="h-12 w-12 rounded-md border border-dashed border-border/70 bg-muted/40" />
+        )}
+      </td>
+      <td className="px-3 py-3 text-[12px] font-medium">{product.product_name || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.default_code || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.category || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.variant || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.barcode || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.stock_quantity ?? '—'}</td>
+      <td className="px-3 py-3 text-right text-[12px] font-semibold">{formatPrice(product.sale_price)}</td>
+      <td className="px-3 py-3 text-right">
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" className="h-12 px-4" onClick={() => onEdit(product)}>
+            Edit
+          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-12 px-4 text-destructive border-destructive/40 hover:bg-destructive/10"
+              onClick={() => onDelete(product)}
+              disabled={deleting}
+            >
+              Delete
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+export default function AdminInventoryPage() {
+  const { role } = useDashboardAuth();
+  const isAdmin = role === 'admin';
+  const [products, setProducts] = React.useState<AdminProduct[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState('');
+  const [isOnline, setIsOnline] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+  const [scannerOpen, setScannerOpen] = React.useState(false);
+
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<Product | null>(null);
+  const [name, setName] = React.useState('');
+  const [defaultCode, setDefaultCode] = React.useState('');
+  const [size, setSize] = React.useState('');
+  const [variant, setVariant] = React.useState('');
+  const [price, setPrice] = React.useState('');
+  const [costPrice, setCostPrice] = React.useState('');
+  const [stockQuantity, setStockQuantity] = React.useState('');
+  const [descriptionEn, setDescriptionEn] = React.useState('');
+  const [descriptionMm, setDescriptionMm] = React.useState('');
+  const [category, setCategory] = React.useState('');
+  const [barcode, setBarcode] = React.useState('');
+  const [remark, setRemark] = React.useState('');
+  const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
+  const [imageUrlInput, setImageUrlInput] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [scanFlash, setScanFlash] = React.useState(false);
+  const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
+  const [scanManualInput, setScanManualInput] = React.useState('');
+  const [scanningForForm, setScanningForForm] = React.useState(false);
+  const isBusy = saving || uploading;
+
+  const uploadProductImage = React.useCallback(
+    async (productId: number, file: File) => {
+      const compressed = await compressImageFile(file, 600);
+      const path = `public/product-${productId}-${Date.now()}.jpg`;
+      const contentType = compressed.type || 'image/jpeg';
+      const { error: uploadError } = await supabaseClient.storage
+        .from('product-images')
+        .upload(path, compressed, {
+          upsert: true,
+          contentType,
+        });
+      if (uploadError) {
+        return { error: uploadError.message || 'Image upload failed.' };
+      }
+      const { data: publicData } = supabaseClient.storage
+        .from('product-images')
+        .getPublicUrl(path);
+      if (!publicData?.publicUrl) {
+        return { error: 'Image uploaded but public URL was not returned.' };
+      }
+      return { url: withCacheBust(publicData.publicUrl) };
+    },
+    []
+  );
+
+  const onScanSuccess = React.useCallback((decodedText: string) => {
+    if (dialogOpen && scanningForForm) {
+      setBarcode(decodedText);
+      setScanStatus('found');
+      setScanningForForm(false);
+      setScannerOpen(false);
+      return;
+    }
+    setQuery(decodedText);
+    setScanFlash(true);
+    setTimeout(() => setScanFlash(false), 150);
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.05;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      setTimeout(() => {
+        osc.stop();
+        ctx.close();
+      }, 120);
+    } catch { }
+    const match = products.find(
+      (p) => (p.barcode ?? '').toLowerCase() === decodedText.toLowerCase()
+    );
+    if (!match) {
+      setScanStatus('missing');
+      setEditing(null);
+      setName('');
+      setDefaultCode('');
+    setSize('');
+    setVariant('');
+      setPrice('');
+      setCostPrice('');
+      setDescriptionEn('');
+      setDescriptionMm('');
+      setCategory('');
+      setBarcode(decodedText);
+      setImageFile(null);
+      setImagePreviewUrl(null);
+      setDialogOpen(true);
+    } else {
+      setScanStatus('found');
+    }
+    setScannerOpen(false);
+  }, [dialogOpen, products, scanningForForm]);
+
+  const handleManualBarcode = React.useCallback(() => {
+    const value = scanManualInput.trim();
+    if (!value) return;
+    if (dialogOpen && scanningForForm) {
+      setBarcode(value);
+      setScanningForForm(false);
+    } else {
+      setQuery(value);
+    }
+    setScanManualInput('');
+    setScannerOpen(false);
+  }, [dialogOpen, scanManualInput, scanningForForm]);
+
+  const { startScanner, stopScanner, status, error: scanError, cameras, selectedCameraId, setSelectedCameraId } =
+    useBarcodeScanner(onScanSuccess);
+
+  const handleCloseScanner = React.useCallback(async () => {
+    await stopScanner();
+    setScanManualInput('');
+    setScannerOpen(false);
+  }, [stopScanner]);
+
+  const handleResetScanner = React.useCallback(async () => {
+    await stopScanner();
+    setScannerOpen(false);
+    setTimeout(() => {
+      setScannerOpen(true);
+    }, 300);
+  }, [stopScanner]);
+
+  React.useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+  }, [stopScanner]);
+
+  const refreshProducts = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const { data, error: fetchError } = await supabaseClient
+      .from('products')
+      .select(
+        `
+        id,
+        product_name,
+        default_code,
+        barcode,
+        image_url,
+        category,
+        variant,
+        purchase_price,
+        sale_price,
+        stock_quantity,
+        description_en,
+        description_mm,
+        reorder,
+        remark,
+        created_at
+      `
+      )
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      setError(fetchError.message);
+      setLoading(false);
+      return;
+    }
+    const next = (data ?? []) as AdminProduct[];
+    setProducts(next);
+    saveCache(next);
+    setLoading(false);
+  }, []);
+
+  const applyOptimistic = React.useCallback((next: AdminProduct[]) => {
+    setProducts(next);
+    saveCache(next);
+  }, []);
+
+  const resetForm = React.useCallback(() => {
+    setName('');
+    setDefaultCode('');
+    setSize('');
+    setVariant('');
+    setPrice('');
+    setCostPrice('');
+    setStockQuantity('');
+    setDescriptionEn('');
+    setDescriptionMm('');
+    setCategory('');
+    setBarcode('');
+    setImageUrlInput('');
+    setRemark('');
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    setEditing(null);
+    setUploading(false);
+    setScanningForForm(false);
+    setDialogOpen(false);
+  }, []);
+
+  const queueAction = React.useCallback(async (mode: 'create' | 'update', productId?: number) => {
+    const parsedCost = costPrice.trim() ? Number(costPrice) : null;
+    const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
+    const payload = {
+      product_name: name.trim(),
+      sale_price: Number(price),
+      purchase_price: Number.isFinite(parsedCost as number) ? parsedCost : null,
+      stock_quantity: Number.isFinite(parsedStock as number) ? parsedStock : null,
+      default_code: defaultCode.trim() || null,
+      size: size.trim() || null,
+      variant: variant.trim() || null,
+      description_en: descriptionEn.trim() || null,
+      description_mm: descriptionMm.trim() || null,
+      category: category.trim() || null,
+      barcode: barcode.trim() || null,
+      image_url: imageUrlInput.trim() || null,
+      remark: remark.trim() || null,
+    };
+    const item: PendingAction = {
+      id: crypto.randomUUID(),
+      type: 'upsert',
+      mode,
+      productId,
+      payload,
+      createdAt: Date.now(),
+    };
+    if (imageFile) {
+      const { dataUrl, mime } = await readFileAsDataUrl(imageFile);
+      item.imageDataUrl = dataUrl;
+      item.imageMime = mime;
+    }
+    const queue = loadQueue();
+    queue.push(item);
+    saveQueue(queue);
+    const tempId = mode === 'create' ? -Date.now() : productId ?? -Date.now();
+    const optimistic: AdminProduct = {
+      id: tempId,
+      product_name: payload.product_name,
+      default_code: payload.default_code,
+      barcode: payload.barcode,
+      image_url: item.imageDataUrl ?? null,
+      category: payload.category,
+      size: payload.size,
+      variant: payload.variant,
+      purchase_price: payload.purchase_price,
+      sale_price: payload.sale_price,
+      stock_quantity: payload.stock_quantity,
+      description_en: payload.description_en,
+      description_mm: payload.description_mm,
+      reorder: 2,
+      remark: payload.remark,
+      created_at: new Date().toISOString(),
+    };
+    if (mode === 'create') {
+      applyOptimistic([optimistic, ...products]);
+    } else {
+      applyOptimistic(products.map((p) => (p.id === productId ? { ...p, ...optimistic, id: productId! } : p)));
+    }
+  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, name, price, products, size, variant, stockQuantity, imageUrlInput]);
+
+  const syncQueue = React.useCallback(async () => {
+    if (!isOnline) return;
+    const queue = loadQueue();
+    if (queue.length === 0) return;
+    setSyncing(true);
+    const remaining: PendingAction[] = [];
+    for (const item of queue) {
+      try {
+        if (item.mode === 'create') {
+          const { data, error: insertError } = await supabaseClient
+            .from('products')
+            .insert({ ...item.payload, image_url: null })
+            .select()
+            .single();
+          if (insertError || !data) {
+            remaining.push(item);
+            continue;
+          }
+          if (item.imageDataUrl) {
+            const { blob, mime } = dataUrlToBlob(item.imageDataUrl);
+            const path = `public/product-${data.id}-${Date.now()}.jpg`;
+            const { error: uploadError } = await supabaseClient.storage
+              .from('product-images')
+              .upload(path, blob, { upsert: true, contentType: mime });
+            if (uploadError) {
+              setError(uploadError.message || 'Image upload failed.');
+              remaining.push({ ...item, mode: 'update', productId: data.id });
+              continue;
+            }
+            const { data: publicData } = supabaseClient.storage
+              .from('product-images')
+              .getPublicUrl(path);
+            if (!publicData?.publicUrl) {
+              setError('Image uploaded but public URL was not returned.');
+              remaining.push({ ...item, mode: 'update', productId: data.id });
+              continue;
+            }
+            const imageUrl = withCacheBust(publicData.publicUrl);
+            const { error: updateError } = await supabaseClient
+              .from('products')
+              .update({ image_url: imageUrl })
+              .eq('id', data.id);
+            if (updateError) {
+              remaining.push({ ...item, mode: 'update', productId: data.id });
+              continue;
+            }
+          }
+        } else {
+          let imageUrl: string | null = null;
+          if (item.imageDataUrl && item.productId != null) {
+            const { blob, mime } = dataUrlToBlob(item.imageDataUrl);
+            const path = `public/product-${item.productId}-${Date.now()}.jpg`;
+            const { error: uploadError } = await supabaseClient.storage
+              .from('product-images')
+              .upload(path, blob, { upsert: true, contentType: mime });
+            if (uploadError) {
+              setError(uploadError.message || 'Image upload failed.');
+              remaining.push(item);
+              continue;
+            }
+            const { data: publicData } = supabaseClient.storage
+              .from('product-images')
+              .getPublicUrl(path);
+            if (!publicData?.publicUrl) {
+              setError('Image uploaded but public URL was not returned.');
+              remaining.push(item);
+              continue;
+            }
+            imageUrl = withCacheBust(publicData.publicUrl);
+          }
+          const payload = {
+            ...item.payload,
+            ...(imageUrl ? { image_url: imageUrl } : {}),
+          };
+          const { error: updateError } = await supabaseClient
+            .from('products')
+            .update(payload)
+            .eq('id', item.productId);
+          if (updateError) {
+            remaining.push(item);
+            continue;
+          }
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+    saveQueue(remaining);
+    setSyncing(false);
+    await refreshProducts();
+  }, [isOnline, refreshProducts]);
+
+  React.useEffect(() => {
+    const cached = loadCache();
+    if (cached.length > 0) {
+      setProducts(cached);
+    }
+    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    setIsOnline(online);
+    if (online) {
+      refreshProducts();
+    } else {
+      setLoading(false);
+    }
+  }, [refreshProducts]);
+
+  React.useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      syncQueue();
+    };
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [syncQueue]);
+
+  React.useEffect(() => {
+    if (!scannerOpen) return;
+    setScanStatus('scanning');
+    const timeoutId = setTimeout(() => {
+      startScanner('admin-inventory-scanner', {
+        preferBackCamera: true,
+        facingMode: 'environment',
+        fps: 20,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1.333,
+      });
+    }, 500);
+    return () => {
+      clearTimeout(timeoutId);
+      stopScanner();
+    };
+  }, [scannerOpen, selectedCameraId, startScanner, stopScanner]);
+
+  React.useEffect(() => {
+    if (imageFile) {
+      const url = URL.createObjectURL(imageFile);
+      setImagePreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+    const trimmed = imageUrlInput.trim();
+    if (trimmed) {
+      setImagePreviewUrl(trimmed);
+      return;
+    }
+    setImagePreviewUrl(null);
+  }, [imageFile, imageUrlInput]);
+
+  const handleToggleCamera = async () => {
+    if (cameras.length < 2) return;
+    const currentIndex = cameras.findIndex((cam) => cam.id === selectedCameraId);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % cameras.length : 0;
+    setSelectedCameraId(cameras[nextIndex].id);
+    await stopScanner();
+    if (scannerOpen) {
+      startScanner('admin-inventory-scanner', {
+        facingMode: 'environment',
+        fps: 20,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1.333,
+      });
+    }
+  };
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => {
+      const nameValue = (p.product_name ?? '').toLowerCase();
+      const skuValue = (p.default_code ?? '').toLowerCase();
+      const barcodeValue = (p.barcode ?? '').toLowerCase();
+      const categoryValue = (p.category ?? '').toLowerCase();
+      const variantValue = (p.variant ?? '').toLowerCase();
+      return (
+        nameValue.includes(q) ||
+        skuValue.includes(q) ||
+        barcodeValue.includes(q) ||
+        categoryValue.includes(q) ||
+        variantValue.includes(q)
+      );
+    });
+  }, [products, query]);
+
+  const openCreate = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEdit = (product: Product) => {
+    setEditing(product);
+    setName(product.product_name ?? '');
+    setDefaultCode(product.default_code ?? '');
+    setSize(product.size ?? '');
+    setVariant(product.variant ?? '');
+    setPrice(product.sale_price != null ? String(product.sale_price) : '');
+    setCostPrice(product.purchase_price != null ? String(product.purchase_price) : '');
+    setStockQuantity(product.stock_quantity != null ? String(product.stock_quantity) : '');
+    setDescriptionEn(product.description_en ?? '');
+    setDescriptionMm(product.description_mm ?? '');
+    setCategory(product.category ?? '');
+    setBarcode(product.barcode ?? '');
+    setRemark(product.remark ?? '');
+    setImageFile(null);
+    setImageUrlInput(product.image_url ?? '');
+    setImagePreviewUrl(product.image_url ?? null);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+    const parsedPrice = Number(price);
+    const parsedCost = costPrice.trim() ? Number(costPrice) : null;
+    const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setError('Sale price must be a non-negative number.');
+      return;
+    }
+    if (parsedCost != null && (!Number.isFinite(parsedCost) || parsedCost < 0)) {
+      setError('Purchase price must be a non-negative number.');
+      return;
+    }
+    if (parsedStock != null && (!Number.isFinite(parsedStock) || parsedStock < 0)) {
+      setError('Stock quantity must be a non-negative number.');
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    const mode = editing ? 'update' : 'create';
+    const productId = editing?.id;
+
+    if (!isOnline) {
+      await queueAction(mode, productId);
+      setSaving(false);
+      resetForm();
+      return;
+    }
+
+    const payload = {
+      product_name: name.trim(),
+      sale_price: parsedPrice,
+      purchase_price: parsedCost,
+      stock_quantity: parsedStock,
+      default_code: defaultCode.trim() || null,
+      size: size.trim() || null,
+      variant: variant.trim() || null,
+      description_en: descriptionEn.trim() || null,
+      description_mm: descriptionMm.trim() || null,
+      category: category.trim() || null,
+      barcode: barcode.trim() || null,
+      image_url: imageUrlInput.trim() || null,
+    };
+
+    if (mode === 'create') {
+      const { data, error: insertError } = await supabaseClient
+        .from('products')
+        .insert({ ...payload, image_url: null })
+        .select()
+        .single();
+      if (insertError || !data) {
+        setError(insertError?.message ?? 'Failed to add product.');
+        setSaving(false);
+        return;
+      }
+      let nextData = data as AdminProduct;
+      if (imageFile) {
+        setUploading(true);
+        const uploadResult = await uploadProductImage(data.id, imageFile);
+        if (uploadResult.error || !uploadResult.url) {
+          setError(uploadResult.error ?? 'Image upload failed.');
+          setUploading(false);
+          setSaving(false);
+          return;
+        }
+        const { data: updated, error: updateError } = await supabaseClient
+          .from('products')
+          .update({ image_url: uploadResult.url })
+          .eq('id', data.id)
+          .select()
+          .single();
+        if (updateError || !updated) {
+          setError(updateError?.message ?? 'Failed to update image.');
+          setUploading(false);
+          setSaving(false);
+          return;
+        }
+        nextData = updated as AdminProduct;
+        setImagePreviewUrl(uploadResult.url);
+      }
+      applyOptimistic([nextData, ...products]);
+    } else if (productId != null) {
+      let imageUrl: string | null = editing?.image_url ?? null;
+      if (imageFile) {
+        setUploading(true);
+        const uploadResult = await uploadProductImage(productId, imageFile);
+        if (uploadResult.error || !uploadResult.url) {
+          setError(uploadResult.error ?? 'Image upload failed.');
+          setUploading(false);
+          setSaving(false);
+          return;
+        }
+        imageUrl = uploadResult.url;
+        setImagePreviewUrl(imageUrl);
+      }
+      const { data, error: updateError } = await supabaseClient
+        .from('products')
+        .update({ ...payload, image_url: imageUrl })
+        .eq('id', productId)
+        .select()
+        .single();
+      if (updateError || !data) {
+        setError(updateError?.message ?? 'Failed to update product.');
+        setSaving(false);
+        setUploading(false);
+        return;
+      }
+      applyOptimistic(products.map((p) => (p.id === productId ? (data as AdminProduct) : p)));
+    }
+
+    setUploading(false);
+    setSaving(false);
+    resetForm();
+  };
+
+  const handleDelete = async (product: Product) => {
+    if (!isAdmin) return;
+    if (!isOnline) {
+      setError('Offline mode. Delete will sync when online.');
+      return;
+    }
+    const confirmed = typeof window !== 'undefined' ? window.confirm('Delete this product?') : false;
+    if (!confirmed) return;
+    setDeletingId(product.id);
+    const { error: deleteError } = await supabaseClient
+      .from('products')
+      .delete()
+      .eq('id', product.id);
+    if (deleteError) {
+      setError(deleteError.message);
+      setDeletingId(null);
+      return;
+    }
+    applyOptimistic(products.filter((p) => p.id !== product.id));
+    setDeletingId(null);
+  };
+
+  return (
+    <div className="flex h-screen max-h-[100vh] w-full flex-col gap-4 overflow-hidden bg-background p-4">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Inventory Management</h1>
+            <p className="text-sm text-muted-foreground">
+              {isOnline ? 'Online sync ready.' : 'Offline mode. Changes will sync later.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={() => setScannerOpen(true)}>
+              Scan Barcode
+            </Button>
+            <Button className="h-12 px-5 text-base" onClick={openCreate}>
+              Add Product
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="relative flex-1">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, category, or barcode..."
+              className="h-12 rounded-xl text-base"
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {syncing ? 'Syncing changes...' : `${filtered.length} items`}
+          </div>
+        </div>
+        {error && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="max-h-full overflow-auto">
+          <table className="min-w-[980px] w-full border-collapse text-sm">
+            <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur">
+              <tr className="border-b border-border/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-3 py-3 text-left font-semibold">ID</th>
+                <th className="px-3 py-3 text-left font-semibold">Image</th>
+                <th className="px-3 py-3 text-left font-semibold">Name</th>
+                <th className="px-3 py-3 text-left font-semibold">SKU</th>
+                <th className="px-3 py-3 text-left font-semibold">Category</th>
+                <th className="px-3 py-3 text-left font-semibold">Specification</th>
+                <th className="px-3 py-3 text-left font-semibold">Barcode</th>
+                <th className="px-3 py-3 text-left font-semibold">Stock</th>
+                <th className="px-3 py-3 text-right font-semibold">Price</th>
+                <th className="px-3 py-3 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    Loading inventory...
+                  </td>
+                </tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No products found.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                filtered.map((product) => (
+                  <InventoryRow
+                    key={product.id}
+                    product={product}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    isAdmin={isAdmin}
+                    deleting={deletingId === product.id}
+                  />
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {dialogOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl max-h-[90vh] overflow-hidden">
+            <div className="max-h-[90vh] overflow-y-auto p-5">
+              <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-4">
+                <div className="space-y-1">
+                  <h2 className="text-base font-bold">{editing ? 'Edit Product' : 'Add Product'}</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Barcode:</span>
+                    <Input
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      className="h-8 w-40 text-[11px] font-mono rounded-lg"
+                      placeholder="Manual Barcode"
+                    />
+                  </div>
+                </div>
+                <Button variant="ghost" className="h-[44px] px-4 rounded-xl" onClick={resetForm}>
+                  Close
+                </Button>
+              </div>
+              <div className="grid gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Product Name *
+                  </label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Essential Face Cream"
+                    className="h-[44px] rounded-xl"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      SKU
+                    </label>
+                    <Input
+                      value={defaultCode}
+                      onChange={(e) => setDefaultCode(e.target.value)}
+                      placeholder="SKU-001"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Size
+                    </label>
+                    <Input
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                      placeholder="250ml"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Variant
+                    </label>
+                    <Input
+                      value={variant}
+                      onChange={(e) => setVariant(e.target.value)}
+                      placeholder="Lavender"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Category
+                    </label>
+                    <Input
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      placeholder="Skin Care"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Purchase Price (Ks)
+                    </label>
+                    <Input
+                      value={costPrice}
+                      onChange={(e) => setCostPrice(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Sale Price (Ks) *
+                    </label>
+                    <Input
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="h-[44px] rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Stock Quantity *
+                  </label>
+                  <Input
+                    value={stockQuantity}
+                    onChange={(e) => setStockQuantity(e.target.value)}
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Image URL
+                  </label>
+                  <Input
+                    value={imageUrlInput}
+                    onChange={(e) => setImageUrlInput(e.target.value)}
+                    placeholder="https://example.com/item.jpg"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Image Upload
+                  </label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+                {imagePreviewUrl && (
+                  <div className="md:col-span-2">
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Preview"
+                      className="h-28 w-28 rounded-xl border border-border object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Description (EN)
+                    </label>
+                    <textarea
+                      value={descriptionEn}
+                      onChange={(e) => setDescriptionEn(e.target.value)}
+                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      placeholder="Product details..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Description (MM)
+                    </label>
+                    <textarea
+                      value={descriptionMm}
+                      onChange={(e) => setDescriptionMm(e.target.value)}
+                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      placeholder="မြန်မာစာ ဖော်ပြချက်..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Remark
+                  </label>
+                  <Input
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    placeholder="Notes / Batch number"
+                    className="h-[44px] rounded-xl"
+                  />
+                </div>
+              </div>
+            {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" className="h-12 px-4" onClick={resetForm}>
+                Cancel
+              </Button>
+              <Button className="h-12 px-5" onClick={handleSave} disabled={isBusy}>
+                {isBusy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {uploading ? 'Uploading...' : 'Saving...'}
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </Button>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scannerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4" onClick={handleCloseScanner}>
+          <div className="w-[95vw] max-h-[90vh] overflow-y-auto max-w-4xl rounded-2xl border border-border bg-card p-4 relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="absolute right-3 top-3 z-[9999] flex h-10 w-10 items-center justify-center rounded-xl bg-background/90 text-foreground shadow-lg"
+              onClick={handleCloseScanner}
+              aria-label="Close scanner"
+            >
+              ×
+            </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Manual barcode entry..."
+                  className="h-11"
+                  value={scanManualInput}
+                  onChange={(e) => setScanManualInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleManualBarcode();
+                    }
+                  }}
+                />
+                <Button className="h-11 px-4" onClick={handleManualBarcode}>
+                  Use
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-xs text-muted-foreground">
+                  {status === 'initializing'
+                    ? 'Initializing Camera...'
+                    : status === 'scanning'
+                      ? 'Scanning...'
+                      : scanError || 'Ready'}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-semibold">Scan Barcode</h2>
+                  <p className="text-xs text-muted-foreground">Point the camera at the barcode.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {cameras.length > 1 && (
+                    <Button variant="outline" className="h-12 px-4" onClick={handleToggleCamera}>
+                      Switch Camera
+                    </Button>
+                  )}
+                  <Button variant="outline" className="h-12 px-4" onClick={handleResetScanner}>
+                    Reset Camera
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 aspect-[4/3] overflow-hidden rounded-2xl bg-black relative">
+              <div id="admin-inventory-scanner" className="h-full w-full" />
+              <div className="absolute inset-6 rounded-2xl border-2 border-primary/60 pointer-events-none" />
+              {scanFlash && (
+                <div className="absolute inset-0 bg-green-400/20 pointer-events-none" />
+              )}
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">
+              <span
+                className={
+                  scanStatus === 'found'
+                    ? 'text-emerald-500 font-semibold'
+                    : scanStatus === 'missing'
+                      ? 'text-red-500 font-semibold'
+                      : 'text-muted-foreground'
+                }
+              >
+                {scanStatus === 'found'
+                  ? 'Found'
+                  : scanStatus === 'missing'
+                    ? 'Not Found'
+                    : status === 'initializing'
+                      ? 'Initializing Camera...'
+                      : status === 'scanning'
+                        ? 'Scanning...'
+                        : scanError || 'Ready'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

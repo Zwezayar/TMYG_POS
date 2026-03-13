@@ -1,0 +1,17 @@
+{
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(dashboard)/inventory/page": "app/(dashboard)/inventory/page.js",
+  "/(dashboard)/page": "app/(dashboard)/page.js",
+  "/(dashboard)/pos/page": "app/(dashboard)/pos/page.js",
+  "/(dashboard)/sales/page": "app/(dashboard)/sales/page.js",
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/settings/users/page": "app/(dashboard)/settings/users/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/admin/reset-password/route": "app/api/admin/reset-password/route.js",
+  "/api/admin/users/route": "app/api/admin/users/route.js",
+  "/api/delete-product/route": "app/api/delete-product/route.js",
+  "/api/orders/[id]/status/route": "app/api/orders/[id]/status/route.js",
+  "/api/pos/checkout/route": "app/api/pos/checkout/route.js",
+  "/api/update-stock/route": "app/api/update-stock/route.js"
+}
