@@ -28,6 +28,11 @@ function stopLocalStreamTracks() {
   }
 }
 
+async function forceStopCamera() {
+  stopLocalStreamTracks();
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+}
+
 async function forceStopGlobalScanner() {
   if (typeof window !== 'undefined') {
     const instance = (window as any).__html5QrCodeInstance as Html5Qrcode | undefined;
@@ -101,7 +106,7 @@ export function useBarcodeScanner(
       }
     }
     await forceStopGlobalScanner();
-    stopLocalStreamTracks();
+    await forceStopCamera();
     if (typeof window !== 'undefined') {
       const state = (window as any).__tmygScannerLockState as { id?: string; release?: () => Promise<void> | void } | undefined;
       if (state?.id === instanceIdRef.current) {
@@ -123,11 +128,12 @@ export function useBarcodeScanner(
 
     if (scannerRef.current || scannerUiRef.current) {
       await stopScanner();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
     setStatus('initializing');
     setError(null);
+    await forceStopCamera();
 
     const attemptStart = async () => {
       isProcessing.current = true;
@@ -143,7 +149,7 @@ export function useBarcodeScanner(
         if (state?.id && state.id !== instanceIdRef.current) {
           await state.release?.();
           (window as any).__tmygScannerLockState = null;
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
         (window as any).__tmygScannerLockState = {
           id: instanceIdRef.current,
@@ -183,7 +189,7 @@ export function useBarcodeScanner(
 
       if (options?.preferBackCamera || options?.facingMode) {
         await forceStopGlobalScanner();
-        stopLocalStreamTracks();
+        await forceStopCamera();
         const html5Qrcode = new Html5Qrcode(elementId, { verbose: false });
         globalScannerInstance = html5Qrcode;
         if (typeof window !== 'undefined') {

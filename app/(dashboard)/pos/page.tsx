@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
+import { ProductForm } from '@/components/forms/product-form';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -389,6 +390,8 @@ function CartSidebar({
   onClearCart,
   checkoutMode,
   onToggleCheckout,
+  isOnline,
+  offlineQueueCount,
 }: {
   cart: CartLine[];
   onUpdateQuantity: (id: number, qty: number) => void;
@@ -423,6 +426,8 @@ function CartSidebar({
   onClearCart: () => void;
   checkoutMode: boolean;
   onToggleCheckout: () => void;
+  isOnline: boolean;
+  offlineQueueCount: number;
 }) {
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [editPrice, setEditPrice] = React.useState("");
@@ -513,6 +518,10 @@ function CartSidebar({
         <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1"><Hash className="h-3 w-3" /> {invoiceId}</span>
           <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDateTime()}</span>
+          <span className={cn("flex items-center gap-1 font-semibold", isOnline ? "text-emerald-500" : "text-amber-400")}>
+            <CheckCircle2 className="h-3 w-3" />
+            {isOnline ? "Online" : `Offline (${offlineQueueCount})`}
+          </span>
         </div>
       </div>
 
@@ -1021,6 +1030,8 @@ export default function PosPage() {
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [selectedMainCategory, setSelectedMainCategory] = React.useState<string | null>(null);
   const [selectedSubCategory, setSelectedSubCategory] = React.useState<string | null>(null);
+  const [isOnline, setIsOnline] = React.useState(true);
+  const [offlineQueueCount, setOfflineQueueCount] = React.useState(0);
 
   // Delivery & Customer State
   const [customerName, setCustomerName] = React.useState('');
@@ -1037,6 +1048,18 @@ export default function PosPage() {
   
   // Last Toast Time Ref
   const lastToastRef = React.useRef<{ msg: string; time: number } | null>(null);
+  const OFFLINE_SALES_KEY = 'tmyg-offline-sales-v1';
+
+  const refreshOfflineQueueCount = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(OFFLINE_SALES_KEY);
+    try {
+      const parsed = raw ? JSON.parse(raw) : [];
+      setOfflineQueueCount(Array.isArray(parsed) ? parsed.length : 0);
+    } catch {
+      setOfflineQueueCount(0);
+    }
+  }, []);
 
   const mainCategoriesList = React.useMemo(() => {
     const fromDb = (dbCategories ?? []).length > 0
@@ -1081,6 +1104,28 @@ export default function PosPage() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateOnline = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      refreshOfflineQueueCount();
+      if (online && offlineQueueCount > 0) {
+        addToast('success', `${offlineQueueCount} offline sales ready to sync.`);
+      }
+      if (!online) {
+        addToast('error', 'Offline mode: sales will be queued.');
+      }
+    };
+    updateOnline();
+    window.addEventListener('online', updateOnline);
+    window.addEventListener('offline', updateOnline);
+    return () => {
+      window.removeEventListener('online', updateOnline);
+      window.removeEventListener('offline', updateOnline);
+    };
+  }, [addToast, offlineQueueCount, refreshOfflineQueueCount]);
 
   React.useEffect(() => {
     setProductsOverride(null);
@@ -1201,7 +1246,55 @@ export default function PosPage() {
     return { mainCategories: mainArray, subCategoriesMap: map, allCategories: Array.from(allCats).sort() };
   }, [products]);
 
-  const categories = allCategories; // For Quick Add backward compatibility
+  const categoryOptions = React.useMemo(() => {
+    if (dbCategories.length > 0) {
+      return dbCategories.map((cat) => {
+        const parent = dbCategories.find((c) => c.id === cat.parent_id);
+        const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
+        return { value: label, label };
+      });
+    }
+    return allCategories.map((name) => ({ value: name, label: name }));
+  }, [dbCategories, allCategories]);
+
+  const handleAddCategory = React.useCallback(async () => {
+    const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
+    if (!newCat || !newCat.trim()) return;
+    const parts = newCat.split('/').map((s) => s.trim());
+    const mainName = parts[0];
+    const subName = parts.length > 1 ? parts[1] : null;
+    try {
+      let parentId = null;
+      const { data: mainData, error: mainError } = await supabaseClient
+        .from('categories')
+        .select('id')
+        .eq('name', mainName)
+        .is('parent_id', null)
+        .maybeSingle();
+      if (mainError) throw mainError;
+      if (mainData) {
+        parentId = mainData.id;
+      } else {
+        const { data: newMain, error: createError } = await supabaseClient
+          .from('categories')
+          .insert({ name: mainName })
+          .select('id')
+          .single();
+        if (createError) throw createError;
+        parentId = newMain.id;
+      }
+      if (subName) {
+        await supabaseClient
+          .from('categories')
+          .insert({ name: subName, parent_id: parentId });
+      }
+      addToast('success', `Category "${newCat}" created.`);
+      await refreshCategories();
+      setQuickCategory(newCat);
+    } catch {
+      addToast('error', 'Failed to create category.');
+    }
+  }, [addToast, refreshCategories]);
 
   const totalAmount = React.useMemo(
     () =>
@@ -1345,6 +1438,46 @@ export default function PosPage() {
         quantity: line.quantity,
         sale_price: line.manualPrice ?? line.product.sale_price ?? 0,
       }));
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const raw = window.localStorage.getItem(OFFLINE_SALES_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        const queued = Array.isArray(parsed) ? parsed : [];
+        queued.push({
+          created_at: new Date().toISOString(),
+          items,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: customerAddress,
+          sale_type: saleType === 'Delivery' ? 'Delivery' : 'Shop',
+          payment_method: paymentMethod,
+          remark: remark,
+          receipt_payload: receiptSnapshot,
+          delivery_info: saleType === 'Delivery' ? {
+            courier_name: courierName,
+            deli_fee: Number(deliFee),
+            is_bago_special: isBagoSpecial
+          } : null
+        });
+        window.localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(queued));
+        refreshOfflineQueueCount();
+        setCart([]);
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerAddress('');
+        setSaleType('Shop');
+        setCourierName('');
+        setDeliFee('');
+        setIsBagoSpecial(false);
+        setRemark('');
+        setPaymentMethod('cash');
+        setIsConfirmingCheckout(false);
+        setLastReceipt(receiptSnapshot);
+        setCheckoutSuccessOpen(true);
+        addToast('success', 'Sale saved offline. Will sync when online.');
+        setCheckingOut(false);
+        return;
+      }
+
       const res = await fetch('/api/pos/checkout', {
         method: 'POST',
         headers: {
@@ -1752,8 +1885,9 @@ export default function PosPage() {
           const scanConfig = {
             fps: 20,
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-              const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.6);
-              return { width: size, height: size };
+              const width = Math.min(280, Math.floor(viewfinderWidth * 0.85));
+              const height = Math.min(160, Math.floor(viewfinderHeight * 0.6));
+              return { width, height };
             },
             aspectRatio: 1.0,
             disableFlip: false,
@@ -2017,17 +2151,23 @@ export default function PosPage() {
   async function handleQuickAddSave() {
     setQuickError(null);
     const name = quickName.trim();
-    const salePrice = Number(quickSalePrice);
-    const stockQty = Number(quickStock);
+    const salePriceValue = quickSalePrice.trim();
+    const salePrice = Number(salePriceValue);
+    const stockQtyValue = quickStock.trim();
+    const stockQty = stockQtyValue ? Number(stockQtyValue) : 0;
     if (!name) {
       setQuickError('Product name is required.');
+      return;
+    }
+    if (!salePriceValue) {
+      setQuickError('Sale price is required.');
       return;
     }
     if (!Number.isFinite(salePrice) || salePrice < 0) {
       setQuickError('Sale price must be a non-negative number.');
       return;
     }
-    if (!Number.isFinite(stockQty) || stockQty < 0) {
+    if (stockQtyValue && (!Number.isFinite(stockQty) || stockQty < 0)) {
       setQuickError('Stock quantity must be a non-negative number.');
       return;
     }
@@ -2080,7 +2220,7 @@ export default function PosPage() {
         variant: quickVariant || null,
         sale_price: salePrice,
         purchase_price: Number(quickPurchasePrice) || null,
-        stock_quantity: stockQty,
+        stock_quantity: stockQtyValue ? stockQty : null,
         description_en: quickDescription || null,
         description_mm: quickDescriptionMm || null,
         image_url: quickImageUrl || null,
@@ -2372,6 +2512,8 @@ export default function PosPage() {
             onClearCart={() => setCart([])}
             checkoutMode={checkoutMode}
             onToggleCheckout={() => setCheckoutMode(!checkoutMode)}
+            isOnline={isOnline}
+            offlineQueueCount={offlineQueueCount}
           />
         </div>
       </div>
@@ -2384,7 +2526,7 @@ export default function PosPage() {
           onClick={handleCloseScanner}
         >
           <div
-            className="w-[95vw] max-h-[90vh] overflow-y-auto max-w-4xl rounded-2xl border border-border bg-card p-4 shadow-2xl relative"
+            className="w-[95vw] max-h-[90vh] max-w-4xl rounded-2xl border border-border bg-card p-4 shadow-2xl relative overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -2470,7 +2612,7 @@ export default function PosPage() {
               </div>
             </div>
 
-            <div className="relative h-[28vh] sm:h-[32vh] md:h-[36vh] bg-black rounded-2xl overflow-hidden">
+            <div className="relative h-[60vh] bg-black rounded-2xl overflow-hidden">
               {isScannerModalOpen && <ScannerComponent />}
               {/* Scan Guide Overlay */}
               <div className="absolute inset-6 pointer-events-none rounded-2xl border-2 border-primary/60" />
@@ -2534,244 +2676,56 @@ export default function PosPage() {
             }}
           >
             <div
-              className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl scrollbar-hide max-h-[90vh] overflow-y-auto pointer-events-auto"
+              className="w-full max-w-lg rounded-lg border border-border bg-card shadow-xl max-h-[90vh] overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-4">
-                <div className="space-y-1">
-                  <h2 className="text-base font-bold">New Product</h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Barcode:</span>
-                    <Input
-                      value={quickBarcode}
-                      onChange={(e) => setQuickBarcode(e.target.value)}
-                      className="h-8 w-40 text-[11px] font-mono rounded-lg"
-                      placeholder="Manual Barcode"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-[44px] px-4 rounded-xl"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    setQuickError(null);
-                    setQuickImageFile(null);
-                    setQuickImagePreviewUrl(null);
-                    if (scanOpen) setScanOpen(false);
-                  }}
-                  aria-label="Close"
-                >
-                  Close
-                </Button>
-              </div>
-
-              <div className="grid gap-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Product Name *
-                  </label>
-                  <Input
-                    value={quickName}
-                    onChange={(e) => setQuickName(e.target.value)}
-                    placeholder="Essential Face Cream"
-                    className="h-[44px] rounded-xl"
-                    autoFocus
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      SKU
-                    </label>
-                    <Input
-                      value={quickDefaultCode}
-                      onChange={(e) => setQuickDefaultCode(e.target.value)}
-                      placeholder="SKU-001"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Size
-                    </label>
-                    <Input
-                      value={quickSize}
-                      onChange={(e) => setQuickSize(e.target.value)}
-                      placeholder="250ml"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Variant
-                    </label>
-                    <Input
-                      value={quickVariant}
-                      onChange={(e) => setQuickVariant(e.target.value)}
-                      placeholder="Lavender"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Category
-                    </label>
-                    <Input
-                      value={quickCategory}
-                      onChange={(e) => setQuickCategory(e.target.value)}
-                      placeholder="Skin Care"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Purchase Price (Ks)
-                    </label>
-                    <Input
-                      value={quickPurchasePrice}
-                      onChange={(e) => setQuickPurchasePrice(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Sale Price (Ks) *
-                    </label>
-                    <Input
-                      value={quickSalePrice}
-                      onChange={(e) => setQuickSalePrice(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Stock Quantity *
-                  </label>
-                  <Input
-                    value={quickStock}
-                    onChange={(e) => setQuickStock(e.target.value)}
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="0"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Image URL
-                  </label>
-                  <Input
-                    value={quickImageUrl}
-                    onChange={(e) => setQuickImageUrl(e.target.value)}
-                    placeholder="https://example.com/item.jpg"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Image Upload
-                  </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setQuickImageFile(e.target.files?.[0] ?? null)}
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-
-                {quickImagePreviewUrl && (
-                  <div className="md:col-span-2">
-                    <img
-                      src={quickImagePreviewUrl}
-                      alt="Preview"
-                      className="h-28 w-28 rounded-xl border border-border object-cover"
-                    />
-                  </div>
-                )}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Description (EN)
-                    </label>
-                    <textarea
-                      value={quickDescription}
-                      onChange={(e) => setQuickDescription(e.target.value)}
-                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      placeholder="Product details..."
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Description (MM)
-                    </label>
-                    <textarea
-                      value={quickDescriptionMm}
-                      onChange={(e) => setQuickDescriptionMm(e.target.value)}
-                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      placeholder="မြန်မာစာ ဖော်ပြချက်..."
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Remark
-                  </label>
-                  <Input
-                    value={quickRemark}
-                    onChange={(e) => setQuickRemark(e.target.value)}
-                    placeholder="Notes / Batch number"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-
-                {quickError && (
-                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-[11px] text-destructive">
-                    {quickError}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-[44px] px-6 rounded-xl"
-                  onClick={() => {
-                    setQuickAddOpen(false);
-                    if (scanOpen) setScanOpen(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  className="h-[44px] px-8 rounded-xl font-bold"
-                  onClick={handleQuickAddSave}
-                >
-                  Save & Add to Cart
-                </Button>
-              </div>
+              <ProductForm
+                title="New Product"
+                barcode={quickBarcode}
+                onBarcodeChange={setQuickBarcode}
+                onBarcodeAction={() => {
+                  setQuickAddOpen(false);
+                  setScanOpen(true);
+                }}
+                name={quickName}
+                onNameChange={setQuickName}
+                sku={quickDefaultCode}
+                onSkuChange={setQuickDefaultCode}
+                size={quickSize}
+                onSizeChange={setQuickSize}
+                variant={quickVariant}
+                onVariantChange={setQuickVariant}
+                category={quickCategory}
+                onCategoryChange={setQuickCategory}
+                categories={categoryOptions}
+                onAddCategory={handleAddCategory}
+                purchasePrice={quickPurchasePrice}
+                onPurchasePriceChange={setQuickPurchasePrice}
+                salePrice={quickSalePrice}
+                onSalePriceChange={setQuickSalePrice}
+                stockQuantity={quickStock}
+                onStockQuantityChange={setQuickStock}
+                descriptionEn={quickDescription}
+                onDescriptionEnChange={setQuickDescription}
+                descriptionMm={quickDescriptionMm}
+                onDescriptionMmChange={setQuickDescriptionMm}
+                imageUrl={quickImageUrl}
+                onImageUrlChange={setQuickImageUrl}
+                onImageFileChange={setQuickImageFile}
+                imagePreviewUrl={quickImagePreviewUrl}
+                remark={quickRemark}
+                onRemarkChange={setQuickRemark}
+                error={quickError}
+                onClose={() => {
+                  setQuickAddOpen(false);
+                  setQuickError(null);
+                  setQuickImageFile(null);
+                  setQuickImagePreviewUrl(null);
+                  if (scanOpen) setScanOpen(false);
+                }}
+                onSave={handleQuickAddSave}
+                saveLabel="Save & Add to Cart"
+              />
             </div>
           </div>
         )

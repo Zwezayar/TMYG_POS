@@ -1,0 +1,16 @@
+{
+  "name": "The More You Glow POS",
+  "short_name": "TMYG POS",
+  "description": "POS system for The More You Glow",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1116",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

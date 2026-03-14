@@ -773,7 +773,7 @@ function AdminInventoryPage() {
             product_name: payload.product_name,
             default_code: payload.default_code,
             barcode: payload.barcode,
-            image_url: item.imageDataUrl ?? null,
+            image_url: item.imageDataUrl ?? payload.image_url ?? null,
             category: payload.category,
             size: payload.size,
             variant: payload.variant,
@@ -826,7 +826,7 @@ function AdminInventoryPage() {
                 if (item.mode === 'create') {
                     const { data, error: insertError } = await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabaseClient"].from('products').insert({
                         ...item.payload,
-                        image_url: null
+                        image_url: item.imageDataUrl ? null : item.payload.image_url ?? null
                     }).select().single();
                     if (insertError || !data) {
                         remaining.push(item);
@@ -2145,7 +2145,7 @@ function AdminInventoryPage() {
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                            className: "mt-4 aspect-[4/3] overflow-hidden rounded-2xl bg-black relative",
+                            className: "mt-4 h-[26vh] overflow-hidden rounded-2xl bg-black relative",
                             children: [
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                     id: "admin-inventory-scanner",

@@ -5,10 +5,11 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
+import { useCategories } from '@/lib/useCategories';
 import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
-import { Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/useProducts';
+import { ProductForm } from '@/components/forms/product-form';
 
 type PendingAction = {
   id: string;
@@ -180,6 +181,7 @@ export default function AdminInventoryPage() {
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
+  const { categories: dbCategories, refresh: refreshCategories } = useCategories();
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Product | null>(null);
@@ -571,11 +573,8 @@ export default function AdminInventoryPage() {
         preferBackCamera: true,
         facingMode: 'environment',
         fps: 20,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
-          return { width: size, height: size };
-        },
-        aspectRatio: 1.333,
+        qrbox: { width: 280, height: 160 },
+        aspectRatio: 1.0,
       });
     }, 500);
     return () => {
@@ -610,11 +609,8 @@ export default function AdminInventoryPage() {
       startScanner('admin-inventory-scanner', {
         facingMode: 'environment',
         fps: 20,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
-          return { width: size, height: size };
-        },
-        aspectRatio: 1.333,
+        qrbox: { width: 280, height: 160 },
+        aspectRatio: 1.0,
       });
     }
   };
@@ -637,6 +633,60 @@ export default function AdminInventoryPage() {
       );
     });
   }, [products, query]);
+
+  const categoryOptions = React.useMemo(() => {
+    if (dbCategories.length > 0) {
+      return dbCategories.map((cat) => {
+        const parent = dbCategories.find((c) => c.id === cat.parent_id);
+        const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
+        return { value: label, label };
+      });
+    }
+    const all = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) all.add(p.category);
+    });
+    return Array.from(all).sort().map((name) => ({ value: name, label: name }));
+  }, [dbCategories, products]);
+
+  const handleAddCategory = React.useCallback(async () => {
+    const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
+    if (!newCat || !newCat.trim()) return;
+    const parts = newCat.split('/').map((s) => s.trim());
+    const mainName = parts[0];
+    const subName = parts.length > 1 ? parts[1] : null;
+    try {
+      let parentId = null;
+      const { data: mainData, error: mainError } = await supabaseClient
+        .from('categories')
+        .select('id')
+        .eq('name', mainName)
+        .is('parent_id', null)
+        .maybeSingle();
+      if (mainError) throw mainError;
+      if (mainData) {
+        parentId = mainData.id;
+      } else {
+        const { data: newMain, error: createError } = await supabaseClient
+          .from('categories')
+          .insert({ name: mainName })
+          .select('id')
+          .single();
+        if (createError) throw createError;
+        parentId = newMain.id;
+      }
+      if (subName) {
+        await supabaseClient
+          .from('categories')
+          .insert({ name: subName, parent_id: parentId });
+      }
+      await refreshCategories();
+      setCategory(newCat);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create category.';
+      setError(msg);
+    }
+  }, [refreshCategories]);
 
   const openCreate = () => {
     resetForm();
@@ -668,9 +718,14 @@ export default function AdminInventoryPage() {
       setError('Product name is required.');
       return;
     }
-    const parsedPrice = Number(price);
+    const priceValue = price.trim();
+    const parsedPrice = Number(priceValue);
     const parsedCost = costPrice.trim() ? Number(costPrice) : null;
     const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
+    if (!priceValue) {
+      setError('Sale price is required.');
+      return;
+    }
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
       setError('Sale price must be a non-negative number.');
       return;
@@ -893,223 +948,54 @@ export default function AdminInventoryPage() {
       {dialogOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl max-h-[90vh] overflow-hidden">
-            <div className="max-h-[90vh] overflow-y-auto p-5">
-              <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-4">
-                <div className="space-y-1">
-                  <h2 className="text-base font-bold">{editing ? 'Edit Product' : 'Add Product'}</h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Barcode:</span>
-                    <Input
-                      value={barcode}
-                      onChange={(e) => setBarcode(e.target.value)}
-                      className="h-8 w-40 text-[11px] font-mono rounded-lg"
-                      placeholder="Manual Barcode"
-                    />
-                  </div>
-                </div>
-                <Button variant="ghost" className="h-[44px] px-4 rounded-xl" onClick={resetForm}>
-                  Close
-                </Button>
-              </div>
-              <div className="grid gap-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Product Name *
-                  </label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Essential Face Cream"
-                    className="h-[44px] rounded-xl"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      SKU
-                    </label>
-                    <Input
-                      value={defaultCode}
-                      onChange={(e) => setDefaultCode(e.target.value)}
-                      placeholder="SKU-001"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Size
-                    </label>
-                    <Input
-                      value={size}
-                      onChange={(e) => setSize(e.target.value)}
-                      placeholder="250ml"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Variant
-                    </label>
-                    <Input
-                      value={variant}
-                      onChange={(e) => setVariant(e.target.value)}
-                      placeholder="Lavender"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Category
-                    </label>
-                    <Input
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      placeholder="Skin Care"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Purchase Price (Ks)
-                    </label>
-                    <Input
-                      value={costPrice}
-                      onChange={(e) => setCostPrice(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Sale Price (Ks) *
-                    </label>
-                    <Input
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="h-[44px] rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Stock Quantity *
-                  </label>
-                  <Input
-                    value={stockQuantity}
-                    onChange={(e) => setStockQuantity(e.target.value)}
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="0"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Image URL
-                  </label>
-                  <Input
-                    value={imageUrlInput}
-                    onChange={(e) => setImageUrlInput(e.target.value)}
-                    placeholder="https://example.com/item.jpg"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Image Upload
-                  </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-                {imagePreviewUrl && (
-                  <div className="md:col-span-2">
-                    <img
-                      src={imagePreviewUrl}
-                      alt="Preview"
-                      className="h-28 w-28 rounded-xl border border-border object-cover"
-                    />
-                  </div>
-                )}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Description (EN)
-                    </label>
-                    <textarea
-                      value={descriptionEn}
-                      onChange={(e) => setDescriptionEn(e.target.value)}
-                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      placeholder="Product details..."
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Description (MM)
-                    </label>
-                    <textarea
-                      value={descriptionMm}
-                      onChange={(e) => setDescriptionMm(e.target.value)}
-                      className="min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      placeholder="မြန်မာစာ ဖော်ပြချက်..."
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Remark
-                  </label>
-                  <Input
-                    value={remark}
-                    onChange={(e) => setRemark(e.target.value)}
-                    placeholder="Notes / Batch number"
-                    className="h-[44px] rounded-xl"
-                  />
-                </div>
-              </div>
-            {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" className="h-12 px-4" onClick={resetForm}>
-                Cancel
-              </Button>
-              <Button className="h-12 px-5" onClick={handleSave} disabled={isBusy}>
-                {isBusy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {uploading ? 'Uploading...' : 'Saving...'}
-                  </>
-                ) : (
-                  'Save'
-                )}
-              </Button>
-            </div>
-            </div>
+            <ProductForm
+              title={editing ? 'Edit Product' : 'Add Product'}
+              barcode={barcode}
+              onBarcodeChange={setBarcode}
+              onBarcodeAction={() => {
+                setScanningForForm(true);
+                setScannerOpen(true);
+              }}
+              name={name}
+              onNameChange={setName}
+              sku={defaultCode}
+              onSkuChange={setDefaultCode}
+              size={size}
+              onSizeChange={setSize}
+              variant={variant}
+              onVariantChange={setVariant}
+              category={category}
+              onCategoryChange={setCategory}
+              categories={categoryOptions}
+              onAddCategory={handleAddCategory}
+              purchasePrice={costPrice}
+              onPurchasePriceChange={setCostPrice}
+              salePrice={price}
+              onSalePriceChange={setPrice}
+              stockQuantity={stockQuantity}
+              onStockQuantityChange={setStockQuantity}
+              descriptionEn={descriptionEn}
+              onDescriptionEnChange={setDescriptionEn}
+              descriptionMm={descriptionMm}
+              onDescriptionMmChange={setDescriptionMm}
+              imageUrl={imageUrlInput}
+              onImageUrlChange={setImageUrlInput}
+              onImageFileChange={setImageFile}
+              imagePreviewUrl={imagePreviewUrl}
+              remark={remark}
+              onRemarkChange={setRemark}
+              error={error}
+              onClose={resetForm}
+              onSave={handleSave}
+              saveLabel={isBusy ? (uploading ? 'Uploading...' : 'Saving...') : 'Save'}
+            />
           </div>
         </div>
       )}
 
       {scannerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4" onClick={handleCloseScanner}>
-          <div className="w-[95vw] max-h-[90vh] overflow-y-auto max-w-4xl rounded-2xl border border-border bg-card p-4 relative" onClick={(e) => e.stopPropagation()}>
+          <div className="w-[95vw] max-h-[90vh] max-w-4xl rounded-2xl border border-border bg-card p-4 relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="absolute right-3 top-3 z-[9999] flex h-10 w-10 items-center justify-center rounded-xl bg-background/90 text-foreground shadow-lg"
@@ -1161,7 +1047,7 @@ export default function AdminInventoryPage() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 h-[26vh] overflow-hidden rounded-2xl bg-black relative">
+            <div className="mt-4 h-[60vh] overflow-hidden rounded-2xl bg-black relative">
               <div id="admin-inventory-scanner" className="h-full w-full" />
               <div className="absolute inset-6 rounded-2xl border-2 border-primary/60 pointer-events-none" />
               {scanFlash && (

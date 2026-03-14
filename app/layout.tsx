@@ -6,6 +6,11 @@ import { LanguageProvider } from "@/components/language-provider";
 export const metadata: Metadata = {
   title: "The More You Glow By Ingyin POS",
   description: "Dark mode POS dashboard for beauty products by Ingyin.",
+  manifest: "/manifest.json",
+  themeColor: "#8B5CF6",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -23,4 +28,3 @@ export default function RootLayout({
     </html>
   );
 }
-
