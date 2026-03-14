@@ -206,6 +206,7 @@ export default function AdminInventoryPage() {
   const [scanFlash, setScanFlash] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
   const [scanManualInput, setScanManualInput] = React.useState('');
+  const [manualLookup, setManualLookup] = React.useState('');
   const [scanningForForm, setScanningForForm] = React.useState(false);
   const isBusy = saving || uploading;
 
@@ -641,6 +642,24 @@ export default function AdminInventoryPage() {
     setDialogOpen(true);
   };
 
+  const handleManualLookup = React.useCallback(() => {
+    const value = manualLookup.trim();
+    if (!value) return;
+    const lowered = value.toLowerCase();
+    const matched = products.find((p) =>
+      p.barcode === value ||
+      p.default_code === value ||
+      (p.product_name ?? '').toLowerCase() === lowered
+    );
+    if (matched) {
+      setQuery(value);
+    } else {
+      openCreate();
+      setBarcode(value);
+    }
+    setManualLookup('');
+  }, [manualLookup, openCreate, products]);
+
   const openEdit = (product: Product) => {
     setEditing(product);
     setName(product.product_name ?? '');
@@ -826,13 +845,31 @@ export default function AdminInventoryPage() {
           </div>
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="relative flex-1">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, category, or barcode..."
-              className="h-12 rounded-xl text-base"
-            />
+          <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, category, or barcode..."
+                className="h-12 rounded-xl text-base"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={manualLookup}
+                onChange={(e) => setManualLookup(e.target.value)}
+                placeholder="Manual product search/add..."
+                className="h-12 rounded-xl text-base"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleManualLookup();
+                  }
+                }}
+              />
+              <Button variant="outline" className="h-12 px-4" onClick={handleManualLookup}>
+                Search/Add
+              </Button>
+            </div>
           </div>
           <div className="text-xs text-muted-foreground">
             {syncing ? 'Syncing changes...' : `${filtered.length} items`}

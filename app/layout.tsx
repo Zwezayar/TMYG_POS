@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   themeColor: "#8B5CF6",
   icons: {
     icon: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
