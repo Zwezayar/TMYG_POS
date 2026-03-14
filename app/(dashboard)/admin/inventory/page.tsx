@@ -4,7 +4,7 @@ import * as React from 'react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
+import { ScannerModal } from '@/components/scanner/scanner-modal';
 import { useCategories } from '@/lib/useCategories';
 import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
@@ -298,28 +298,10 @@ export default function AdminInventoryPage() {
     setScannerOpen(false);
   }, [dialogOpen, scanManualInput, scanningForForm]);
 
-  const { startScanner, stopScanner, status, error: scanError, cameras, selectedCameraId, setSelectedCameraId } =
-    useBarcodeScanner(onScanSuccess);
-
-  const handleCloseScanner = React.useCallback(async () => {
-    await stopScanner();
+  const handleCloseScanner = React.useCallback(() => {
     setScanManualInput('');
     setScannerOpen(false);
-  }, [stopScanner]);
-
-  const handleResetScanner = React.useCallback(async () => {
-    await stopScanner();
-    setScannerOpen(false);
-    setTimeout(() => {
-      setScannerOpen(true);
-    }, 300);
-  }, [stopScanner]);
-
-  React.useEffect(() => {
-    return () => {
-      stopScanner();
-    };
-  }, [stopScanner]);
+  }, []);
 
   const refreshProducts = React.useCallback(async () => {
     setLoading(true);
@@ -566,24 +548,6 @@ export default function AdminInventoryPage() {
   }, [syncQueue]);
 
   React.useEffect(() => {
-    if (!scannerOpen) return;
-    setScanStatus('scanning');
-    const timeoutId = setTimeout(() => {
-      startScanner('admin-inventory-scanner', {
-        preferBackCamera: true,
-        facingMode: 'environment',
-        fps: 20,
-        qrbox: { width: 280, height: 160 },
-        aspectRatio: 1.0,
-      });
-    }, 500);
-    return () => {
-      clearTimeout(timeoutId);
-      stopScanner();
-    };
-  }, [scannerOpen, selectedCameraId, startScanner, stopScanner]);
-
-  React.useEffect(() => {
     if (imageFile) {
       const url = URL.createObjectURL(imageFile);
       setImagePreviewUrl(url);
@@ -598,22 +562,6 @@ export default function AdminInventoryPage() {
     }
     setImagePreviewUrl(null);
   }, [imageFile, imageUrlInput]);
-
-  const handleToggleCamera = async () => {
-    if (cameras.length < 2) return;
-    const currentIndex = cameras.findIndex((cam) => cam.id === selectedCameraId);
-    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % cameras.length : 0;
-    setSelectedCameraId(cameras[nextIndex].id);
-    await stopScanner();
-    if (scannerOpen) {
-      startScanner('admin-inventory-scanner', {
-        facingMode: 'environment',
-        fps: 20,
-        qrbox: { width: 280, height: 160 },
-        aspectRatio: 1.0,
-      });
-    }
-  };
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -993,91 +941,17 @@ export default function AdminInventoryPage() {
         </div>
       )}
 
-      {scannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4" onClick={handleCloseScanner}>
-          <div className="w-[95vw] max-h-[90vh] max-w-4xl rounded-2xl border border-border bg-card p-4 relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="absolute right-3 top-3 z-[9999] flex h-10 w-10 items-center justify-center rounded-xl bg-background/90 text-foreground shadow-lg"
-              onClick={handleCloseScanner}
-              aria-label="Close scanner"
-            >
-              ×
-            </button>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  placeholder="Manual barcode entry..."
-                  className="h-11"
-                  value={scanManualInput}
-                  onChange={(e) => setScanManualInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleManualBarcode();
-                    }
-                  }}
-                />
-                <Button className="h-11 px-4" onClick={handleManualBarcode}>
-                  Use
-                </Button>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-xs text-muted-foreground">
-                  {status === 'initializing'
-                    ? 'Initializing Camera...'
-                    : status === 'scanning'
-                      ? 'Scanning...'
-                      : scanError || 'Ready'}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-semibold">Scan Barcode</h2>
-                  <p className="text-xs text-muted-foreground">Point the camera at the barcode.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {cameras.length > 1 && (
-                    <Button variant="outline" className="h-12 px-4" onClick={handleToggleCamera}>
-                      Switch Camera
-                    </Button>
-                  )}
-                  <Button variant="outline" className="h-12 px-4" onClick={handleResetScanner}>
-                    Reset Camera
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 h-[60vh] overflow-hidden rounded-2xl bg-black relative">
-              <div id="admin-inventory-scanner" className="h-full w-full" />
-              <div className="absolute inset-6 rounded-2xl border-2 border-primary/60 pointer-events-none" />
-              {scanFlash && (
-                <div className="absolute inset-0 bg-green-400/20 pointer-events-none" />
-              )}
-            </div>
-            <div className="mt-3 text-xs text-muted-foreground">
-              <span
-                className={
-                  scanStatus === 'found'
-                    ? 'text-emerald-500 font-semibold'
-                    : scanStatus === 'missing'
-                      ? 'text-red-500 font-semibold'
-                      : 'text-muted-foreground'
-                }
-              >
-                {scanStatus === 'found'
-                  ? 'Found'
-                  : scanStatus === 'missing'
-                    ? 'Not Found'
-                    : status === 'initializing'
-                      ? 'Initializing Camera...'
-                      : status === 'scanning'
-                        ? 'Scanning...'
-                        : scanError || 'Ready'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      <ScannerModal
+        open={scannerOpen}
+        elementId="admin-inventory-scanner"
+        onClose={handleCloseScanner}
+        onScanSuccess={(value: string) => {
+          onScanSuccess(value);
+        }}
+        manualValue={scanManualInput}
+        onManualChange={setScanManualInput}
+        onManualSubmit={handleManualBarcode}
+      />
     </div>
   );
 }

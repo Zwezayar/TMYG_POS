@@ -18,6 +18,17 @@ let globalScannerInstance: Html5Qrcode | null = null;
 
 function stopLocalStreamTracks() {
   if (typeof window === 'undefined') return;
+  const streams = ((window as any).__tmygMediaStreams as MediaStream[]) ?? [];
+  streams.forEach((stream) => {
+    if (stream?.getTracks) {
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch { }
+      });
+    }
+  });
+  (window as any).__tmygMediaStreams = [];
   const stream = (window as any).localStream as MediaStream | undefined;
   if (stream?.getTracks) {
     stream.getTracks().forEach((track) => {
@@ -26,6 +37,18 @@ function stopLocalStreamTracks() {
       } catch { }
     });
   }
+  const videos = document.querySelectorAll('video');
+  videos.forEach((video) => {
+    const media = (video as HTMLVideoElement).srcObject as MediaStream | null;
+    if (media?.getTracks) {
+      media.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch { }
+      });
+      (video as HTMLVideoElement).srcObject = null;
+    }
+  });
 }
 
 async function forceStopCamera() {
@@ -115,6 +138,38 @@ export function useBarcodeScanner(
     }
     isProcessing.current = false;
   }, [status]);
+
+  const shutdownScanner = React.useCallback(async () => {
+    if (scannerUiRef.current) {
+      try {
+        scannerUiRef.current.clear();
+      } catch { }
+      scannerUiRef.current = null;
+    }
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.getState?.() === Html5QrcodeScannerState.SCANNING) {
+          await scannerRef.current.stop();
+        }
+      } catch { }
+      try {
+        if (typeof scannerRef.current.clear === 'function') {
+          await Promise.resolve(scannerRef.current.clear());
+        }
+      } catch { }
+      scannerRef.current = null;
+    }
+    await forceStopGlobalScanner();
+    await forceStopCamera();
+    setStatus('stopped');
+    setError(null);
+    if (typeof window !== 'undefined') {
+      const state = (window as any).__tmygScannerLockState as { id?: string; release?: () => Promise<void> | void } | undefined;
+      if (state?.id === instanceIdRef.current) {
+        (window as any).__tmygScannerLockState = null;
+      }
+    }
+  }, []);
 
   const startScanner = React.useCallback(async (elementId: string, options?: ScannerOptions) => {
     if (status === 'scanning' || status === 'initializing') {
@@ -214,7 +269,12 @@ export function useBarcodeScanner(
         if (typeof window !== 'undefined') {
           const video = document.querySelector(`#${elementId} video`) as HTMLVideoElement | null;
           if (video?.srcObject) {
-            (window as any).localStream = video.srcObject;
+            const stream = video.srcObject as MediaStream;
+            (window as any).localStream = stream;
+            const list = ((window as any).__tmygMediaStreams as MediaStream[]) ?? [];
+            if (!list.includes(stream)) {
+              (window as any).__tmygMediaStreams = [...list, stream];
+            }
           }
         }
       } else {
@@ -279,9 +339,9 @@ export function useBarcodeScanner(
 
   React.useEffect(() => {
     return () => {
-      stopScanner();
+      shutdownScanner();
     };
-  }, [stopScanner]);
+  }, [shutdownScanner]);
 
   return {
     status,
@@ -291,5 +351,6 @@ export function useBarcodeScanner(
     setSelectedCameraId,
     startScanner,
     stopScanner,
+    shutdownScanner,
   };
 }
