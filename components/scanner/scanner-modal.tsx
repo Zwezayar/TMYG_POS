@@ -67,10 +67,10 @@ export function ScannerModal({
     if (!open) return;
     setShowPermissionPrompt(false);
     const timer = setTimeout(() => {
-      if (status === 'initializing') {
+      if (status !== 'scanning') {
         setShowPermissionPrompt(true);
       }
-    }, 3000);
+    }, 2000);
     return () => clearTimeout(timer);
   }, [open, status]);
 
@@ -101,7 +101,14 @@ export function ScannerModal({
 
   const handleCameraReset = React.useCallback(async () => {
     await shutdownScanner();
-  }, [shutdownScanner]);
+    await startScanner(elementId, {
+      preferBackCamera: true,
+      facingMode: 'environment',
+      fps: 20,
+      qrbox: { width: 300, height: 120 },
+      aspectRatio: 1.0,
+    });
+  }, [shutdownScanner, startScanner, elementId]);
 
   const handleUserStart = React.useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -125,6 +132,10 @@ export function ScannerModal({
       setShowPermissionPrompt(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Camera permission required.';
+      if (typeof window !== 'undefined') {
+        alert(`Camera start failed: ${message}`);
+      }
+      console.log('getUserMedia error:', err);
       onScanError?.(message);
     } finally {
       setPermissionWorking(false);
@@ -223,11 +234,11 @@ export function ScannerModal({
           {showPermissionPrompt && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60">
               <Button
-                className="h-12 px-6 rounded-xl text-sm font-bold"
+                className="h-14 px-8 rounded-2xl text-base font-bold bg-primary/90 text-primary-foreground"
                 onClick={handleUserStart}
                 disabled={permissionWorking}
               >
-                {permissionWorking ? 'Starting Camera...' : 'Click to Start Camera'}
+                {permissionWorking ? 'Starting Camera...' : 'Tap to Start Camera'}
               </Button>
             </div>
           )}
