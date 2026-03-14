@@ -1,5 +1,13 @@
-import withPWA from 'next-pwa';
+import nextPWA from 'next-pwa';
 import runtimeCaching from 'next-pwa/cache.js';
+
+const withPWA = nextPWA({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
+  runtimeCaching,
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -13,13 +21,6 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  pwa: {
-    dest: 'public',
-    register: true,
-    skipWaiting: true,
-    disable: process.env.NODE_ENV === 'development',
-    runtimeCaching,
   },
 };
 
