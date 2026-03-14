@@ -12,6 +12,9 @@ type ScannerOptions = {
   fps?: number;
   qrbox?: { width: number; height: number } | ((viewfinderWidth: number, viewfinderHeight: number) => { width: number; height: number });
   aspectRatio?: number;
+  formatsToSupport?: number[];
+  stopOnSuccess?: boolean;
+  forceStart?: boolean;
 };
 
 let globalScannerInstance: Html5Qrcode | null = null;
@@ -172,12 +175,12 @@ export function useBarcodeScanner(
   }, []);
 
   const startScanner = React.useCallback(async (elementId: string, options?: ScannerOptions) => {
-    if (status === 'scanning' || status === 'initializing') {
+    if (!options?.forceStart && (status === 'scanning' || status === 'initializing')) {
       console.warn('Scanner is already active.');
       return;
     }
 
-    if (isProcessing.current) {
+    if (isProcessing.current && !options?.forceStart) {
       return;
     }
 
@@ -240,6 +243,7 @@ export function useBarcodeScanner(
             const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7);
             return { width: size, height: size };
           }),
+        formatsToSupport: options?.formatsToSupport,
       };
 
       if (options?.preferBackCamera || options?.facingMode) {
@@ -256,7 +260,9 @@ export function useBarcodeScanner(
           cameraSource as any,
           scanConfig,
           async (decodedText, result) => {
-            await stopScanner();
+            if (options?.stopOnSuccess !== false) {
+              await stopScanner();
+            }
             onScanSuccess(decodedText, result);
           },
           (errorMessage) => {
@@ -289,7 +295,9 @@ export function useBarcodeScanner(
         scannerUiRef.current = ui;
         ui.render(
           async (decodedText, result) => {
-            await stopScanner();
+            if (options?.stopOnSuccess !== false) {
+              await stopScanner();
+            }
             onScanSuccess(decodedText, result);
           },
           (errorMessage) => {
@@ -309,6 +317,10 @@ export function useBarcodeScanner(
       await attemptStart();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
+      if (typeof window !== 'undefined') {
+        console.log('getUserMedia error:', err);
+        alert(`Camera start failed: ${errorMessage}`);
+      }
       if (/AbortError/.test(errorMessage)) {
         if (isProcessing.current) {
           isProcessing.current = false;
@@ -337,6 +349,14 @@ export function useBarcodeScanner(
     }
   }, [onScanSuccess, onScanError, selectedCameraId, status, stopScanner]);
 
+  const startScannerDirect = React.useCallback(
+    async (elementId: string, options?: ScannerOptions) => {
+      await shutdownScanner();
+      await startScanner(elementId, { ...options, forceStart: true });
+    },
+    [shutdownScanner, startScanner]
+  );
+
   React.useEffect(() => {
     return () => {
       shutdownScanner();
@@ -350,6 +370,7 @@ export function useBarcodeScanner(
     selectedCameraId,
     setSelectedCameraId,
     startScanner,
+    startScannerDirect,
     stopScanner,
     shutdownScanner,
   };

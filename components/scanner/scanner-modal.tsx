@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
+import { Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X } from 'lucide-react';
 
 type ScannerModalProps = {
@@ -29,11 +30,35 @@ export function ScannerModal({
   secondaryActionLabel,
   onSecondaryAction,
 }: ScannerModalProps) {
-  const { startScanner, shutdownScanner, status, cameras, selectedCameraId, setSelectedCameraId } =
-    useBarcodeScanner((text) => onScanSuccess(text), onScanError);
+  const [scanHint, setScanHint] = React.useState<string | null>(null);
+  const handleScanError = React.useCallback(
+    (message: string) => {
+      setScanHint('Scanning Failed - Please try again');
+      onScanError?.(message);
+    },
+    [onScanError]
+  );
+  const { startScanner, startScannerDirect, shutdownScanner, status, cameras, selectedCameraId, setSelectedCameraId } =
+    useBarcodeScanner((text) => onScanSuccess(text), handleScanError);
   const [isStarting, setIsStarting] = React.useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = React.useState(false);
   const [permissionWorking, setPermissionWorking] = React.useState(false);
+
+  const formats = React.useMemo(
+    () => [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.DATA_MATRIX,
+    ],
+    []
+  );
 
   const startWithDelay = React.useCallback(() => {
     if (!open) return;
@@ -46,10 +71,12 @@ export function ScannerModal({
         fps: 20,
         qrbox: { width: 300, height: 120 },
         aspectRatio: 1.0,
+        formatsToSupport: formats,
+        stopOnSuccess: false,
       }).finally(() => setIsStarting(false));
     }, 3000);
     return () => clearTimeout(timer);
-  }, [open, isStarting, startScanner, elementId]);
+  }, [open, isStarting, startScanner, elementId, formats]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -77,6 +104,7 @@ export function ScannerModal({
   React.useEffect(() => {
     if (status === 'scanning') {
       setShowPermissionPrompt(false);
+      setScanHint(null);
     }
   }, [status]);
 
@@ -107,8 +135,10 @@ export function ScannerModal({
       fps: 20,
       qrbox: { width: 300, height: 120 },
       aspectRatio: 1.0,
+      formatsToSupport: formats,
+      stopOnSuccess: false,
     });
-  }, [shutdownScanner, startScanner, elementId]);
+  }, [shutdownScanner, startScanner, elementId, formats]);
 
   const handleUserStart = React.useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -121,13 +151,14 @@ export function ScannerModal({
         video: { facingMode: 'environment' },
       });
       stream.getTracks().forEach((track) => track.stop());
-      await shutdownScanner();
-      await startScanner(elementId, {
+      await startScannerDirect(elementId, {
         preferBackCamera: true,
         facingMode: 'environment',
         fps: 20,
         qrbox: { width: 300, height: 120 },
         aspectRatio: 1.0,
+        formatsToSupport: formats,
+        stopOnSuccess: false,
       });
       setShowPermissionPrompt(false);
     } catch (err) {
@@ -140,7 +171,7 @@ export function ScannerModal({
     } finally {
       setPermissionWorking(false);
     }
-  }, [elementId, onScanError, shutdownScanner, startScanner]);
+  }, [elementId, onScanError, startScannerDirect, formats]);
 
   if (!open) return null;
 
@@ -227,6 +258,11 @@ export function ScannerModal({
               </Button>
             </div>
           </div>
+          {scanHint && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600">
+              {scanHint}
+            </div>
+          )}
         </div>
         <div className="relative h-[72vh] bg-black rounded-2xl overflow-hidden">
           <div id={elementId} className="h-full w-full" />

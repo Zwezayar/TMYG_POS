@@ -1562,8 +1562,10 @@ export default function PosPage() {
   };
 
   const isLocked = React.useRef(false);
+  const lastScanByCodeRef = React.useRef<Record<string, number>>({});
+  const [resumeScanAfterQuickAdd, setResumeScanAfterQuickAdd] = React.useState(false);
 
-  const openQuickAddForBarcode = (code: string) => {
+  const openQuickAddForBarcode = (code: string, options?: { resumeScanner?: boolean }) => {
     setQuickBarcode(code);
     setQuickName('');
     setQuickDefaultCode('');
@@ -1582,6 +1584,7 @@ export default function PosPage() {
     setQuickError(null);
     setMissingBarcode(null);
     setQuickAddOpen(true);
+    setResumeScanAfterQuickAdd(options?.resumeScanner === true);
   };
 
   function handleScannedBarcode(raw: string) {
@@ -1604,6 +1607,22 @@ export default function PosPage() {
       return false;
     }
 
+    const lastScanAt = lastScanByCodeRef.current[code] ?? 0;
+    if (Date.now() - lastScanAt < 2000) {
+      if (scanUnlockTimeoutRef.current) {
+        clearTimeout(scanUnlockTimeoutRef.current);
+      }
+      scanUnlockTimeoutRef.current = setTimeout(() => {
+        isLocked.current = false;
+        isProcessingScan.current = false;
+        if (typeof window !== 'undefined') {
+          (window as any).isProcessingScan = false;
+        }
+      }, 800);
+      return false;
+    }
+    lastScanByCodeRef.current[code] = Date.now();
+
     const existing = products.find(
       (p) => normalizeBarcode(p.barcode).toLowerCase() === code.toLowerCase()
     );
@@ -1612,7 +1631,22 @@ export default function PosPage() {
       setMissingBarcode(null);
       setScanStatus('found');
       addToCart(existing, 1);
-      addToast('success', 'Product added from scanner.');
+      addToast('success', `Success: ${existing.product_name ?? 'Product'} added`);
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.value = 0.05;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 120);
+      } catch {}
       if (scanUnlockTimeoutRef.current) {
         clearTimeout(scanUnlockTimeoutRef.current);
       }
@@ -1628,7 +1662,8 @@ export default function PosPage() {
 
     setMissingBarcode(code);
     setScanStatus('missing');
-    addToast('error', 'Product not found.');
+    addToast('error', 'Product Not Found');
+    openQuickAddForBarcode(code, { resumeScanner: true });
     if (scanUnlockTimeoutRef.current) {
       clearTimeout(scanUnlockTimeoutRef.current);
     }
@@ -1760,6 +1795,10 @@ export default function PosPage() {
             addToCart({ ...updatedProduct, stock_quantity: newStock }, 1);
           }
           setQuickAddOpen(false);
+          if (resumeScanAfterQuickAdd) {
+            setResumeScanAfterQuickAdd(false);
+            setScanOpen(true);
+          }
           return;
         }
       }
@@ -1824,6 +1863,10 @@ export default function PosPage() {
       addToCart(created, 1);
       await refreshProducts();
       setQuickAddOpen(false);
+      if (resumeScanAfterQuickAdd) {
+        setResumeScanAfterQuickAdd(false);
+        setScanOpen(true);
+      }
       setQuickImageFile(null);
       setQuickImagePreviewUrl(null);
       addToast('success', `${created.product_name} added to inventory and cart.`);
@@ -2023,7 +2066,7 @@ export default function PosPage() {
               missingBarcode={missingBarcode}
               onQuickAdd={() => {
                 if (!missingBarcode) return;
-                openQuickAddForBarcode(missingBarcode);
+                openQuickAddForBarcode(missingBarcode, { resumeScanner: true });
                 setMissingBarcode(null);
               }}
             />
@@ -2076,10 +2119,7 @@ export default function PosPage() {
         elementId="reader"
         onClose={handleCloseScanner}
         onScanSuccess={(value: string) => {
-          const matched = handleScannedBarcode(value);
-          if (matched) {
-            setScanOpen(false);
-          }
+          handleScannedBarcode(value);
         }}
         onScanError={(msg: string) => addToast('error', msg)}
         manualValue={manualBarcodeInput}
@@ -2091,7 +2131,7 @@ export default function PosPage() {
         }}
         secondaryActionLabel="Quick Add Product"
         onSecondaryAction={() => {
-          openQuickAddForBarcode(manualBarcodeInput.trim());
+          openQuickAddForBarcode(manualBarcodeInput.trim(), { resumeScanner: false });
           setManualBarcodeInput('');
           setScanOpen(false);
         }}
@@ -2105,7 +2145,14 @@ export default function PosPage() {
             onClick={() => {
               setQuickAddOpen(false);
               setQuickError(null);
-              if (scanOpen) setScanOpen(false);
+              setQuickImageFile(null);
+              setQuickImagePreviewUrl(null);
+              if (resumeScanAfterQuickAdd) {
+                setResumeScanAfterQuickAdd(false);
+                setScanOpen(true);
+              } else if (scanOpen) {
+                setScanOpen(false);
+              }
             }}
           >
             <div
@@ -2154,7 +2201,12 @@ export default function PosPage() {
                   setQuickError(null);
                   setQuickImageFile(null);
                   setQuickImagePreviewUrl(null);
-                  if (scanOpen) setScanOpen(false);
+                  if (resumeScanAfterQuickAdd) {
+                    setResumeScanAfterQuickAdd(false);
+                    setScanOpen(true);
+                  } else if (scanOpen) {
+                    setScanOpen(false);
+                  }
                 }}
                 onSave={handleQuickAddSave}
                 saveLabel="Save & Add to Cart"
