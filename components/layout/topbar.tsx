@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,6 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { useT } from '@/components/language-provider';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { supabaseClient } from '@/lib/supabaseClient';
-import { useBarcodeScanner } from '@/lib/useBarcodeScanner';
 
 interface TopbarProps {
   onOpenSidebar?: () => void;
@@ -21,7 +19,6 @@ export function Topbar({ onOpenSidebar, onToggleSidebar, sidebarCollapsed }: Top
   const t = useT();
   const router = useRouter();
   const { role, username } = useDashboardAuth();
-  const { shutdownScanner } = useBarcodeScanner(() => {});
 
   async function handleLogout() {
     await supabaseClient.auth.signOut();
@@ -54,14 +51,6 @@ export function Topbar({ onOpenSidebar, onToggleSidebar, sidebarCollapsed }: Top
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-3 rounded-lg text-[10px] font-semibold"
-          onClick={() => shutdownScanner()}
-        >
-          Camera Reset
-        </Button>
         <ThemeToggle />
         <LanguageToggle />
         {role && (

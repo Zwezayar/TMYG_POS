@@ -32,6 +32,8 @@ export function ScannerModal({
   const { startScanner, shutdownScanner, status, cameras, selectedCameraId, setSelectedCameraId } =
     useBarcodeScanner((text) => onScanSuccess(text), onScanError);
   const [isStarting, setIsStarting] = React.useState(false);
+  const [showPermissionPrompt, setShowPermissionPrompt] = React.useState(false);
+  const [permissionWorking, setPermissionWorking] = React.useState(false);
 
   const startWithDelay = React.useCallback(() => {
     if (!open) return;
@@ -61,6 +63,23 @@ export function ScannerModal({
     };
   }, [open, shutdownScanner]);
 
+  React.useEffect(() => {
+    if (!open) return;
+    setShowPermissionPrompt(false);
+    const timer = setTimeout(() => {
+      if (status === 'initializing') {
+        setShowPermissionPrompt(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [open, status]);
+
+  React.useEffect(() => {
+    if (status === 'scanning') {
+      setShowPermissionPrompt(false);
+    }
+  }, [status]);
+
   const handleClose = React.useCallback(async () => {
     await shutdownScanner();
     onClose();
@@ -79,6 +98,38 @@ export function ScannerModal({
     await shutdownScanner();
     startWithDelay();
   }, [shutdownScanner, startWithDelay]);
+
+  const handleCameraReset = React.useCallback(async () => {
+    await shutdownScanner();
+  }, [shutdownScanner]);
+
+  const handleUserStart = React.useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      onScanError?.('Camera API is not available.');
+      return;
+    }
+    setPermissionWorking(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      await shutdownScanner();
+      await startScanner(elementId, {
+        preferBackCamera: true,
+        facingMode: 'environment',
+        fps: 20,
+        qrbox: { width: 300, height: 120 },
+        aspectRatio: 1.0,
+      });
+      setShowPermissionPrompt(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Camera permission required.';
+      onScanError?.(message);
+    } finally {
+      setPermissionWorking(false);
+    }
+  }, [elementId, onScanError, shutdownScanner, startScanner]);
 
   if (!open) return null;
 
@@ -151,6 +202,14 @@ export function ScannerModal({
                 type="button"
                 variant="outline"
                 className="h-[44px] rounded-xl text-[10px] px-4 font-bold"
+                onClick={handleCameraReset}
+              >
+                Camera Reset
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-[44px] rounded-xl text-[10px] px-4 font-bold"
                 onClick={handleRefreshCamera}
               >
                 Refresh Camera
@@ -161,6 +220,17 @@ export function ScannerModal({
         <div className="relative h-[72vh] bg-black rounded-2xl overflow-hidden">
           <div id={elementId} className="h-full w-full" />
           <div className="absolute inset-6 pointer-events-none rounded-2xl border-2 border-primary/60" />
+          {showPermissionPrompt && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+              <Button
+                className="h-12 px-6 rounded-xl text-sm font-bold"
+                onClick={handleUserStart}
+                disabled={permissionWorking}
+              >
+                {permissionWorking ? 'Starting Camera...' : 'Click to Start Camera'}
+              </Button>
+            </div>
+          )}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           Safari may show a red icon during scanning for privacy. This is normal.

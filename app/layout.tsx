@@ -8,12 +8,20 @@ export const metadata: Metadata = {
   description: "Dark mode POS dashboard for beauty products by Ingyin.",
   manifest: "/manifest.json",
   themeColor: "#8B5CF6",
+  appleWebApp: {
+    capable: true,
+    title: "TMYG POS",
+    statusBarStyle: "default",
+  },
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" }
     ],
     apple: "/apple-touch-icon.png",
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
   },
 };
 
