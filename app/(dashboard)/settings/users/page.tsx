@@ -151,9 +151,22 @@ export default function UsersPage() {
     }
   };
 
+  const [isSingleUser, setIsSingleUser] = React.useState(false);
+
   React.useEffect(() => {
-    if (role === 'admin') fetchUsers();
-    else setLoading(false);
+    const load = async () => {
+      const { count } = await supabaseClient
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      const single = (count ?? 0) <= 1;
+      setIsSingleUser(single);
+      if (role === 'admin' || single) {
+        fetchUsers();
+      } else {
+        setLoading(false);
+      }
+    };
+    load();
   }, [role, fetchUsers]);
 
   async function handleResetPassword(userId: string) {
@@ -193,7 +206,7 @@ export default function UsersPage() {
     }
   }
 
-  if (role !== 'admin') {
+  if (role !== 'admin' && !isSingleUser) {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">

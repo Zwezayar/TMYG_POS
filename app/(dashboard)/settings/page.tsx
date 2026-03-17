@@ -1,11 +1,25 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
+import { supabaseClient } from '@/lib/supabaseClient';
 import { Users } from 'lucide-react';
 
 export default function SettingsPage() {
   const { role } = useDashboardAuth();
+  const [isSingleUser, setIsSingleUser] = React.useState(false);
+
+  React.useEffect(() => {
+    const load = async () => {
+      const { count } = await supabaseClient
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      setIsSingleUser((count ?? 0) <= 1);
+    };
+    load();
+  }, []);
+  const canManageUsers = role === 'admin' || isSingleUser;
 
   return (
     <div className="space-y-6">
@@ -15,7 +29,7 @@ export default function SettingsPage() {
       <p className="text-sm text-muted-foreground">
         Configure users, roles, and app behavior.
       </p>
-      {role === 'admin' ? (
+      {canManageUsers ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Link
             href="/settings/users"

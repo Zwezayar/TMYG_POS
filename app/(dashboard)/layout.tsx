@@ -45,9 +45,19 @@ export default function DashboardLayout({
         .eq('id', userId)
         .maybeSingle();
 
-      const roleValue = (profile?.role as Role | null) ?? null;
+      let roleValue = (profile?.role as Role | null) ?? null;
       const usernameValue = (profile?.username as string | null) ?? null;
       const displayNameValue = (profile?.display_name as string | null) ?? null;
+
+      if (!roleValue) {
+        const { count } = await supabaseClient
+          .from('profiles')
+          .select('id', { count: 'exact', head: true });
+        if ((count ?? 0) <= 1) {
+          await supabaseClient.from('profiles').update({ role: 'admin' }).eq('id', userId);
+          roleValue = 'admin';
+        }
+      }
 
       setRole(roleValue);
       setUsername(usernameValue);

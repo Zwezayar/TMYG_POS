@@ -68,6 +68,21 @@ export default function LoginPage() {
         profile = newProfile;
       }
 
+      if (!profile?.role) {
+        const { count } = await supabaseClient
+          .from('profiles')
+          .select('id', { count: 'exact', head: true });
+        if ((count ?? 0) <= 1) {
+          await supabaseClient.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+          profile = await supabaseClient
+            .from('profiles')
+            .select('role, username, display_name')
+            .eq('id', user.id)
+            .maybeSingle()
+            .then((res) => res.data ?? profile);
+        }
+      }
+
       if (profile?.role) {
         window.localStorage.setItem('tmyg-role', profile.role);
       }
