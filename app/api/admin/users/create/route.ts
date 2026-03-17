@@ -2,12 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
-/**
- * GET /api/admin/users
- * Returns all profiles (for user management). Admin only.
- * Client must send: Authorization: Bearer <access_token>
- */
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization');
     const accessToken = authHeader?.replace(/^Bearer\s+/i, '');
@@ -38,16 +33,44 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { data: profiles, error: listError } = await admin
-      .from('profiles')
-      .select('id, username, role, display_name')
-      .order('username');
+    const body = await req.json();
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    const role = typeof body.role === 'string' ? body.role.trim() : 'staff';
+    const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
 
-    if (listError) {
-      return NextResponse.json({ error: listError.message }, { status: 500 });
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+    if (!['admin', 'staff'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
-    return NextResponse.json(profiles ?? []);
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (createError || !created.user) {
+      return NextResponse.json({ error: createError?.message ?? 'Create user failed' }, { status: 500 });
+    }
+
+    const userId = created.user.id;
+    const { error: profileError } = await admin
+      .from('profiles')
+      .upsert({
+        id: userId,
+        username: email,
+        role,
+        display_name: displayName || null,
+      });
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, userId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unexpected error';
     return NextResponse.json({ error: message }, { status: 500 });

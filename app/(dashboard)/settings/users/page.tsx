@@ -7,7 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-type ProfileRow = { id: string; username: string | null; role: string | null };
+type ProfileRow = {
+  id: string;
+  username: string | null;
+  role: string | null;
+  display_name: string | null;
+};
 
 export default function UsersPage() {
   const { role } = useDashboardAuth();
@@ -18,6 +23,15 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = React.useState('');
   const [resetError, setResetError] = React.useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = React.useState(false);
+  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [inviteEmail, setInviteEmail] = React.useState('');
+  const [invitePassword, setInvitePassword] = React.useState('');
+  const [inviteRole, setInviteRole] = React.useState<'admin' | 'staff'>('staff');
+  const [inviteDisplayName, setInviteDisplayName] = React.useState('');
+  const [inviteError, setInviteError] = React.useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = React.useState(false);
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+  const [localEdits, setLocalEdits] = React.useState<Record<string, { role: string; displayName: string }>>({});
 
   const fetchUsers = React.useCallback(async () => {
     setLoading(true);
@@ -47,6 +61,95 @@ export default function UsersPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleSaveProfile = async (userId: string) => {
+    const edit = localEdits[userId];
+    if (!edit) return;
+    setSavingId(userId);
+    setError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabaseClient.auth.getSession();
+      if (!session) {
+        setError('Session expired.');
+        return;
+      }
+      const res = await fetch('/api/admin/users/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          userId,
+          role: edit.role,
+          displayName: edit.displayName,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || res.statusText);
+        return;
+      }
+      await fetchUsers();
+      setLocalEdits((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleInviteUser = async () => {
+    setInviteError(null);
+    setInviteSuccess(false);
+    const email = inviteEmail.trim();
+    const password = invitePassword.trim();
+    if (!email || password.length < 6) {
+      setInviteError('Email and password (min 6 chars) are required.');
+      return;
+    }
+    try {
+      const {
+        data: { session },
+      } = await supabaseClient.auth.getSession();
+      if (!session) {
+        setInviteError('Session expired.');
+        return;
+      }
+      const res = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          role: inviteRole,
+          displayName: inviteDisplayName,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setInviteError(data?.error || res.statusText);
+        return;
+      }
+      setInviteSuccess(true);
+      setInviteEmail('');
+      setInvitePassword('');
+      setInviteDisplayName('');
+      setInviteRole('staff');
+      await fetchUsers();
+    } catch (e) {
+      setInviteError(e instanceof Error ? e.message : 'Invite failed');
+    }
+  };
 
   React.useEffect(() => {
     if (role === 'admin') fetchUsers();
@@ -105,13 +208,18 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           User Management
         </h1>
         <p className="text-sm text-muted-foreground">
           View staff and reset passwords. Only admins can access this page.
         </p>
+        </div>
+        <Button size="sm" onClick={() => setInviteOpen(true)}>
+          Invite/Create New User
+        </Button>
       </div>
 
       {loading && (
@@ -126,7 +234,10 @@ export default function UsersPage() {
             <thead className="border-b border-border/60 bg-muted/50">
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                  User (email / username)
+                  User (email)
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                  Display Name / Staff ID
                 </th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
                   Role
@@ -139,7 +250,7 @@ export default function UsersPage() {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
                     No users found.
                   </td>
                 </tr>
@@ -149,28 +260,138 @@ export default function UsersPage() {
                     <td className="px-4 py-2 font-medium">
                       {u.username || u.id.slice(0, 8) + '…'}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {u.role ?? '—'}
+                    <td className="px-4 py-2">
+                      <Input
+                        value={localEdits[u.id]?.displayName ?? u.display_name ?? ''}
+                        onChange={(e) =>
+                          setLocalEdits((prev) => ({
+                            ...prev,
+                            [u.id]: {
+                              role: localEdits[u.id]?.role ?? u.role ?? 'staff',
+                              displayName: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Staff 01 / Cashier Su Su"
+                        className="h-9"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <select
+                        value={localEdits[u.id]?.role ?? u.role ?? 'staff'}
+                        onChange={(e) =>
+                          setLocalEdits((prev) => ({
+                            ...prev,
+                            [u.id]: {
+                              role: e.target.value,
+                              displayName: localEdits[u.id]?.displayName ?? u.display_name ?? '',
+                            },
+                          }))
+                        }
+                        className="h-9 rounded-md border border-input bg-transparent px-2 text-xs"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="staff">Staff</option>
+                      </select>
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setResettingId(u.id);
-                          setNewPassword('');
-                          setResetError(null);
-                          setResetSuccess(false);
-                        }}
-                      >
-                        Reset password
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSaveProfile(u.id)}
+                          disabled={savingId === u.id || !localEdits[u.id]}
+                        >
+                          {savingId === u.id ? 'Saving...' : 'Save'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setResettingId(u.id);
+                            setNewPassword('');
+                            setResetError(null);
+                            setResetSuccess(false);
+                          }}
+                        >
+                          Reset password
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {inviteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setInviteOpen(false)}>
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 text-sm font-semibold">Invite / Create User</h3>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-email">Email</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  autoComplete="off"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="staff@example.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-password">Temporary Password</Label>
+                <Input
+                  id="invite-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  placeholder="Min 6 characters"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-display-name">Display Name / Staff ID</Label>
+                <Input
+                  id="invite-display-name"
+                  value={inviteDisplayName}
+                  onChange={(e) => setInviteDisplayName(e.target.value)}
+                  placeholder="Staff 01 / Cashier Su Su"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role">Role</Label>
+                <select
+                  id="invite-role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as 'admin' | 'staff')}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-xs"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+              {inviteError && (
+                <p className="text-xs text-destructive">{inviteError}</p>
+              )}
+              {inviteSuccess && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  User created successfully.
+                </p>
+              )}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleInviteUser}>
+                Create User
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

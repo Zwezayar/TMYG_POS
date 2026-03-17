@@ -46,7 +46,7 @@ export default function LoginPage() {
       // Fetch existing profile so we don't overwrite admin role.
       const { data: existingProfile } = await supabaseClient
         .from('profiles')
-        .select('role, username')
+        .select('role, username, display_name')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -58,10 +58,11 @@ export default function LoginPage() {
           id: user.id,
           username: user.email ?? '',
           role: 'staff',
+          display_name: null,
         });
         const { data: newProfile } = await supabaseClient
           .from('profiles')
-          .select('role, username')
+          .select('role, username, display_name')
           .eq('id', user.id)
           .maybeSingle();
         profile = newProfile;
@@ -72,6 +73,9 @@ export default function LoginPage() {
       }
       if (profile?.username != null) {
         window.localStorage.setItem('tmyg-username', profile.username);
+      }
+      if (profile?.display_name != null) {
+        window.localStorage.setItem('tmyg-display-name', profile.display_name);
       }
 
       router.replace('/');
@@ -161,4 +165,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

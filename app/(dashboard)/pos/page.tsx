@@ -45,6 +45,7 @@ type ReceiptData = {
   date: string;
   time: string;
   staffName: string | null;
+  cashierRole: string | null;
   saleType: 'Shop' | 'Delivery';
   customerName: string;
   customerPhone: string;
@@ -59,6 +60,8 @@ type ReceiptData = {
   deliveryFee: number;
   discount: number;
   grandTotal: number;
+  amountReceived: number;
+  changeAmount: number;
 };
 
 type Toast = {
@@ -80,6 +83,11 @@ const formatStaffName = (value: string | null) => {
   const base = value.split('@')[0]?.trim();
   if (!base) return null;
   return base.charAt(0).toUpperCase() + base.slice(1);
+};
+
+const formatRole = (value: string | null | undefined) => {
+  if (!value) return 'Staff';
+  return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
 // Helper function to validate and format image URLs
@@ -385,6 +393,9 @@ function CartSidebar({
   onCourierNameChange,
   deliFee,
   onDeliFeeChange,
+  amountReceived,
+  onAmountReceivedChange,
+  changeAmount,
   isBagoSpecial,
   onBagoSpecialChange,
   remark,
@@ -421,6 +432,9 @@ function CartSidebar({
   onCourierNameChange: (v: string) => void;
   deliFee: string;
   onDeliFeeChange: (v: string) => void;
+  amountReceived: string;
+  onAmountReceivedChange: (v: string) => void;
+  changeAmount: number;
   isBagoSpecial: boolean;
   onBagoSpecialChange: (v: boolean) => void;
   remark: string;
@@ -846,6 +860,29 @@ function CartSidebar({
               <span>Total</span>
               <span>{finalTotal.toLocaleString()} Ks</span>
             </div>
+            {checkoutMode && (
+              <div className="mt-3 space-y-2">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Amount Received
+                  </label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={amountReceived}
+                    onChange={(e) => onAmountReceivedChange(e.target.value)}
+                    placeholder="0"
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+                  <div className="text-[10px] uppercase tracking-wider text-emerald-700">Change</div>
+                  <div className="text-lg font-black text-emerald-700">
+                    {changeAmount.toLocaleString()} Ks
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -884,7 +921,7 @@ function ScannerComponent() {
 
 
 export default function PosPage() {
-  const { username } = useDashboardAuth();
+  const { username, role, displayName } = useDashboardAuth();
   const { products: hookProducts, loading: productsLoading, refresh: refreshProducts } = useProducts();
   const [productsOverride, setProductsOverride] = React.useState<Product[] | null>(null);
   const products = productsOverride ?? hookProducts;
@@ -1037,6 +1074,7 @@ export default function PosPage() {
   const [saleType, setSaleType] = React.useState<'Shop' | 'Delivery'>('Shop');
   const [courierName, setCourierName] = React.useState('');
   const [deliFee, setDeliFee] = React.useState('');
+  const [amountReceived, setAmountReceived] = React.useState('');
   const [isBagoSpecial, setIsBagoSpecial] = React.useState(false);
   const [remark, setRemark] = React.useState('');
   const [paymentMethod, setPaymentMethod] = React.useState('cash');
@@ -1304,6 +1342,10 @@ export default function PosPage() {
       ),
     [cart]
   );
+  const deliveryFeeNum = saleType === 'Delivery' ? Number(deliFee) || 0 : 0;
+  const grandTotal = totalAmount + deliveryFeeNum;
+  const amountReceivedNum = Number(amountReceived) || 0;
+  const changeAmount = amountReceivedNum - grandTotal;
 
   const cartQtyByProductId = React.useMemo(() => {
     const m = new Map<number, number>();
@@ -1404,6 +1446,7 @@ export default function PosPage() {
       }
       const now = new Date();
       const deliveryFee = saleType === 'Delivery' ? Number(deliFee) || 0 : 0;
+      const receivedAmount = Number(amountReceived) || 0;
       const receiptItems: ReceiptItem[] = cart.map((line) => {
         const price = line.manualPrice ?? line.product.sale_price ?? 0;
         return {
@@ -1414,11 +1457,13 @@ export default function PosPage() {
         };
       });
       const receiptTotal = totalAmount + deliveryFee;
+      const changeDue = receivedAmount - receiptTotal;
       const receiptSnapshot: ReceiptData = {
         invoiceId: '',
         date: now.toLocaleDateString('en-US'),
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        staffName: formatStaffName(username),
+        staffName: displayName?.trim() || formatStaffName(username),
+        cashierRole: formatRole(role),
         saleType,
         customerName,
         customerPhone,
@@ -1433,6 +1478,8 @@ export default function PosPage() {
         deliveryFee,
         discount: 0,
         grandTotal: receiptTotal,
+        amountReceived: receivedAmount,
+        changeAmount: changeDue,
       };
       const items = cart.map((line) => ({
         product_id: Number(line.product.id),
@@ -1468,6 +1515,7 @@ export default function PosPage() {
         setSaleType('Shop');
         setCourierName('');
         setDeliFee('');
+        setAmountReceived('');
         setIsBagoSpecial(false);
         setRemark('');
         setPaymentMethod('cash');
@@ -1517,6 +1565,7 @@ export default function PosPage() {
       setSaleType('Shop');
       setCourierName('');
       setDeliFee('');
+      setAmountReceived('');
       setIsBagoSpecial(false);
       setRemark('');
       setPaymentMethod('cash');
@@ -1559,6 +1608,7 @@ export default function PosPage() {
     setSaleType('Shop');
     setCourierName('');
     setDeliFee('');
+    setAmountReceived('');
     setIsBagoSpecial(false);
     setRemark('');
     setPaymentMethod('cash');
@@ -2004,7 +2054,11 @@ export default function PosPage() {
             <span>{lastReceipt.time}</span>
           </div>
           <div className="receipt-row">
-            <span>Staff</span>
+            <span>Cashier</span>
+            <span>{lastReceipt.cashierRole || 'Staff'}</span>
+          </div>
+          <div className="receipt-row">
+            <span>Cashier Name</span>
             <span>{lastReceipt.staffName || '—'}</span>
           </div>
           {lastReceipt.saleType === 'Delivery' && (
@@ -2064,6 +2118,14 @@ export default function PosPage() {
             <strong>Grand Total</strong>
             <strong>{lastReceipt.grandTotal.toLocaleString()} Ks</strong>
           </div>
+          <div className="receipt-row">
+            <span>Cash Received</span>
+            <span>{lastReceipt.amountReceived.toLocaleString()} Ks</span>
+          </div>
+          <div className="receipt-row">
+            <span>Change</span>
+            <span>{lastReceipt.changeAmount.toLocaleString()} Ks</span>
+          </div>
         </div>
       )}
       {/* Main content area */}
@@ -2114,6 +2176,9 @@ export default function PosPage() {
             onCourierNameChange={setCourierName}
             deliFee={deliFee}
             onDeliFeeChange={setDeliFee}
+            amountReceived={amountReceived}
+            onAmountReceivedChange={setAmountReceived}
+            changeAmount={changeAmount}
             isBagoSpecial={isBagoSpecial}
             onBagoSpecialChange={setIsBagoSpecial}
             remark={remark}
@@ -2387,6 +2452,28 @@ export default function PosPage() {
                 <span className="font-black text-xl text-primary">
                   {formatPrice(totalAmount + (saleType === 'Delivery' ? (Number(deliFee) || 0) : 0))}
                 </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Amount Received
+                </label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={amountReceived}
+                  onChange={(e) => setAmountReceived(e.target.value)}
+                  placeholder="0"
+                  className="h-12 rounded-xl"
+                />
+              </div>
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
+                <div className="text-[11px] uppercase tracking-wider text-emerald-700">Change</div>
+                <div className="text-2xl font-black text-emerald-700">
+                  {formatPrice(changeAmount)}
+                </div>
               </div>
             </div>
 

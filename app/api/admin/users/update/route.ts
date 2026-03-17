@@ -2,12 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
-/**
- * GET /api/admin/users
- * Returns all profiles (for user management). Admin only.
- * Client must send: Authorization: Bearer <access_token>
- */
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization');
     const accessToken = authHeader?.replace(/^Bearer\s+/i, '');
@@ -38,16 +33,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { data: profiles, error: listError } = await admin
-      .from('profiles')
-      .select('id, username, role, display_name')
-      .order('username');
+    const body = await req.json();
+    const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+    const role = typeof body.role === 'string' ? body.role.trim() : '';
+    const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
 
-    if (listError) {
-      return NextResponse.json({ error: listError.message }, { status: 500 });
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+    if (role && !['admin', 'staff'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
-    return NextResponse.json(profiles ?? []);
+    const payload: Record<string, any> = {};
+    if (role) payload.role = role;
+    if (displayName.length > 0) payload.display_name = displayName;
+    if (displayName.length === 0) payload.display_name = null;
+
+    const { error: updateError } = await admin
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unexpected error';
     return NextResponse.json({ error: message }, { status: 500 });

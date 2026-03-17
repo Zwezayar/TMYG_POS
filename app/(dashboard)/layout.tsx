@@ -17,6 +17,7 @@ export default function DashboardLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [role, setRole] = React.useState<Role | null>(null);
   const [username, setUsername] = React.useState<string | null>(null);
+  const [displayName, setDisplayName] = React.useState<string | null>(null);
   const [checkingAuth, setCheckingAuth] = React.useState(true);
   const [mounted, setMounted] = React.useState(false);
   const router = useRouter();
@@ -40,19 +41,22 @@ export default function DashboardLayout({
 
       const { data: profile } = await supabaseClient
         .from('profiles')
-        .select('role, username')
+        .select('role, username, display_name')
         .eq('id', userId)
         .maybeSingle();
 
       const roleValue = (profile?.role as Role | null) ?? null;
       const usernameValue = (profile?.username as string | null) ?? null;
+      const displayNameValue = (profile?.display_name as string | null) ?? null;
 
       setRole(roleValue);
       setUsername(usernameValue);
+      setDisplayName(displayNameValue);
 
       if (typeof window !== 'undefined') {
         if (roleValue) window.localStorage.setItem('tmyg-role', roleValue);
         if (usernameValue != null) window.localStorage.setItem('tmyg-username', usernameValue);
+        if (displayNameValue != null) window.localStorage.setItem('tmyg-display-name', displayNameValue);
       }
 
       setCheckingAuth(false);
@@ -62,7 +66,7 @@ export default function DashboardLayout({
   }, [router]);
 
   return (
-    <DashboardAuthProvider value={{ role, username }}>
+    <DashboardAuthProvider value={{ role, username, displayName }}>
       <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
         <Sidebar
           mobileOpen={mobileOpen}
@@ -98,4 +102,3 @@ export default function DashboardLayout({
     </DashboardAuthProvider>
   );
 }
-

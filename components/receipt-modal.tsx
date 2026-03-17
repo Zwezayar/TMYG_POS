@@ -13,6 +13,7 @@ export type ReceiptPayload = {
   date: string;
   time: string;
   staffName: string | null;
+  cashierRole?: string | null;
   saleType: 'Shop' | 'Delivery';
   customerName: string;
   customerPhone: string;
@@ -22,6 +23,8 @@ export type ReceiptPayload = {
   deliveryFee?: number;
   discount?: number;
   grandTotal?: number;
+  amountReceived?: number;
+  changeAmount?: number;
 };
 
 type ReceiptModalProps = {
@@ -39,6 +42,8 @@ export function ReceiptModal({ open, receipt, onClose }: ReceiptModalProps) {
   const deliveryFee = receipt?.deliveryFee ?? 0;
   const discount = receipt?.discount ?? 0;
   const grandTotal = receipt?.grandTotal ?? subtotal + deliveryFee - discount;
+  const amountReceived = receipt?.amountReceived ?? grandTotal;
+  const changeAmount = receipt?.changeAmount ?? amountReceived - grandTotal;
 
   const handlePrint = () => {
     window.print();
@@ -133,7 +138,11 @@ export function ReceiptModal({ open, receipt, onClose }: ReceiptModalProps) {
               <span>{receipt.time}</span>
             </div>
             <div className="receipt-row">
-              <span>Staff</span>
+              <span>Cashier</span>
+              <span>{receipt.cashierRole || 'Staff'}</span>
+            </div>
+            <div className="receipt-row">
+              <span>Cashier Name</span>
               <span>{receipt.staffName || '—'}</span>
             </div>
             {receipt.saleType === 'Delivery' && (
@@ -192,6 +201,14 @@ export function ReceiptModal({ open, receipt, onClose }: ReceiptModalProps) {
           <div className="receipt-row">
             <strong>Grand Total</strong>
             <strong>{grandTotal.toLocaleString()} Ks</strong>
+          </div>
+          <div className="receipt-row">
+            <span>Cash Received</span>
+            <span>{amountReceived.toLocaleString()} Ks</span>
+          </div>
+          <div className="receipt-row">
+            <span>Change</span>
+            <span>{changeAmount.toLocaleString()} Ks</span>
           </div>
           </div>
         ) : (
