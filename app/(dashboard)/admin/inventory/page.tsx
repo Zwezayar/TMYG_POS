@@ -193,6 +193,12 @@ export default function AdminInventoryPage() {
   const bulkInputRef = React.useRef<HTMLInputElement | null>(null);
   const [bulkStatus, setBulkStatus] = React.useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = React.useState(false);
+  const [bulkReportOpen, setBulkReportOpen] = React.useState(false);
+  const [bulkReport, setBulkReport] = React.useState<{
+    inserted: string[];
+    updated: string[];
+    skipped: string[];
+  } | null>(null);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Product | null>(null);
@@ -613,15 +619,15 @@ export default function AdminInventoryPage() {
         products.forEach((p) => {
           if (p.barcode) byBarcode.set(p.barcode, p);
         });
-        let inserted = 0;
-        let updated = 0;
-        let skipped = 0;
+        const inserted: string[] = [];
+        const updated: string[] = [];
+        const skipped: string[] = [];
         for (let i = 1; i < rows.length; i += 1) {
           const row = rows[i];
           const barcode = (row[barcodeIdx] ?? '').toString().trim();
           const name = (row[nameIdx] ?? '').toString().trim();
           if (!barcode) {
-            skipped += 1;
+            skipped.push(`Row ${i + 1}`);
             continue;
           }
           const subCategoryValue = subIdx >= 0 ? (row[subIdx] ?? '').toString().trim() : '';
@@ -644,13 +650,13 @@ export default function AdminInventoryPage() {
               .update(payload)
               .eq('id', existing.id);
             if (updateError) {
-              skipped += 1;
+              skipped.push(barcode);
               continue;
             }
-            updated += 1;
+            updated.push(barcode);
           } else {
             if (!name) {
-              skipped += 1;
+              skipped.push(barcode);
               continue;
             }
             const { error: insertError } = await supabaseClient
@@ -659,14 +665,16 @@ export default function AdminInventoryPage() {
               .select()
               .single();
             if (insertError) {
-              skipped += 1;
+              skipped.push(barcode);
               continue;
             }
-            inserted += 1;
+            inserted.push(barcode);
           }
         }
         await refreshProducts();
-        setBulkStatus(`Upload complete. ${inserted} inserted, ${updated} updated, ${skipped} skipped.`);
+        setBulkStatus(`Upload complete. ${inserted.length} inserted, ${updated.length} updated, ${skipped.length} skipped.`);
+        setBulkReport({ inserted, updated, skipped });
+        setBulkReportOpen(true);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Bulk upload failed.';
         setError(message);
@@ -1161,6 +1169,62 @@ export default function AdminInventoryPage() {
               onSave={handleSave}
               saveLabel={isBusy ? (uploading ? 'Uploading...' : 'Saving...') : 'Save'}
             />
+          </div>
+        </div>
+      )}
+
+      {bulkReportOpen && bulkReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setBulkReportOpen(false)}>
+          <div
+            className="w-full max-w-3xl rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+              <div>
+                <h2 className="text-base font-bold">Bulk Upload Report</h2>
+                <p className="text-xs text-muted-foreground">
+                  {bulkStatus ?? 'Upload summary'}
+                </p>
+              </div>
+              <Button variant="ghost" onClick={() => setBulkReportOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="grid gap-4 p-5 md:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                <div className="text-xs font-semibold uppercase text-emerald-600">Inserted</div>
+                <div className="text-2xl font-bold text-emerald-700">
+                  {bulkReport.inserted.length}
+                </div>
+                <div className="mt-2 max-h-48 overflow-auto text-[11px] text-emerald-700">
+                  {bulkReport.inserted.length === 0 ? '—' : bulkReport.inserted.map((value) => (
+                    <div key={`ins-${value}`}>{value}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4">
+                <div className="text-xs font-semibold uppercase text-blue-600">Updated</div>
+                <div className="text-2xl font-bold text-blue-700">
+                  {bulkReport.updated.length}
+                </div>
+                <div className="mt-2 max-h-48 overflow-auto text-[11px] text-blue-700">
+                  {bulkReport.updated.length === 0 ? '—' : bulkReport.updated.map((value) => (
+                    <div key={`upd-${value}`}>{value}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="text-xs font-semibold uppercase text-amber-600">Skipped</div>
+                <div className="text-2xl font-bold text-amber-700">
+                  {bulkReport.skipped.length}
+                </div>
+                <div className="mt-2 max-h-48 overflow-auto text-[11px] text-amber-700">
+                  {bulkReport.skipped.length === 0 ? '—' : bulkReport.skipped.map((value) => (
+                    <div key={`skip-${value}`}>{value}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
