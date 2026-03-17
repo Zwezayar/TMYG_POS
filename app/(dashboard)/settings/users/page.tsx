@@ -285,7 +285,7 @@ export default function UsersPage() {
                             },
                           }))
                         }
-                        placeholder="Staff 01 / Cashier Su Su"
+                        placeholder={u.username ?? 'No Name'}
                         className="h-9"
                       />
                     </td>

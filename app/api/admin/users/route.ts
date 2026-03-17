@@ -28,13 +28,20 @@ export async function GET(req: Request) {
     }
 
     const admin = createServerSupabaseClient();
-    const { data: profile } = await admin
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (profile?.role !== 'admin') {
+    if (profileError?.message?.includes('column') && profileError.message.includes('role')) {
+      const { count } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      if ((count ?? 0) > 1) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } else if (profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -44,6 +51,20 @@ export async function GET(req: Request) {
       .order('username');
 
     if (listError) {
+      if (listError.message.includes('display_name')) {
+        const { data: fallbackProfiles, error: fallbackError } = await admin
+          .from('profiles')
+          .select('id, username, role')
+          .order('username');
+        if (fallbackError) {
+          return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+        }
+        const normalized = (fallbackProfiles ?? []).map((p) => ({
+          ...p,
+          display_name: null,
+        }));
+        return NextResponse.json(normalized);
+      }
       return NextResponse.json({ error: listError.message }, { status: 500 });
     }
 
