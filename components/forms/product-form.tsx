@@ -98,11 +98,11 @@ export function ProductForm({
   }, [category, categories]);
 
   return (
-    <div className="max-h-[90vh] overflow-y-auto p-5">
-      <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-4">
+    <div className="flex max-h-[80vh] flex-col">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-5 py-4">
         <div className="space-y-1">
           <h2 className="text-base font-bold">{title}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Barcode:</span>
             <Input
               value={barcode}
@@ -133,8 +133,9 @@ export function ProductForm({
         </Button>
       </div>
 
-      <div className="grid gap-4 text-xs">
-        <div className="space-y-1.5">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="grid gap-4 text-xs md:grid-cols-2">
+          <div className="space-y-1.5 md:col-span-2">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Product Name *
           </label>
@@ -146,7 +147,7 @@ export function ProductForm({
             autoComplete="off"
           />
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               SKU
@@ -182,7 +183,7 @@ export function ProductForm({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 md:col-span-2">
           {subCategoryOptions.length > 0 && (
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -234,7 +235,7 @@ export function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Purchase Price (Ks)
@@ -311,7 +312,7 @@ export function ProductForm({
           </div>
         )}
 
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Description (EN)
@@ -336,7 +337,7 @@ export function ProductForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 md:col-span-2">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Remark
           </label>
@@ -349,13 +350,14 @@ export function ProductForm({
         </div>
 
         {error && (
-          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-[11px] text-destructive">
+          <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-[11px] text-destructive md:col-span-2">
             {error}
           </div>
         )}
+        </div>
       </div>
 
-      <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+      <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-border bg-card px-5 py-4">
         <Button
           type="button"
           variant="ghost"

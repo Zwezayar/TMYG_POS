@@ -2175,7 +2175,7 @@ export default function PosPage() {
             }}
           >
             <div
-              className="w-full max-w-lg rounded-lg border border-border bg-card shadow-xl max-h-[90vh] overflow-hidden pointer-events-auto"
+              className="w-full max-w-4xl rounded-2xl border border-border bg-card shadow-xl max-h-[80vh] overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <ProductForm

@@ -1117,7 +1117,7 @@ export default function AdminInventoryPage() {
 
       {dialogOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl max-h-[90vh] overflow-hidden">
+          <div className="w-full max-w-4xl rounded-2xl border border-border bg-card shadow-2xl max-h-[80vh] overflow-hidden">
             <ProductForm
               title={editing ? 'Edit Product' : 'Add Product'}
               barcode={barcode}
