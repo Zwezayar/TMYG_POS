@@ -10,6 +10,14 @@ import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import type { Product } from '@/lib/useProducts';
 import { ProductForm } from '@/components/forms/product-form';
+import { parseCsv } from '@/lib/csv';
+import { downloadExcel } from '@/lib/excel';
+import {
+  getAllCategoryLabels,
+  getAllSubCategories,
+  getCategoryLabelFromSubCategory,
+  getSubCategoryFromCategory,
+} from '@/lib/categoryHierarchy';
 
 type PendingAction = {
   id: string;
@@ -182,6 +190,9 @@ export default function AdminInventoryPage() {
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
   const { categories: dbCategories, refresh: refreshCategories } = useCategories();
+  const bulkInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [bulkStatus, setBulkStatus] = React.useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = React.useState(false);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Product | null>(null);
@@ -189,6 +200,7 @@ export default function AdminInventoryPage() {
   const [defaultCode, setDefaultCode] = React.useState('');
   const [size, setSize] = React.useState('');
   const [variant, setVariant] = React.useState('');
+  const [subCategory, setSubCategory] = React.useState('');
   const [price, setPrice] = React.useState('');
   const [costPrice, setCostPrice] = React.useState('');
   const [stockQuantity, setStockQuantity] = React.useState('');
@@ -351,6 +363,7 @@ export default function AdminInventoryPage() {
     setDefaultCode('');
     setSize('');
     setVariant('');
+    setSubCategory('');
     setPrice('');
     setCostPrice('');
     setStockQuantity('');
@@ -534,6 +547,136 @@ export default function AdminInventoryPage() {
     }
   }, [refreshProducts]);
 
+  const handleDownloadTemplate = React.useCallback(() => {
+    downloadExcel('inventory-template.xlsx', [
+      ['Barcode', 'Name', 'SubCategory', 'CostPrice', 'SalePrice', 'Stock'],
+    ]);
+  }, []);
+
+  const handleExportInventory = React.useCallback(() => {
+    const rows = [
+      ['Barcode', 'Name', 'SubCategory', 'CostPrice', 'SalePrice', 'Stock', 'Category'],
+      ...products.map((p) => [
+        p.barcode ?? '',
+        p.product_name ?? '',
+        getSubCategoryFromCategory(p.category ?? '') ?? '',
+        p.purchase_price ?? '',
+        p.sale_price ?? '',
+        p.stock_quantity ?? '',
+        p.category ?? '',
+      ]),
+    ];
+    downloadExcel('inventory-export.xlsx', rows);
+  }, [products]);
+
+  const handleBulkFile = React.useCallback(
+    async (file: File) => {
+      if (!isOnline) {
+        setError('Bulk upload requires an online connection.');
+        return;
+      }
+      setBulkLoading(true);
+      setBulkStatus(null);
+      setError(null);
+      try {
+        let rows: string[][] = [];
+        if (/\.(xlsx|xls)$/i.test(file.name)) {
+          const arrayBuffer = await file.arrayBuffer();
+          const XLSX = await import('xlsx');
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const sheetRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+          rows = sheetRows.map((row) => row.map((cell) => String(cell ?? '').trim()));
+        } else {
+          const text = await file.text();
+          rows = parseCsv(text);
+        }
+        if (rows.length < 2) {
+          setError('No data rows found in upload.');
+          setBulkLoading(false);
+          return;
+        }
+        const header = rows[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const idx = (key: string) => header.indexOf(key);
+        const barcodeIdx = idx('barcode');
+        const nameIdx = idx('name');
+        const subIdx = idx('subcategory');
+        const costIdx = idx('costprice');
+        const saleIdx = idx('saleprice');
+        const stockIdx = idx('stock');
+        if (barcodeIdx < 0 || nameIdx < 0 || saleIdx < 0) {
+          setError('Template columns missing. Use the provided template.');
+          setBulkLoading(false);
+          return;
+        }
+        const byBarcode = new Map<string, Product>();
+        products.forEach((p) => {
+          if (p.barcode) byBarcode.set(p.barcode, p);
+        });
+        let inserted = 0;
+        let updated = 0;
+        let skipped = 0;
+        for (let i = 1; i < rows.length; i += 1) {
+          const row = rows[i];
+          const barcode = (row[barcodeIdx] ?? '').toString().trim();
+          const name = (row[nameIdx] ?? '').toString().trim();
+          if (!barcode) {
+            skipped += 1;
+            continue;
+          }
+          const subCategoryValue = subIdx >= 0 ? (row[subIdx] ?? '').toString().trim() : '';
+          const categoryLabel = getCategoryLabelFromSubCategory(subCategoryValue);
+          const costValue = costIdx >= 0 ? Number((row[costIdx] ?? '').toString().trim()) : null;
+          const saleValue = saleIdx >= 0 ? Number((row[saleIdx] ?? '').toString().trim()) : null;
+          const stockValue = stockIdx >= 0 ? Number((row[stockIdx] ?? '').toString().trim()) : null;
+          const payload: any = {
+            barcode,
+            sale_price: Number.isFinite(saleValue) ? saleValue : 0,
+            purchase_price: Number.isFinite(costValue) ? costValue : null,
+            stock_quantity: Number.isFinite(stockValue) ? stockValue : null,
+          };
+          if (name) payload.product_name = name;
+          if (categoryLabel) payload.category = categoryLabel;
+          const existing = byBarcode.get(barcode);
+          if (existing) {
+            const { error: updateError } = await supabaseClient
+              .from('products')
+              .update(payload)
+              .eq('id', existing.id);
+            if (updateError) {
+              skipped += 1;
+              continue;
+            }
+            updated += 1;
+          } else {
+            if (!name) {
+              skipped += 1;
+              continue;
+            }
+            const { error: insertError } = await supabaseClient
+              .from('products')
+              .insert({ ...payload, product_name: name, image_url: null })
+              .select()
+              .single();
+            if (insertError) {
+              skipped += 1;
+              continue;
+            }
+            inserted += 1;
+          }
+        }
+        await refreshProducts();
+        setBulkStatus(`Upload complete. ${inserted} inserted, ${updated} updated, ${skipped} skipped.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Bulk upload failed.';
+        setError(message);
+      } finally {
+        setBulkLoading(false);
+      }
+    },
+    [isOnline, products, refreshProducts]
+  );
+
   React.useEffect(() => {
     const onOnline = () => {
       setIsOnline(true);
@@ -595,8 +738,11 @@ export default function AdminInventoryPage() {
     products.forEach((p) => {
       if (p.category) all.add(p.category);
     });
-    return Array.from(all).sort().map((name) => ({ value: name, label: name }));
+    const hierarchyLabels = getAllCategoryLabels();
+    const merged = Array.from(new Set([...Array.from(all), ...hierarchyLabels])).sort();
+    return merged.map((name) => ({ value: name, label: name }));
   }, [dbCategories, products]);
+  const subCategoryOptions = React.useMemo(() => getAllSubCategories(), []);
 
   const handleAddCategory = React.useCallback(async () => {
     const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
@@ -666,6 +812,7 @@ export default function AdminInventoryPage() {
     setDefaultCode(product.default_code ?? '');
     setSize(product.size ?? '');
     setVariant(product.variant ?? '');
+    setSubCategory(getSubCategoryFromCategory(product.category ?? '') ?? '');
     setPrice(product.sale_price != null ? String(product.sale_price) : '');
     setCostPrice(product.purchase_price != null ? String(product.purchase_price) : '');
     setStockQuantity(product.stock_quantity != null ? String(product.stock_quantity) : '');
@@ -835,13 +982,38 @@ export default function AdminInventoryPage() {
               {isOnline ? 'Online sync ready.' : 'Offline mode. Changes will sync later.'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="h-12 px-5 text-base" onClick={() => setScannerOpen(true)}>
               Scan Barcode
+            </Button>
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleDownloadTemplate}>
+              Download Template
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 px-5 text-base"
+              onClick={() => bulkInputRef.current?.click()}
+              disabled={bulkLoading}
+            >
+              Bulk Upload
+            </Button>
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportInventory}>
+              Export to Excel
             </Button>
             <Button className="h-12 px-5 text-base" onClick={openCreate}>
               Add Product
             </Button>
+            <input
+              ref={bulkInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleBulkFile(file);
+                e.currentTarget.value = '';
+              }}
+            />
           </div>
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -875,6 +1047,11 @@ export default function AdminInventoryPage() {
             {syncing ? 'Syncing changes...' : `${filtered.length} items`}
           </div>
         </div>
+        {bulkStatus && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
+            {bulkStatus}
+          </div>
+        )}
         {error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {error}
@@ -949,8 +1126,18 @@ export default function AdminInventoryPage() {
               onSizeChange={setSize}
               variant={variant}
               onVariantChange={setVariant}
+              subCategory={subCategory}
+              onSubCategoryChange={(value) => {
+                setSubCategory(value);
+                const mapped = getCategoryLabelFromSubCategory(value);
+                setCategory(mapped ?? '');
+              }}
+              subCategoryOptions={subCategoryOptions}
               category={category}
-              onCategoryChange={setCategory}
+              onCategoryChange={(value) => {
+                setCategory(value);
+                setSubCategory(getSubCategoryFromCategory(value) ?? '');
+              }}
               categories={categoryOptions}
               onAddCategory={handleAddCategory}
               purchasePrice={costPrice}

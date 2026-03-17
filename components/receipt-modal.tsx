@@ -18,9 +18,10 @@ export type ReceiptPayload = {
   customerPhone: string;
   customerAddress: string;
   items: ReceiptItem[];
-  total: number;
-  discount: number;
-  netAmount: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  discount?: number;
+  grandTotal?: number;
 };
 
 type ReceiptModalProps = {
@@ -31,6 +32,13 @@ type ReceiptModalProps = {
 
 export function ReceiptModal({ open, receipt, onClose }: ReceiptModalProps) {
   if (!open) return null;
+
+  const subtotal =
+    receipt?.subtotal ??
+    (receipt?.items ?? []).reduce((sum, item) => sum + item.amount, 0);
+  const deliveryFee = receipt?.deliveryFee ?? 0;
+  const discount = receipt?.discount ?? 0;
+  const grandTotal = receipt?.grandTotal ?? subtotal + deliveryFee - discount;
 
   const handlePrint = () => {
     window.print();
@@ -167,18 +175,24 @@ export function ReceiptModal({ open, receipt, onClose }: ReceiptModalProps) {
               </tbody>
             </table>
             <div className="divider" />
+          <div className="receipt-row">
+            <span>Subtotal</span>
+            <span>{subtotal.toLocaleString()} Ks</span>
+          </div>
+          {receipt.saleType === 'Delivery' && (
             <div className="receipt-row">
-              <span>Total</span>
-              <span>{receipt.total.toLocaleString()} Ks</span>
+              <span>Delivery Fee (+)</span>
+              <span>{deliveryFee.toLocaleString()} Ks</span>
             </div>
-            <div className="receipt-row">
-              <span>Discount</span>
-              <span>{receipt.discount.toLocaleString()} Ks</span>
-            </div>
-            <div className="receipt-row">
-              <strong>Net</strong>
-              <strong>{receipt.netAmount.toLocaleString()} Ks</strong>
-            </div>
+          )}
+          <div className="receipt-row">
+            <span>Discount (-)</span>
+            <span>{discount.toLocaleString()} Ks</span>
+          </div>
+          <div className="receipt-row">
+            <strong>Grand Total</strong>
+            <strong>{grandTotal.toLocaleString()} Ks</strong>
+          </div>
           </div>
         ) : (
           <div className="text-sm text-muted-foreground">Receipt data unavailable.</div>

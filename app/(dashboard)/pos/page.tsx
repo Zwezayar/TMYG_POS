@@ -19,6 +19,12 @@ import {
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
 import { ProductForm } from '@/components/forms/product-form';
+import {
+  getAllCategoryLabels,
+  getAllSubCategories,
+  getCategoryLabelFromSubCategory,
+  getSubCategoryFromCategory,
+} from '@/lib/categoryHierarchy';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -49,9 +55,10 @@ type ReceiptData = {
     address: string;
   };
   items: ReceiptItem[];
-  total: number;
+  subtotal: number;
+  deliveryFee: number;
   discount: number;
-  netAmount: number;
+  grandTotal: number;
 };
 
 type Toast = {
@@ -1004,6 +1011,7 @@ export default function PosPage() {
   const [quickDefaultCode, setQuickDefaultCode] = React.useState('');
   const [quickSize, setQuickSize] = React.useState('');
   const [quickCategory, setQuickCategory] = React.useState('');
+  const [quickSubCategory, setQuickSubCategory] = React.useState('');
   const [quickVariant, setQuickVariant] = React.useState('');
   const [quickDescription, setQuickDescription] = React.useState('');
   const [quickDescriptionMm, setQuickDescriptionMm] = React.useState('');
@@ -1243,8 +1251,11 @@ export default function PosPage() {
         return { value: label, label };
       });
     }
-    return allCategories.map((name) => ({ value: name, label: name }));
+    const hierarchyLabels = getAllCategoryLabels();
+    const merged = Array.from(new Set([...allCategories, ...hierarchyLabels]));
+    return merged.map((name) => ({ value: name, label: name }));
   }, [dbCategories, allCategories]);
+  const subCategoryOptions = React.useMemo(() => getAllSubCategories(), []);
 
   const handleAddCategory = React.useCallback(async () => {
     const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
@@ -1418,9 +1429,10 @@ export default function PosPage() {
           address: customerAddress,
         },
         items: receiptItems,
-        total: receiptTotal,
+        subtotal: totalAmount,
+        deliveryFee,
         discount: 0,
-        netAmount: receiptTotal,
+        grandTotal: receiptTotal,
       };
       const items = cart.map((line) => ({
         product_id: Number(line.product.id),
@@ -1581,6 +1593,7 @@ export default function PosPage() {
     setQuickImagePreviewUrl(null);
     setQuickRemark('');
     setQuickPurchasePrice('');
+    setQuickSubCategory('');
     setQuickError(null);
     setMissingBarcode(null);
     setQuickAddOpen(true);
@@ -2034,16 +2047,22 @@ export default function PosPage() {
           </table>
           <div className="divider" />
           <div className="receipt-row">
-            <span>Total</span>
-            <span>{lastReceipt.total.toLocaleString()} Ks</span>
+            <span>Subtotal</span>
+            <span>{lastReceipt.subtotal.toLocaleString()} Ks</span>
           </div>
+          {lastReceipt.saleType === 'Delivery' && (
+            <div className="receipt-row">
+              <span>Delivery Fee (+)</span>
+              <span>{lastReceipt.deliveryFee.toLocaleString()} Ks</span>
+            </div>
+          )}
           <div className="receipt-row">
-            <span>Discount</span>
+            <span>Discount (-)</span>
             <span>{lastReceipt.discount.toLocaleString()} Ks</span>
           </div>
           <div className="receipt-row">
-            <strong>Net</strong>
-            <strong>{lastReceipt.netAmount.toLocaleString()} Ks</strong>
+            <strong>Grand Total</strong>
+            <strong>{lastReceipt.grandTotal.toLocaleString()} Ks</strong>
           </div>
         </div>
       )}
@@ -2175,8 +2194,18 @@ export default function PosPage() {
                 onSizeChange={setQuickSize}
                 variant={quickVariant}
                 onVariantChange={setQuickVariant}
+                subCategory={quickSubCategory}
+                onSubCategoryChange={(value) => {
+                  setQuickSubCategory(value);
+                  const mapped = getCategoryLabelFromSubCategory(value);
+                  setQuickCategory(mapped ?? '');
+                }}
+                subCategoryOptions={subCategoryOptions}
                 category={quickCategory}
-                onCategoryChange={setQuickCategory}
+                onCategoryChange={(value) => {
+                  setQuickCategory(value);
+                  setQuickSubCategory(getSubCategoryFromCategory(value) ?? '');
+                }}
                 categories={categoryOptions}
                 onAddCategory={handleAddCategory}
                 purchasePrice={quickPurchasePrice}

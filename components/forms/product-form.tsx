@@ -18,6 +18,9 @@ type ProductFormProps = {
   onSizeChange: (value: string) => void;
   variant: string;
   onVariantChange: (value: string) => void;
+  subCategory: string;
+  onSubCategoryChange: (value: string) => void;
+  subCategoryOptions: string[];
   category: string;
   onCategoryChange: (value: string) => void;
   categories: CategoryOption[];
@@ -59,6 +62,9 @@ export function ProductForm({
   onSizeChange,
   variant,
   onVariantChange,
+  subCategory,
+  onSubCategoryChange,
+  subCategoryOptions,
   category,
   onCategoryChange,
   categories,
@@ -177,6 +183,25 @@ export function ProductForm({
         </div>
 
         <div className="space-y-4">
+          {subCategoryOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Sub-Category
+              </label>
+              <select
+                value={subCategory}
+                onChange={(e) => onSubCategoryChange(e.target.value)}
+                className="h-[44px] w-full rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
+              >
+                <option value="">Select Sub-Category</option>
+                {subCategoryOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Category

@@ -6,6 +6,7 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
+import { downloadExcel } from '@/lib/excel';
 
 type Customer = {
   id: number;
@@ -48,6 +49,22 @@ export default function CustomersPage() {
     }
     setLoading(false);
   }, []);
+
+  const handleExportCustomers = React.useCallback(() => {
+    const rows = [
+      ['Name', 'Phone', 'Facebook', 'Address', 'Remark', 'TotalSpent', 'Loyal'],
+      ...customers.map((c) => [
+        c.name ?? '',
+        c.phone ?? '',
+        c.facebook_username ?? '',
+        c.address ?? '',
+        c.remark ?? '',
+        c.total_spent ?? 0,
+        c.loyal_status ? 'Yes' : 'No',
+      ]),
+    ];
+    downloadExcel('customers-export.xlsx', rows);
+  }, [customers]);
 
   React.useEffect(() => {
     if (role === 'admin') {
@@ -162,6 +179,9 @@ export default function CustomersPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchCustomers} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportCustomers}>
+            Export to Excel
           </Button>
           <Button size="sm" onClick={openCreate} className="bg-blue-600 text-white hover:bg-blue-700">
             Add Customer
