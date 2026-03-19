@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { supabaseClient } from '@/lib/supabaseClient';
-import { Users } from 'lucide-react';
+import { Tags, Users } from 'lucide-react';
 
 export default function SettingsPage() {
   const { role } = useDashboardAuth();
@@ -41,6 +41,18 @@ export default function SettingsPage() {
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               Manage roles, display names, and invite staff.
+            </p>
+          </Link>
+          <Link
+            href="/settings/categories"
+            className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Tags className="h-4 w-4 text-primary" />
+              Manage Categories
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Add, edit, and remove product categories.
             </p>
           </Link>
         </div>

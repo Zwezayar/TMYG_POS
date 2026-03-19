@@ -6,9 +6,12 @@ import { useT } from "@/components/language-provider";
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 
 export default function DashboardPage() {
   const t = useT();
+  const { role } = useDashboardAuth();
+  const isAdmin = role === 'admin';
   const [loading, setLoading] = React.useState(true);
   const [todaySales, setTodaySales] = React.useState(0);
   const [monthSales, setMonthSales] = React.useState(0);
@@ -168,7 +171,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Stats Section */}
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className={`grid gap-3 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <Card>
           <CardHeader>
             <CardTitle>Today&apos;s Sales</CardTitle>
@@ -193,22 +196,24 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Low Stock Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-red-500">{lowStockCount}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Items below reorder point.
-            </p>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Low Stock Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold text-red-500">{lowStockCount}</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Items below reorder point.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* Visualizations Section */}
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="md:col-span-2">
+      <section className={`grid gap-3 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+        <Card className={isAdmin ? 'md:col-span-2' : ''}>
           <CardHeader>
             <CardTitle>Daily Sales Trends</CardTitle>
           </CardHeader>
@@ -245,30 +250,32 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex h-40 items-center justify-center rounded-md border border-dashed border-border/60 bg-muted/50">
-                <span className="text-sm text-muted-foreground">Loading categories...</span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {topCategories.length === 0 && (
-                  <div className="text-sm text-muted-foreground">No category data yet.</div>
-                )}
-                {topCategories.map((category) => (
-                  <div key={category.name} className="flex items-center justify-between text-sm">
-                    <span className="truncate">{category.name}</span>
-                    <span className="font-semibold">{category.total.toLocaleString()} MMK</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Categories</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex h-40 items-center justify-center rounded-md border border-dashed border-border/60 bg-muted/50">
+                  <span className="text-sm text-muted-foreground">Loading categories...</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {topCategories.length === 0 && (
+                    <div className="text-sm text-muted-foreground">No category data yet.</div>
+                  )}
+                  {topCategories.map((category) => (
+                    <div key={category.name} className="flex items-center justify-between text-sm">
+                      <span className="truncate">{category.name}</span>
+                      <span className="font-semibold">{category.total.toLocaleString()} MMK</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </section>
     </div>
   );

@@ -16,17 +16,12 @@ type ProductFormProps = {
   onSkuChange: (value: string) => void;
   size: string;
   onSizeChange: (value: string) => void;
-  variant: string;
-  onVariantChange: (value: string) => void;
-  subCategory: string;
-  onSubCategoryChange: (value: string) => void;
-  subCategoryOptions: string[];
   category: string;
   onCategoryChange: (value: string) => void;
   categories: CategoryOption[];
-  onAddCategory?: () => void;
   purchasePrice: string;
   onPurchasePriceChange: (value: string) => void;
+  showPurchasePrice?: boolean;
   salePrice: string;
   onSalePriceChange: (value: string) => void;
   stockQuantity: string;
@@ -60,17 +55,12 @@ export function ProductForm({
   onSkuChange,
   size,
   onSizeChange,
-  variant,
-  onVariantChange,
-  subCategory,
-  onSubCategoryChange,
-  subCategoryOptions,
   category,
   onCategoryChange,
   categories,
-  onAddCategory,
   purchasePrice,
   onPurchasePriceChange,
+  showPurchasePrice = true,
   salePrice,
   onSalePriceChange,
   stockQuantity,
@@ -147,7 +137,7 @@ export function ProductForm({
             autoComplete="off"
           />
         </div>
-        <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
+        <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               SKU
@@ -170,86 +160,45 @@ export function ProductForm({
               className="h-[44px] rounded-xl"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Variant
-            </label>
-            <Input
-              value={variant}
-              onChange={(e) => onVariantChange(e.target.value)}
-              placeholder="Lavender"
-              className="h-[44px] rounded-xl"
-            />
-          </div>
         </div>
 
         <div className="space-y-4 md:col-span-2">
-          {subCategoryOptions.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Sub-Category
-              </label>
-              <select
-                value={subCategory}
-                onChange={(e) => onSubCategoryChange(e.target.value)}
-                className="h-[44px] w-full rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
-              >
-                <option value="">Select Sub-Category</option>
-                {subCategoryOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Category
             </label>
-            <div className="flex gap-2">
-              <select
-                value={category}
-                onChange={(e) => onCategoryChange(e.target.value)}
-                className="h-[44px] min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
-              >
-                <option value="">Select Category</option>
-                {categoryOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {onAddCategory && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-[44px] shrink-0 rounded-xl px-4 text-[11px] font-semibold uppercase"
-                  title="Add Category"
-                  onClick={onAddCategory}
-                >
-                  Add New
-                </Button>
-              )}
-            </div>
+            <select
+              value={category}
+              onChange={(e) => onCategoryChange(e.target.value)}
+              className="h-[44px] w-full rounded-xl border border-input bg-background px-3 py-1 text-[13px] font-medium outline-none focus:ring-2 focus:ring-primary appearance-none"
+            >
+              <option value="">Select Category</option>
+              {categoryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
         <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Purchase Price (Ks)
-            </label>
-            <Input
-              value={purchasePrice}
-              onChange={(e) => onPurchasePriceChange(e.target.value)}
-              type="number"
-              inputMode="decimal"
-              placeholder="0"
-              className="h-[44px] rounded-xl"
-            />
-          </div>
-          <div className="space-y-1.5">
+          {showPurchasePrice && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Purchase Price (Ks)
+              </label>
+              <Input
+                value={purchasePrice}
+                onChange={(e) => onPurchasePriceChange(e.target.value)}
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                className="h-[44px] rounded-xl"
+              />
+            </div>
+          )}
+          <div className={`space-y-1.5 ${showPurchasePrice ? '' : 'md:col-span-2'}`}>
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Sale Price (Ks) *
             </label>

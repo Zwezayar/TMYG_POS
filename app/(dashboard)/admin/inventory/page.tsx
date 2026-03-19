@@ -12,12 +12,6 @@ import type { Product } from '@/lib/useProducts';
 import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
 import { downloadExcel } from '@/lib/excel';
-import {
-  getAllCategoryLabels,
-  getAllSubCategories,
-  getCategoryLabelFromSubCategory,
-  getSubCategoryFromCategory,
-} from '@/lib/categoryHierarchy';
 
 type PendingAction = {
   id: string;
@@ -31,8 +25,7 @@ type PendingAction = {
     stock_quantity: number | null;
     default_code: string | null;
     image_url: string | null;
-      size: string | null;
-      variant: string | null;
+    size: string | null;
     description_en: string | null;
     description_mm: string | null;
     category: string | null;
@@ -153,7 +146,7 @@ const InventoryRow = React.memo(function InventoryRow({
       <td className="px-3 py-3 text-[12px] font-medium">{product.product_name || '—'}</td>
       <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.default_code || '—'}</td>
       <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.category || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.variant || '—'}</td>
+      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.size || product.variant || '—'}</td>
       <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.barcode || '—'}</td>
       <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.stock_quantity ?? '—'}</td>
       <td className="px-3 py-3 text-right text-[12px] font-semibold">{formatPrice(product.sale_price)}</td>
@@ -205,8 +198,6 @@ export default function AdminInventoryPage() {
   const [name, setName] = React.useState('');
   const [defaultCode, setDefaultCode] = React.useState('');
   const [size, setSize] = React.useState('');
-  const [variant, setVariant] = React.useState('');
-  const [subCategory, setSubCategory] = React.useState('');
   const [price, setPrice] = React.useState('');
   const [costPrice, setCostPrice] = React.useState('');
   const [stockQuantity, setStockQuantity] = React.useState('');
@@ -288,7 +279,6 @@ export default function AdminInventoryPage() {
       setName('');
       setDefaultCode('');
     setSize('');
-    setVariant('');
       setPrice('');
       setCostPrice('');
       setDescriptionEn('');
@@ -368,8 +358,6 @@ export default function AdminInventoryPage() {
     setName('');
     setDefaultCode('');
     setSize('');
-    setVariant('');
-    setSubCategory('');
     setPrice('');
     setCostPrice('');
     setStockQuantity('');
@@ -397,7 +385,6 @@ export default function AdminInventoryPage() {
       stock_quantity: Number.isFinite(parsedStock as number) ? parsedStock : null,
       default_code: defaultCode.trim() || null,
       size: size.trim() || null,
-      variant: variant.trim() || null,
       description_en: descriptionEn.trim() || null,
       description_mm: descriptionMm.trim() || null,
       category: category.trim() || null,
@@ -430,7 +417,7 @@ export default function AdminInventoryPage() {
       image_url: item.imageDataUrl ?? payload.image_url ?? null,
       category: payload.category,
       size: payload.size,
-      variant: payload.variant,
+      variant: null,
       purchase_price: payload.purchase_price,
       sale_price: payload.sale_price,
       stock_quantity: payload.stock_quantity,
@@ -445,7 +432,7 @@ export default function AdminInventoryPage() {
     } else {
       applyOptimistic(products.map((p) => (p.id === productId ? { ...p, ...optimistic, id: productId! } : p)));
     }
-  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, name, price, products, size, variant, stockQuantity, imageUrlInput]);
+  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, name, price, products, size, stockQuantity, imageUrlInput]);
 
   const syncQueue = React.useCallback(async () => {
     if (!isOnline) return;
@@ -555,25 +542,36 @@ export default function AdminInventoryPage() {
 
   const handleDownloadTemplate = React.useCallback(() => {
     downloadExcel('inventory-template.xlsx', [
-      ['Barcode', 'Name', 'SubCategory', 'CostPrice', 'SalePrice', 'Stock'],
+      isAdmin
+        ? ['Barcode', 'Name', 'Category', 'CostPrice', 'SalePrice', 'Stock']
+        : ['Barcode', 'Name', 'Category', 'SalePrice', 'Stock'],
     ]);
-  }, []);
+  }, [isAdmin]);
 
   const handleExportInventory = React.useCallback(() => {
+    const header = isAdmin
+      ? ['Barcode', 'Name', 'Category', 'CostPrice', 'SalePrice', 'Stock']
+      : ['Barcode', 'Name', 'Category', 'SalePrice', 'Stock'];
     const rows = [
-      ['Barcode', 'Name', 'SubCategory', 'CostPrice', 'SalePrice', 'Stock', 'Category'],
-      ...products.map((p) => [
-        p.barcode ?? '',
-        p.product_name ?? '',
-        getSubCategoryFromCategory(p.category ?? '') ?? '',
-        p.purchase_price ?? '',
-        p.sale_price ?? '',
-        p.stock_quantity ?? '',
-        p.category ?? '',
-      ]),
+      header,
+      ...products.map((p) => {
+        const base = [
+          p.barcode ?? '',
+          p.product_name ?? '',
+          p.category ?? '',
+        ];
+        if (isAdmin) {
+          base.push(String(p.purchase_price ?? ''));
+        }
+        base.push(
+          String(p.sale_price ?? ''),
+          String(p.stock_quantity ?? '')
+        );
+        return base;
+      }),
     ];
     downloadExcel('inventory-export.xlsx', rows);
-  }, [products]);
+  }, [products, isAdmin]);
 
   const handleBulkFile = React.useCallback(
     async (file: File) => {
@@ -606,8 +604,8 @@ export default function AdminInventoryPage() {
         const idx = (key: string) => header.indexOf(key);
         const barcodeIdx = idx('barcode');
         const nameIdx = idx('name');
-        const subIdx = idx('subcategory');
-        const costIdx = idx('costprice');
+        const categoryIdx = idx('category');
+        const costIdx = isAdmin ? idx('costprice') : -1;
         const saleIdx = idx('saleprice');
         const stockIdx = idx('stock');
         if (barcodeIdx < 0 || nameIdx < 0 || saleIdx < 0) {
@@ -630,19 +628,20 @@ export default function AdminInventoryPage() {
             skipped.push(`Row ${i + 1}`);
             continue;
           }
-          const subCategoryValue = subIdx >= 0 ? (row[subIdx] ?? '').toString().trim() : '';
-          const categoryLabel = getCategoryLabelFromSubCategory(subCategoryValue);
+        const categoryValue = categoryIdx >= 0 ? (row[categoryIdx] ?? '').toString().trim() : '';
           const costValue = costIdx >= 0 ? Number((row[costIdx] ?? '').toString().trim()) : null;
           const saleValue = saleIdx >= 0 ? Number((row[saleIdx] ?? '').toString().trim()) : null;
           const stockValue = stockIdx >= 0 ? Number((row[stockIdx] ?? '').toString().trim()) : null;
           const payload: any = {
             barcode,
             sale_price: Number.isFinite(saleValue) ? saleValue : 0,
-            purchase_price: Number.isFinite(costValue) ? costValue : null,
             stock_quantity: Number.isFinite(stockValue) ? stockValue : null,
           };
+          if (isAdmin) {
+            payload.purchase_price = Number.isFinite(costValue) ? costValue : null;
+          }
           if (name) payload.product_name = name;
-          if (categoryLabel) payload.category = categoryLabel;
+          if (categoryValue) payload.category = categoryValue;
           const existing = byBarcode.get(barcode);
           if (existing) {
             const { error: updateError } = await supabaseClient
@@ -682,7 +681,7 @@ export default function AdminInventoryPage() {
         setBulkLoading(false);
       }
     },
-    [isOnline, products, refreshProducts]
+    [isOnline, products, refreshProducts, isAdmin]
   );
 
   React.useEffect(() => {
@@ -723,7 +722,7 @@ export default function AdminInventoryPage() {
       const skuValue = (p.default_code ?? '').toLowerCase();
       const barcodeValue = (p.barcode ?? '').toLowerCase();
       const categoryValue = (p.category ?? '').toLowerCase();
-      const variantValue = (p.variant ?? '').toLowerCase();
+      const variantValue = (p.size ?? p.variant ?? '').toLowerCase();
       return (
         nameValue.includes(q) ||
         skuValue.includes(q) ||
@@ -736,60 +735,17 @@ export default function AdminInventoryPage() {
 
   const categoryOptions = React.useMemo(() => {
     if (dbCategories.length > 0) {
-      return dbCategories.map((cat) => {
-        const parent = dbCategories.find((c) => c.id === cat.parent_id);
-        const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
-        return { value: label, label };
-      });
+      return dbCategories.map((cat) => ({ value: cat.name, label: cat.name }));
     }
     const all = new Set<string>();
     products.forEach((p) => {
-      if (p.category) all.add(p.category);
+      if (p.category) {
+        const flat = p.category.split('/').pop()?.trim();
+        if (flat) all.add(flat);
+      }
     });
-    const hierarchyLabels = getAllCategoryLabels();
-    const merged = Array.from(new Set([...Array.from(all), ...hierarchyLabels])).sort();
-    return merged.map((name) => ({ value: name, label: name }));
+    return Array.from(all).sort().map((name) => ({ value: name, label: name }));
   }, [dbCategories, products]);
-  const subCategoryOptions = React.useMemo(() => getAllSubCategories(), []);
-
-  const handleAddCategory = React.useCallback(async () => {
-    const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
-    if (!newCat || !newCat.trim()) return;
-    const parts = newCat.split('/').map((s) => s.trim());
-    const mainName = parts[0];
-    const subName = parts.length > 1 ? parts[1] : null;
-    try {
-      let parentId = null;
-      const { data: mainData, error: mainError } = await supabaseClient
-        .from('categories')
-        .select('id')
-        .eq('name', mainName)
-        .is('parent_id', null)
-        .maybeSingle();
-      if (mainError) throw mainError;
-      if (mainData) {
-        parentId = mainData.id;
-      } else {
-        const { data: newMain, error: createError } = await supabaseClient
-          .from('categories')
-          .insert({ name: mainName })
-          .select('id')
-          .single();
-        if (createError) throw createError;
-        parentId = newMain.id;
-      }
-      if (subName) {
-        await supabaseClient
-          .from('categories')
-          .insert({ name: subName, parent_id: parentId });
-      }
-      await refreshCategories();
-      setCategory(newCat);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create category.';
-      setError(msg);
-    }
-  }, [refreshCategories]);
 
   const openCreate = () => {
     resetForm();
@@ -818,15 +774,14 @@ export default function AdminInventoryPage() {
     setEditing(product);
     setName(product.product_name ?? '');
     setDefaultCode(product.default_code ?? '');
-    setSize(product.size ?? '');
-    setVariant(product.variant ?? '');
-    setSubCategory(getSubCategoryFromCategory(product.category ?? '') ?? '');
+    setSize(product.size ?? product.variant ?? '');
     setPrice(product.sale_price != null ? String(product.sale_price) : '');
     setCostPrice(product.purchase_price != null ? String(product.purchase_price) : '');
     setStockQuantity(product.stock_quantity != null ? String(product.stock_quantity) : '');
     setDescriptionEn(product.description_en ?? '');
     setDescriptionMm(product.description_mm ?? '');
-    setCategory(product.category ?? '');
+    const flatCategory = product.category?.split('/').pop()?.trim() ?? '';
+    setCategory(flatCategory);
     setBarcode(product.barcode ?? '');
     setRemark(product.remark ?? '');
     setImageFile(null);
@@ -842,7 +797,7 @@ export default function AdminInventoryPage() {
     }
     const priceValue = price.trim();
     const parsedPrice = Number(priceValue);
-    const parsedCost = costPrice.trim() ? Number(costPrice) : null;
+    const parsedCost = isAdmin && costPrice.trim() ? Number(costPrice) : null;
     const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
     if (!priceValue) {
       setError('Sale price is required.');
@@ -879,7 +834,6 @@ export default function AdminInventoryPage() {
       stock_quantity: parsedStock,
       default_code: defaultCode.trim() || null,
       size: size.trim() || null,
-      variant: variant.trim() || null,
       description_en: descriptionEn.trim() || null,
       description_mm: descriptionMm.trim() || null,
       category: category.trim() || null,
@@ -1077,7 +1031,7 @@ export default function AdminInventoryPage() {
                 <th className="px-3 py-3 text-left font-semibold">Name</th>
                 <th className="px-3 py-3 text-left font-semibold">SKU</th>
                 <th className="px-3 py-3 text-left font-semibold">Category</th>
-                <th className="px-3 py-3 text-left font-semibold">Specification</th>
+                <th className="px-3 py-3 text-left font-semibold">Size</th>
                 <th className="px-3 py-3 text-left font-semibold">Barcode</th>
                 <th className="px-3 py-3 text-left font-semibold">Stock</th>
                 <th className="px-3 py-3 text-right font-semibold">Price</th>
@@ -1132,22 +1086,10 @@ export default function AdminInventoryPage() {
               onSkuChange={setDefaultCode}
               size={size}
               onSizeChange={setSize}
-              variant={variant}
-              onVariantChange={setVariant}
-              subCategory={subCategory}
-              onSubCategoryChange={(value) => {
-                setSubCategory(value);
-                const mapped = getCategoryLabelFromSubCategory(value);
-                setCategory(mapped ?? '');
-              }}
-              subCategoryOptions={subCategoryOptions}
+              showPurchasePrice={isAdmin}
               category={category}
-              onCategoryChange={(value) => {
-                setCategory(value);
-                setSubCategory(getSubCategoryFromCategory(value) ?? '');
-              }}
+              onCategoryChange={setCategory}
               categories={categoryOptions}
-              onAddCategory={handleAddCategory}
               purchasePrice={costPrice}
               onPurchasePriceChange={setCostPrice}
               salePrice={price}

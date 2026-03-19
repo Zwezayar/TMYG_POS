@@ -28,7 +28,7 @@ export function EditProductDialog({
   const [defaultCode, setDefaultCode] = React.useState('');
   const [barcode, setBarcode] = React.useState('');
   const [category, setCategory] = React.useState('');
-  const [variant, setVariant] = React.useState('');
+  const [size, setSize] = React.useState('');
   const [salePrice, setSalePrice] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState('');
   const [stockQuantity, setStockQuantity] = React.useState('');
@@ -46,7 +46,7 @@ export function EditProductDialog({
     setDefaultCode(product.default_code ?? '');
     setBarcode(product.barcode ?? '');
     setCategory(product.category ?? '');
-    setVariant(product.variant ?? '');
+    setSize(product.size ?? product.variant ?? '');
     setSalePrice(product.sale_price != null ? String(product.sale_price) : '');
     setPurchasePrice(
       product.purchase_price != null ? String(product.purchase_price) : ''
@@ -113,7 +113,7 @@ export function EditProductDialog({
         default_code: defaultCode || null,
         barcode: barcode || null,
         category: category || null,
-        variant: variant || null,
+        size: size || null,
         sale_price: salePrice ? Number(salePrice) : null,
         stock_quantity: stockQuantity ? Number(stockQuantity) : null,
         reorder: reorderPoint ? Number(reorderPoint) : 2,
@@ -205,11 +205,11 @@ export function EditProductDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="edit_variant">Variant</Label>
+            <Label htmlFor="edit_size">Size</Label>
             <Input
-              id="edit_variant"
-              value={variant}
-              onChange={(e) => setVariant(e.target.value)}
+              id="edit_size"
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
@@ -318,4 +318,3 @@ export function EditProductDialog({
     </div>
   );
 }
-

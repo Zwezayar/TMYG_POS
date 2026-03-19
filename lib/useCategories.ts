@@ -1,8 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { supabaseClient } from '@/lib/supabaseClient';
-
 export interface Category {
     id: string;
     name: string;
@@ -15,11 +13,13 @@ export function useCategories() {
 
     const fetchCategories = React.useCallback(async () => {
         setLoading(true);
-        const { data } = await supabaseClient
-            .from('categories')
-            .select('*')
-            .order('name');
-        setCategories((data ?? []) as Category[]);
+        const res = await fetch('/api/categories', { method: 'GET' });
+        const data = await res.json().catch(() => []);
+        if (res.ok) {
+            setCategories((data ?? []) as Category[]);
+        } else {
+            setCategories([]);
+        }
         setLoading(false);
     }, []);
 

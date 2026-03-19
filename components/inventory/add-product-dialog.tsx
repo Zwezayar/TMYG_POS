@@ -33,7 +33,7 @@ export function AddProductDialog({
   const [defaultCode, setDefaultCode] = React.useState('');
   const [barcode, setBarcode] = React.useState('');
   const [category, setCategory] = React.useState('');
-  const [variant, setVariant] = React.useState('');
+  const [size, setSize] = React.useState('');
   const [salePrice, setSalePrice] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState('');
   const [stockQuantity, setStockQuantity] = React.useState('');
@@ -61,7 +61,7 @@ export function AddProductDialog({
     setDefaultCode('');
     setBarcode('');
     setCategory('');
-    setVariant('');
+    setSize('');
     setSalePrice('');
     setPurchasePrice('');
     setStockQuantity('');
@@ -138,7 +138,7 @@ export function AddProductDialog({
         barcode: barcode || null,
         image_url: imageUrl,
         category: category || null,
-        variant: variant || null,
+        size: size || null,
         sale_price: parsedSalePrice,
         purchase_price: parsedPurchasePrice,
         stock_quantity: parsedStockQuantity,
@@ -251,12 +251,12 @@ export function AddProductDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="variant">Variant</Label>
+            <Label htmlFor="size">Size</Label>
             <Input
-              id="variant"
-              value={variant}
-              onChange={(e) => setVariant(e.target.value)}
-              placeholder="e.g. Size M / Pink"
+              id="size"
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
+              placeholder="e.g. 250ml"
             />
           </div>
           <div className="space-y-1.5">

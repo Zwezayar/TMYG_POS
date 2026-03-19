@@ -19,12 +19,6 @@ import {
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
 import { ProductForm } from '@/components/forms/product-form';
-import {
-  getAllCategoryLabels,
-  getAllSubCategories,
-  getCategoryLabelFromSubCategory,
-  getSubCategoryFromCategory,
-} from '@/lib/categoryHierarchy';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -164,7 +158,7 @@ function ProductCard({
         </p>
         <div className="flex flex-col gap-1 mt-1">
           <span className="text-[11px] text-muted-foreground truncate">
-            {product.variant || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
+            {product.size || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
           </span>
           <div className="flex items-center justify-between">
             <span className="text-[14px] font-black text-[#8B5CF6]">
@@ -1048,8 +1042,6 @@ export default function PosPage() {
   const [quickDefaultCode, setQuickDefaultCode] = React.useState('');
   const [quickSize, setQuickSize] = React.useState('');
   const [quickCategory, setQuickCategory] = React.useState('');
-  const [quickSubCategory, setQuickSubCategory] = React.useState('');
-  const [quickVariant, setQuickVariant] = React.useState('');
   const [quickDescription, setQuickDescription] = React.useState('');
   const [quickDescriptionMm, setQuickDescriptionMm] = React.useState('');
   const [quickSalePrice, setQuickSalePrice] = React.useState('');
@@ -1063,7 +1055,6 @@ export default function PosPage() {
 
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [selectedMainCategory, setSelectedMainCategory] = React.useState<string | null>(null);
-  const [selectedSubCategory, setSelectedSubCategory] = React.useState<string | null>(null);
   const [isOnline, setIsOnline] = React.useState(true);
   const [offlineQueueCount, setOfflineQueueCount] = React.useState(0);
 
@@ -1097,29 +1088,24 @@ export default function PosPage() {
   }, []);
 
   const mainCategoriesList = React.useMemo(() => {
-    const fromDb = (dbCategories ?? []).length > 0
-      ? (dbCategories.some(c => c.parent_id)
-          ? dbCategories.filter(c => !c.parent_id)
-          : dbCategories
-        ).map((c, idx) => ({
-          id: String(c.id ?? idx),
-          name: c.name || '',
-          icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5]
-        }))
-      : [];
-    if (fromDb.length > 0) return fromDb;
-    // Fallback: derive from product.category so the category bar shows more than "All Products"
+    if ((dbCategories ?? []).length > 0) {
+      return dbCategories.map((c, idx) => ({
+        id: String(c.id ?? idx),
+        name: c.name || '',
+        icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5],
+      }));
+    }
     const fromProducts = new Set<string>();
     (products ?? []).forEach((p) => {
       if (p?.category) {
-        const main = p.category.split(' / ').map((s: string) => s.trim())[0];
-        if (main) fromProducts.add(main);
+        const flat = p.category.split('/').pop()?.trim();
+        if (flat) fromProducts.add(flat);
       }
     });
     return Array.from(fromProducts).sort().map((name, idx) => ({
       id: `prod-${idx}`,
       name,
-      icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5]
+      icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5],
     }));
   }, [dbCategories, products]);
 
@@ -1231,9 +1217,7 @@ export default function PosPage() {
       const barcode = normalizeBarcode(p?.barcode).toLowerCase();
       const sku = (p?.default_code ?? '').toLowerCase();
       const categoryStr = (p?.category ?? '');
-      const parts = categoryStr.split(' / ').map(s => s.trim());
-      const main = parts[0];
-      const sub = parts.length > 1 ? parts.slice(1).join(' / ') : '';
+      const main = categoryStr.split('/').pop()?.trim() ?? '';
 
       const matchesQuery = name.includes(q) || barcode.includes(q) || sku.includes(q);
 
@@ -1241,98 +1225,33 @@ export default function PosPage() {
       if (selectedMainCategory) {
         if (main !== selectedMainCategory && categoryStr !== selectedMainCategory) {
           matchesCategory = false;
-        } else if (selectedSubCategory && sub !== selectedSubCategory) {
-          matchesCategory = false;
         }
       }
 
       return matchesQuery && matchesCategory;
     });
-  }, [products, query, selectedMainCategory, selectedSubCategory]);
+  }, [products, query, selectedMainCategory]);
 
-  const { mainCategories, subCategoriesMap, allCategories } = React.useMemo(() => {
-    const mainCats = new Set<string>();
-    const subCatsMap = new Map<string, Set<string>>();
+  const { mainCategories, allCategories } = React.useMemo(() => {
+    if (dbCategories.length > 0) {
+      const names = dbCategories.map((cat) => cat.name).filter(Boolean);
+      return { mainCategories: names, allCategories: names };
+    }
     const allCats = new Set<string>();
-
     products.forEach((p) => {
       if (p.category) {
-        allCats.add(p.category);
-        const parts = p.category.split(' / ').map(s => s.trim());
-        const main = parts[0];
-        const sub = parts.length > 1 ? parts.slice(1).join(' / ') : '';
-
-        mainCats.add(main);
-        if (!subCatsMap.has(main)) {
-          subCatsMap.set(main, new Set<string>());
-        }
-        if (sub) {
-          subCatsMap.get(main)!.add(sub);
-        }
+        const flat = p.category.split('/').pop()?.trim();
+        if (flat) allCats.add(flat);
       }
     });
+    const list = Array.from(allCats).sort();
+    return { mainCategories: list, allCategories: list };
+  }, [dbCategories, products]);
 
-    const mainArray = Array.from(mainCats).sort();
-    const map = new Map<string, string[]>();
-    for (const main of mainArray) {
-      map.set(main, Array.from(subCatsMap.get(main) || []).sort());
-    }
-
-    return { mainCategories: mainArray, subCategoriesMap: map, allCategories: Array.from(allCats).sort() };
-  }, [products]);
-
-  const categoryOptions = React.useMemo(() => {
-    if (dbCategories.length > 0) {
-      return dbCategories.map((cat) => {
-        const parent = dbCategories.find((c) => c.id === cat.parent_id);
-        const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
-        return { value: label, label };
-      });
-    }
-    const hierarchyLabels = getAllCategoryLabels();
-    const merged = Array.from(new Set([...allCategories, ...hierarchyLabels]));
-    return merged.map((name) => ({ value: name, label: name }));
-  }, [dbCategories, allCategories]);
-  const subCategoryOptions = React.useMemo(() => getAllSubCategories(), []);
-
-  const handleAddCategory = React.useCallback(async () => {
-    const newCat = prompt('Enter new category name (e.g. Skin Care or Skin Care / Serum):');
-    if (!newCat || !newCat.trim()) return;
-    const parts = newCat.split('/').map((s) => s.trim());
-    const mainName = parts[0];
-    const subName = parts.length > 1 ? parts[1] : null;
-    try {
-      let parentId = null;
-      const { data: mainData, error: mainError } = await supabaseClient
-        .from('categories')
-        .select('id')
-        .eq('name', mainName)
-        .is('parent_id', null)
-        .maybeSingle();
-      if (mainError) throw mainError;
-      if (mainData) {
-        parentId = mainData.id;
-      } else {
-        const { data: newMain, error: createError } = await supabaseClient
-          .from('categories')
-          .insert({ name: mainName })
-          .select('id')
-          .single();
-        if (createError) throw createError;
-        parentId = newMain.id;
-      }
-      if (subName) {
-        await supabaseClient
-          .from('categories')
-          .insert({ name: subName, parent_id: parentId });
-      }
-      addToast('success', `Category "${newCat}" created.`);
-      await refreshCategories();
-      setQuickCategory(newCat);
-    } catch {
-      addToast('error', 'Failed to create category.');
-    }
-  }, [addToast, refreshCategories]);
+  const categoryOptions = React.useMemo(
+    () => allCategories.map((name) => ({ value: name, label: name })),
+    [allCategories]
+  );
 
   const totalAmount = React.useMemo(
     () =>
@@ -1633,7 +1552,6 @@ export default function PosPage() {
     setQuickDefaultCode('');
     setQuickSize('');
     setQuickCategory('');
-    setQuickVariant('');
     setQuickDescription('');
     setQuickDescriptionMm('');
     setQuickSalePrice('');
@@ -1643,7 +1561,6 @@ export default function PosPage() {
     setQuickImagePreviewUrl(null);
     setQuickRemark('');
     setQuickPurchasePrice('');
-    setQuickSubCategory('');
     setQuickError(null);
     setMissingBarcode(null);
     setQuickAddOpen(true);
@@ -1872,9 +1789,8 @@ export default function PosPage() {
         category: quickCategory || null,
         default_code: quickDefaultCode || null,
         size: quickSize || null,
-        variant: quickVariant || null,
         sale_price: salePrice,
-        purchase_price: Number(quickPurchasePrice) || null,
+        purchase_price: role === 'admin' ? Number(quickPurchasePrice) || null : null,
         stock_quantity: stockQtyValue ? stockQty : null,
         description_en: quickDescription || null,
         description_mm: quickDescriptionMm || null,
@@ -2221,7 +2137,7 @@ export default function PosPage() {
         }}
       />
 
-      {/* Quick Add modal (AI-assisted) */}
+      {/* Quick Add modal */}
       {
         quickAddOpen && (
           <div
@@ -2257,22 +2173,10 @@ export default function PosPage() {
                 onSkuChange={setQuickDefaultCode}
                 size={quickSize}
                 onSizeChange={setQuickSize}
-                variant={quickVariant}
-                onVariantChange={setQuickVariant}
-                subCategory={quickSubCategory}
-                onSubCategoryChange={(value) => {
-                  setQuickSubCategory(value);
-                  const mapped = getCategoryLabelFromSubCategory(value);
-                  setQuickCategory(mapped ?? '');
-                }}
-                subCategoryOptions={subCategoryOptions}
+                showPurchasePrice={role === 'admin'}
                 category={quickCategory}
-                onCategoryChange={(value) => {
-                  setQuickCategory(value);
-                  setQuickSubCategory(getSubCategoryFromCategory(value) ?? '');
-                }}
+                onCategoryChange={setQuickCategory}
                 categories={categoryOptions}
-                onAddCategory={handleAddCategory}
                 purchasePrice={quickPurchasePrice}
                 onPurchasePriceChange={setQuickPurchasePrice}
                 salePrice={quickSalePrice}
@@ -2367,7 +2271,7 @@ export default function PosPage() {
                   <div className="space-y-1">
                     <span className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Details</span>
                     <p className="text-sm text-muted-foreground">
-                      Variant: {selectedProduct.variant || 'Standard'}
+                      Size: {selectedProduct.size || selectedProduct.variant || 'Standard'}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Barcode: {selectedProduct.barcode || 'N/A'}
