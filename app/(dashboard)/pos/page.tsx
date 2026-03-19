@@ -405,6 +405,7 @@ function CartSidebar({
   onToggleCheckout,
   isOnline,
   offlineQueueCount,
+  cartPulse,
 }: {
   cart: CartLine[];
   onUpdateQuantity: (id: number, qty: number) => void;
@@ -444,6 +445,7 @@ function CartSidebar({
   onToggleCheckout: () => void;
   isOnline: boolean;
   offlineQueueCount: number;
+  cartPulse: boolean;
 }) {
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [editPrice, setEditPrice] = React.useState("");
@@ -516,7 +518,12 @@ function CartSidebar({
                 <ChevronLeft className="h-4 w-4" />
               </button>
             )}
-            <ShoppingBag className="h-4.5 w-4.5 text-primary" />
+            <ShoppingBag
+              className={cn(
+                "h-4.5 w-4.5 text-primary transition-transform duration-150",
+                cartPulse && "scale-125"
+              )}
+            />
             <h2 className="text-sm font-bold text-foreground">
               {checkoutMode ? "Checkout" : "Current Order"}
             </h2>
@@ -942,6 +949,8 @@ export default function PosPage() {
   const [checkoutInvoiceId, setCheckoutInvoiceId] = React.useState<string | null>(null);
   const [lastReceipt, setLastReceipt] = React.useState<ReceiptData | null>(null);
   const [cartSidebarKey, setCartSidebarKey] = React.useState(0);
+  const [cartPulse, setCartPulse] = React.useState(false);
+  const cartPulseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [scanOpen, setScanOpen] = React.useState(false);
   const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
@@ -1274,6 +1283,24 @@ export default function PosPage() {
     return m;
   }, [cart]);
 
+  const triggerCartPulse = React.useCallback(() => {
+    if (cartPulseTimeoutRef.current) {
+      clearTimeout(cartPulseTimeoutRef.current);
+    }
+    setCartPulse(true);
+    cartPulseTimeoutRef.current = setTimeout(() => {
+      setCartPulse(false);
+    }, 200);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (cartPulseTimeoutRef.current) {
+        clearTimeout(cartPulseTimeoutRef.current);
+      }
+    };
+  }, []);
+
   function addToCart(product: Product, qty: number = 1) {
     const stock = product.stock_quantity ?? 0;
     const inCart = cartQtyByProductId.get(product.id) ?? 0;
@@ -1294,6 +1321,7 @@ export default function PosPage() {
     });
     setQuery('');
     searchRef.current?.focus();
+    triggerCartPulse();
   }
 
   function setCartQuantity(productId: number, quantity: number) {
@@ -1588,7 +1616,7 @@ export default function PosPage() {
     }
 
     const lastScanAt = lastScanByCodeRef.current[code] ?? 0;
-    if (Date.now() - lastScanAt < 2000) {
+    if (Date.now() - lastScanAt < 1500) {
       if (scanUnlockTimeoutRef.current) {
         clearTimeout(scanUnlockTimeoutRef.current);
       }
@@ -1598,10 +1626,9 @@ export default function PosPage() {
         if (typeof window !== 'undefined') {
           (window as any).isProcessingScan = false;
         }
-      }, 800);
+      }, 300);
       return false;
     }
-    lastScanByCodeRef.current[code] = Date.now();
 
     const existing = products.find(
       (p) => normalizeBarcode(p.barcode).toLowerCase() === code.toLowerCase()
@@ -1611,7 +1638,8 @@ export default function PosPage() {
       setMissingBarcode(null);
       setScanStatus('found');
       addToCart(existing, 1);
-      addToast('success', `Success: ${existing.product_name ?? 'Product'} added`);
+      lastScanByCodeRef.current[code] = Date.now();
+      addToast('success', 'Product Added!');
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const osc = ctx.createOscillator();
@@ -1636,7 +1664,7 @@ export default function PosPage() {
         if (typeof window !== 'undefined') {
           (window as any).isProcessingScan = false;
         }
-      }, 800);
+      }, 300);
       return true;
     }
 
@@ -1653,7 +1681,7 @@ export default function PosPage() {
       if (typeof window !== 'undefined') {
         (window as any).isProcessingScan = false;
       }
-    }, 800);
+    }, 300);
     return false;
   }
 
@@ -2110,6 +2138,7 @@ export default function PosPage() {
             onToggleCheckout={() => setCheckoutMode(!checkoutMode)}
             isOnline={isOnline}
             offlineQueueCount={offlineQueueCount}
+            cartPulse={cartPulse}
           />
         </div>
       </div>

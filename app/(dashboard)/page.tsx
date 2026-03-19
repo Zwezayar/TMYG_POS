@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [reportSending, setReportSending] = React.useState(false);
+  const [reportStatus, setReportStatus] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const now = new Date();
@@ -166,8 +168,43 @@ export default function DashboardPage() {
             >
               Refresh
             </Button>
+            {isAdmin && (
+              <Button
+                className="h-9"
+                onClick={async () => {
+                  setReportSending(true);
+                  setReportStatus(null);
+                  const { data } = await supabaseClient.auth.getSession();
+                  const token = data.session?.access_token;
+                  if (!token) {
+                    setReportStatus('Session expired.');
+                    setReportSending(false);
+                    return;
+                  }
+                  const res = await fetch('/api/admin/daily-report', {
+                    method: 'POST',
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  });
+                  const dataRes = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    setReportStatus(dataRes?.error || res.statusText);
+                  } else {
+                    setReportStatus('Daily report sent.');
+                  }
+                  setReportSending(false);
+                }}
+                disabled={reportSending}
+              >
+                {reportSending ? 'Sending...' : 'Send Daily Report Now'}
+              </Button>
+            )}
           </div>
         </div>
+        {reportStatus && (
+          <div className="text-xs text-muted-foreground">{reportStatus}</div>
+        )}
       </section>
 
       {/* Stats Section */}
