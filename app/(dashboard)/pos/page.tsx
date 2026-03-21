@@ -89,6 +89,7 @@ type CameraState = 'IDLE' | 'STARTING' | 'SCANNING' | 'RUNNING' | 'STOPPING';
 
 const normalizeBarcode = (bc: string | null | undefined) => bc?.trim() || "";
 const POS_STATE_KEY = 'pos-state-v1';
+const PRODUCTS_REFRESH_KEY = 'products-refresh-v1';
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("en-US").format(price) + " Ks";
@@ -294,7 +295,7 @@ function ProductArea({
               "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
               activeCategory === null
                 ? "bg-primary text-primary-foreground border-primary"
-                : "border-cyan-400/60 text-cyan-400 hover:bg-cyan-500/10"
+                : "border-slate-500 text-slate-800 hover:bg-slate-100 dark:border-cyan-400/60 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
             )}
           >
             All Products
@@ -310,7 +311,7 @@ function ProductArea({
                   "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
                   activeCategory === label
                     ? "bg-primary text-primary-foreground border-primary"
-                    : "border-cyan-400/60 text-cyan-400 hover:bg-cyan-500/10"
+                    : "border-slate-500 text-slate-800 hover:bg-slate-100 dark:border-cyan-400/60 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
                 )}
               >
                 {label}
@@ -962,6 +963,7 @@ export default function PosPage() {
   const cartPulseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [posHydrated, setPosHydrated] = React.useState(false);
   const pendingCartRef = React.useRef<PersistedCartLine[] | null>(null);
+  const lastProductsRefreshRef = React.useRef<string | null>(null);
 
   const [scanOpen, setScanOpen] = React.useState(false);
   const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
@@ -1267,6 +1269,32 @@ export default function PosPage() {
   React.useEffect(() => {
     setProductsOverride(null);
   }, [hookProducts]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PRODUCTS_REFRESH_KEY) return;
+      lastProductsRefreshRef.current = event.newValue ?? null;
+      refreshProducts();
+      setProductsOverride(null);
+    };
+    const handleRefreshEvent = () => {
+      refreshProducts();
+      setProductsOverride(null);
+    };
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('products-refresh', handleRefreshEvent);
+    const marker = window.localStorage.getItem(PRODUCTS_REFRESH_KEY);
+    if (marker && marker !== lastProductsRefreshRef.current) {
+      lastProductsRefreshRef.current = marker;
+      refreshProducts();
+      setProductsOverride(null);
+    }
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('products-refresh', handleRefreshEvent);
+    };
+  }, [refreshProducts]);
 
   React.useEffect(() => {
     searchRef.current?.focus();

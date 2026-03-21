@@ -40,6 +40,7 @@ type PendingAction = {
 
 const CACHE_KEY = 'admin-inventory-cache-v1';
 const QUEUE_KEY = 'admin-inventory-queue-v1';
+const PRODUCTS_REFRESH_KEY = 'products-refresh-v1';
 
 type AdminProduct = Product;
 
@@ -127,35 +128,35 @@ const InventoryRow = React.memo(function InventoryRow({
   deleting: boolean;
 }) {
   return (
-    <tr className="border-t border-border/40 hover:bg-secondary/40 h-[48px]">
-      <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground">{product.id}</td>
-      <td className="px-3 py-3">
+    <tr className="border-t border-border/40 hover:bg-secondary/40 h-[42px]">
+      <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">{product.id}</td>
+      <td className="px-3 py-2">
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.product_name ?? 'Product'}
-            className="h-12 w-12 rounded-md border border-border/70 object-cover"
+            className="h-10 w-10 rounded-md border border-border/70 object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '';
             }}
           />
         ) : (
-          <div className="h-12 w-12 rounded-md border border-dashed border-border/70 bg-muted/40" />
+          <div className="h-10 w-10 rounded-md border border-dashed border-border/70 bg-muted/40" />
         )}
       </td>
-      <td className="px-3 py-3 text-[12px] font-medium">{product.product_name || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.default_code || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.category || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.size || product.variant || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.barcode || '—'}</td>
-      <td className="px-3 py-3 text-[11px] text-muted-foreground">{product.stock_quantity ?? '—'}</td>
-      <td className="px-3 py-3 text-right text-[12px] font-semibold">{formatPrice(product.sale_price)}</td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-3 py-2 text-[12px] font-medium">{product.product_name || '—'}</td>
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">{product.default_code || '—'}</td>
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">{product.category || '—'}</td>
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">{product.size || product.variant || '—'}</td>
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">{product.barcode || '—'}</td>
+      <td className="px-3 py-2 text-[11px] text-muted-foreground">{product.stock_quantity ?? '—'}</td>
+      <td className="px-3 py-2 text-right text-[12px] font-semibold">{formatPrice(product.sale_price)}</td>
+      <td className="px-3 py-2 text-right">
         <div className="flex justify-end gap-2">
           <Button
             size="sm"
             variant="outline"
-            className="h-12 px-4 border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            className="h-9 px-3 border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
             onClick={() => onEdit(product)}
           >
             Edit
@@ -163,7 +164,7 @@ const InventoryRow = React.memo(function InventoryRow({
           <Button
             size="sm"
             variant="outline"
-            className="h-12 px-4 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
+            className="h-9 px-3 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
             onClick={() => onDelete(product)}
             disabled={deleting}
           >
@@ -183,6 +184,7 @@ export default function AdminInventoryPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
   const [activeLetter, setActiveLetter] = React.useState<string | null>(null);
+  const [sortRecent, setSortRecent] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
@@ -753,10 +755,20 @@ export default function AdminInventoryPage() {
           (p.product_name ?? '').trim().toUpperCase().startsWith(activeLetter)
         )
       : list;
-    return [...letterFiltered].sort((a, b) =>
-      (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' })
-    );
-  }, [products, query, activeLetter]);
+    const sorted = [...letterFiltered];
+    if (sortRecent) {
+      sorted.sort((a, b) => {
+        const timeA = a.created_at ? Date.parse(a.created_at) : 0;
+        const timeB = b.created_at ? Date.parse(b.created_at) : 0;
+        return timeB - timeA;
+      });
+    } else {
+      sorted.sort((a, b) =>
+        (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' })
+      );
+    }
+    return sorted;
+  }, [products, query, activeLetter, sortRecent]);
 
   const categoryOptions = React.useMemo(() => {
     if (dbCategories.length > 0) {
@@ -943,6 +955,11 @@ export default function AdminInventoryPage() {
     applyOptimistic(products.filter((p) => p.id !== deleteTarget.id));
     setDeletingId(null);
     setDeleteTarget(null);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PRODUCTS_REFRESH_KEY, String(Date.now()));
+      window.dispatchEvent(new Event('products-refresh'));
+    }
+    await refreshProducts();
   };
 
   return (
@@ -999,18 +1016,28 @@ export default function AdminInventoryPage() {
                 className="h-12 rounded-xl text-base"
               />
             </div>
+            <Button
+              variant="outline"
+              onClick={() => setSortRecent((prev) => !prev)}
+              className={sortRecent
+                ? "h-10 px-4 rounded-xl text-xs font-bold bg-primary text-primary-foreground border-primary"
+                : "h-10 px-4 rounded-xl text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+              }
+            >
+              Recently Added
+            </Button>
           </div>
           <div className="text-xs text-muted-foreground">
             {syncing ? 'Syncing changes...' : `${filtered.length} items`}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-nowrap items-center gap-1 overflow-x-auto">
           <Button
             variant="outline"
             onClick={() => setActiveLetter(null)}
             className={activeLetter === null
-              ? "h-9 px-4 rounded-full text-xs font-bold bg-primary text-primary-foreground border-primary"
-              : "h-9 px-4 rounded-full text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+              ? "h-6 px-2 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
+              : "h-6 px-2 rounded-full text-[9px] font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
             }
           >
             All
@@ -1021,8 +1048,8 @@ export default function AdminInventoryPage() {
               variant="outline"
               onClick={() => setActiveLetter(letter)}
               className={activeLetter === letter
-                ? "h-9 px-3 rounded-full text-xs font-bold bg-primary text-primary-foreground border-primary"
-                : "h-9 px-3 rounded-full text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                ? "h-6 w-6 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
+                : "h-6 w-6 rounded-full text-[9px] font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
               }
             >
               {letter}

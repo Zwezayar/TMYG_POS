@@ -28,7 +28,7 @@ export function ConfirmDialog({
 
   const confirmClass =
     confirmVariant === 'destructive'
-      ? 'bg-rose-500 text-white hover:bg-rose-500/90'
+      ? 'bg-red-600 text-white hover:bg-red-500'
       : 'bg-primary text-primary-foreground hover:bg-primary/90';
 
   return (
