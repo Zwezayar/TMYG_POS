@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScannerModal } from '@/components/scanner/scanner-modal';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useCategories } from '@/lib/useCategories';
 import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
@@ -30,6 +31,7 @@ type PendingAction = {
     description_mm: string | null;
     category: string | null;
     barcode: string | null;
+    remark: string | null;
   };
   imageDataUrl?: string;
   imageMime?: string;
@@ -117,13 +119,11 @@ const InventoryRow = React.memo(function InventoryRow({
   product,
   onEdit,
   onDelete,
-  isAdmin,
   deleting,
 }: {
   product: AdminProduct;
   onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
-  isAdmin: boolean;
   deleting: boolean;
 }) {
   return (
@@ -160,17 +160,15 @@ const InventoryRow = React.memo(function InventoryRow({
           >
             Edit
           </Button>
-          {isAdmin && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-12 px-4 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
-              onClick={() => onDelete(product)}
-              disabled={deleting}
-            >
-              Delete
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-12 px-4 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
+            onClick={() => onDelete(product)}
+            disabled={deleting}
+          >
+            Delete
+          </Button>
         </div>
       </td>
     </tr>
@@ -428,7 +426,7 @@ export default function AdminInventoryPage() {
       category: payload.category,
       size: payload.size,
       variant: null,
-      purchase_price: payload.purchase_price,
+      purchase_price: payload.purchase_price ?? null,
       sale_price: payload.sale_price,
       stock_quantity: payload.stock_quantity,
       description_en: payload.description_en,
@@ -724,6 +722,11 @@ export default function AdminInventoryPage() {
     setImagePreviewUrl(null);
   }, [imageFile, imageUrlInput]);
 
+  const alphabet = React.useMemo(
+    () => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),
+    []
+  );
+
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q
@@ -742,10 +745,15 @@ export default function AdminInventoryPage() {
           );
         })
       : products;
-    return [...list].sort((a, b) =>
+    const letterFiltered = activeLetter
+      ? list.filter((p) =>
+          (p.product_name ?? '').trim().toUpperCase().startsWith(activeLetter)
+        )
+      : list;
+    return [...letterFiltered].sort((a, b) =>
       (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' })
     );
-  }, [products, query]);
+  }, [products, query, activeLetter]);
 
   const categoryOptions = React.useMemo(() => {
     if (dbCategories.length > 0) {
@@ -823,10 +831,9 @@ export default function AdminInventoryPage() {
       return;
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       product_name: name.trim(),
       sale_price: parsedPrice,
-      purchase_price: parsedCost,
       stock_quantity: parsedStock,
       default_code: defaultCode.trim() || null,
       size: size.trim() || null,
@@ -835,7 +842,11 @@ export default function AdminInventoryPage() {
       category: category.trim() || null,
       barcode: barcode.trim() || null,
       image_url: imageUrlInput.trim() || null,
+      remark: remark.trim() || null,
     };
+    if (isAdmin) {
+      payload.purchase_price = parsedCost;
+    }
 
     if (mode === 'create') {
       const { data, error: insertError } = await supabaseClient
@@ -908,26 +919,26 @@ export default function AdminInventoryPage() {
     resetForm();
   };
 
-  const handleDelete = async (product: Product) => {
-    if (!isAdmin) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     if (!isOnline) {
       setError('Offline mode. Delete will sync when online.');
+      setDeleteTarget(null);
       return;
     }
-    const confirmed = typeof window !== 'undefined' ? window.confirm('Delete this product?') : false;
-    if (!confirmed) return;
-    setDeletingId(product.id);
+    setDeletingId(deleteTarget.id);
     const { error: deleteError } = await supabaseClient
       .from('products')
       .delete()
-      .eq('id', product.id);
+      .eq('id', deleteTarget.id);
     if (deleteError) {
       setError(deleteError.message);
       setDeletingId(null);
       return;
     }
-    applyOptimistic(products.filter((p) => p.id !== product.id));
+    applyOptimistic(products.filter((p) => p.id !== deleteTarget.id));
     setDeletingId(null);
+    setDeleteTarget(null);
   };
 
   return (
@@ -989,6 +1000,31 @@ export default function AdminInventoryPage() {
             {syncing ? 'Syncing changes...' : `${filtered.length} items`}
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setActiveLetter(null)}
+            className={activeLetter === null
+              ? "h-9 px-4 rounded-full text-xs font-bold bg-primary text-primary-foreground border-primary"
+              : "h-9 px-4 rounded-full text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            }
+          >
+            All
+          </Button>
+          {alphabet.map((letter) => (
+            <Button
+              key={letter}
+              variant="outline"
+              onClick={() => setActiveLetter(letter)}
+              className={activeLetter === letter
+                ? "h-9 px-3 rounded-full text-xs font-bold bg-primary text-primary-foreground border-primary"
+                : "h-9 px-3 rounded-full text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+              }
+            >
+              {letter}
+            </Button>
+          ))}
+        </div>
         {bulkStatus && (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             {bulkStatus}
@@ -1039,8 +1075,7 @@ export default function AdminInventoryPage() {
                     key={product.id}
                     product={product}
                     onEdit={openEdit}
-                    onDelete={handleDelete}
-                    isAdmin={isAdmin}
+                    onDelete={setDeleteTarget}
                     deleting={deletingId === product.id}
                   />
                 ))}
@@ -1094,6 +1129,17 @@ export default function AdminInventoryPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete product?"
+        description={`Are you sure you want to delete "${deleteTarget?.product_name ?? 'this product'}"?`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        confirmVariant="destructive"
+        loading={deleteTarget ? deletingId === deleteTarget.id : false}
+      />
 
       {bulkReportOpen && bulkReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setBulkReportOpen(false)}>
