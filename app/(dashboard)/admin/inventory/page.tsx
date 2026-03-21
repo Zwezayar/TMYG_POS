@@ -184,6 +184,7 @@ export default function AdminInventoryPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
+  const [activeLetter, setActiveLetter] = React.useState<string | null>(null);
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
@@ -217,6 +218,7 @@ export default function AdminInventoryPage() {
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<Product | null>(null);
   const [scanFlash, setScanFlash] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
   const [scanManualInput, setScanManualInput] = React.useState('');
@@ -319,27 +321,29 @@ export default function AdminInventoryPage() {
   const refreshProducts = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+    const selectFields = [
+      'id',
+      'product_name',
+      'default_code',
+      'barcode',
+      'image_url',
+      'category',
+      'size',
+      'variant',
+      'sale_price',
+      'stock_quantity',
+      'description_en',
+      'description_mm',
+      'reorder',
+      'remark',
+      'created_at',
+    ];
+    if (isAdmin) {
+      selectFields.push('purchase_price');
+    }
     const { data, error: fetchError } = await supabaseClient
       .from('products')
-      .select(
-        `
-        id,
-        product_name,
-        default_code,
-        barcode,
-        image_url,
-        category,
-        variant,
-        purchase_price,
-        sale_price,
-        stock_quantity,
-        description_en,
-        description_mm,
-        reorder,
-        remark,
-        created_at
-      `
-      )
+      .select(selectFields.join(','))
       .order('created_at', { ascending: false });
 
     if (fetchError) {
@@ -347,11 +351,11 @@ export default function AdminInventoryPage() {
       setLoading(false);
       return;
     }
-    const next = (data ?? []) as AdminProduct[];
+    const next = (data ?? []) as unknown as AdminProduct[];
     setProducts(next);
     saveCache(next);
     setLoading(false);
-  }, []);
+  }, [isAdmin]);
 
   const applyOptimistic = React.useCallback((next: AdminProduct[]) => {
     setProducts(next);

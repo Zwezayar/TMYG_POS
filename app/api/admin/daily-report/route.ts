@@ -15,7 +15,8 @@ type ReportResult = {
   topItems: ReportItem[];
 };
 
-async function buildReport(admin: ReturnType<typeof createServerSupabaseClient>) {
+// ReturnType နေရာမှာ logic ပိုရှင်းအောင် any သို့မဟုတ် တိုက်ရိုက် type သုံးပေးထားပါတယ်
+async function buildReport(admin: any) {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -30,13 +31,8 @@ async function buildReport(admin: ReturnType<typeof createServerSupabaseClient>)
     throw new Error(ordersError.message);
   }
 
-  const orderIds = (orders ?? []).map((o) => o.id).filter(Boolean);
-  let items: {
-    product_id: number | null;
-    quantity: number | null;
-    unit_price: number | null;
-    products?: { product_name: string | null; purchase_price: number | null }[] | null;
-  }[] = [];
+  const orderIds = (orders ?? []).map((o: any) => o.id).filter(Boolean);
+  let items: any[] = [];
 
   if (orderIds.length > 0) {
     const { data: itemsData, error: itemsError } = await admin
@@ -50,11 +46,13 @@ async function buildReport(admin: ReturnType<typeof createServerSupabaseClient>)
   }
 
   const totalRevenue = (orders ?? []).reduce(
-    (sum, o) => sum + Number(o.total_amount ?? 0),
+    (sum: number, o: any) => sum + Number(o.total_amount ?? 0),
     0
   );
-  const totalProfit = items.reduce((sum, item) => {
+
+  const totalProfit = items.reduce((sum: number, item: any) => {
     const unit = Number(item.unit_price ?? 0);
+    // product data structure ကို error မတက်အောင် စစ်ဆေးတာပါ
     const product = Array.isArray(item.products) ? item.products[0] : item.products;
     const cost = Number(product?.purchase_price ?? 0);
     const qty = Number(item.quantity ?? 0);
@@ -62,7 +60,7 @@ async function buildReport(admin: ReturnType<typeof createServerSupabaseClient>)
   }, 0);
 
   const itemTotals = new Map<string, { name: string; qty: number }>();
-  items.forEach((item) => {
+  items.forEach((item: any) => {
     const product = Array.isArray(item.products) ? item.products[0] : item.products;
     const name = product?.product_name || 'Item';
     const key = `${item.product_id ?? name}`;
@@ -195,7 +193,8 @@ export async function POST(req: Request) {
   }
 }
 
-export async function sendDailyReportForCron() {
+// ဒီနေရာမှာ "export" ကို ဖြုတ်လိုက်ပါပြီ (Build error မတက်စေဖို့ပါ)
+async function sendDailyReportForCron() {
   const admin = createServerSupabaseClient();
   const toAddress = process.env.REPORT_TO;
   if (!toAddress) {
