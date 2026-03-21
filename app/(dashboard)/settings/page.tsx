@@ -20,6 +20,7 @@ export default function SettingsPage() {
     load();
   }, []);
   const canManageUsers = role === 'admin' || isSingleUser;
+  const canManageCategories = role === 'admin' || role === 'staff';
 
   return (
     <div className="space-y-6">
@@ -29,36 +30,40 @@ export default function SettingsPage() {
       <p className="text-sm text-muted-foreground">
         Configure users, roles, and app behavior.
       </p>
-      {canManageUsers ? (
+      {(canManageUsers || canManageCategories) ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <Link
-            href="/settings/users"
-            className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Users className="h-4 w-4 text-primary" />
-              User Management
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Manage roles, display names, and invite staff.
-            </p>
-          </Link>
-          <Link
-            href="/settings/categories"
-            className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Tags className="h-4 w-4 text-primary" />
-              Manage Categories
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Add, edit, and remove product categories.
-            </p>
-          </Link>
+          {canManageUsers && (
+            <Link
+              href="/settings/users"
+              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Users className="h-4 w-4 text-primary" />
+                User Management
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Manage roles, display names, and invite staff.
+              </p>
+            </Link>
+          )}
+          {canManageCategories && (
+            <Link
+              href="/settings/categories"
+              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Tags className="h-4 w-4 text-primary" />
+                Manage Categories
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Add, edit, and remove product categories.
+              </p>
+            </Link>
+          )}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Admin access required for user management.
+          Access restricted.
         </p>
       )}
     </div>

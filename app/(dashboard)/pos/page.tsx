@@ -930,7 +930,9 @@ function ScannerComponent() {
 
 export default function PosPage() {
   const { username, role, displayName } = useDashboardAuth();
-  const { products: hookProducts, loading: productsLoading, refresh: refreshProducts } = useProducts();
+  const { products: hookProducts, loading: productsLoading, refresh: refreshProducts } = useProducts({
+    includePurchasePrice: role === 'admin',
+  });
   const [productsOverride, setProductsOverride] = React.useState<Product[] | null>(null);
   const products = productsOverride ?? hookProducts;
   const { categories: dbCategories, refresh: refreshCategories } = useCategories();

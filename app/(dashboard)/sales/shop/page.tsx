@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -38,6 +39,7 @@ export default function ShopSalesLogPage() {
   const [editPaymentMethod, setEditPaymentMethod] = React.useState('');
   const [savingEdit, setSavingEdit] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<Order | null>(null);
 
   const fetchOrders = React.useCallback(async () => {
     setLoading(true);
@@ -136,14 +138,15 @@ export default function ShopSalesLogPage() {
     setSavingEdit(false);
   };
 
-  const deleteOrder = async (orderId: string) => {
-    if (!window.confirm('Delete this sale record? Stock will be restored.')) return;
-    setDeletingId(orderId);
-    const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+  const deleteOrder = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    const res = await fetch(`/api/orders/${deleteTarget.id}`, { method: 'DELETE' });
     if (res.ok) {
       fetchOrders();
     }
     setDeletingId(null);
+    setDeleteTarget(null);
   };
 
   if (role !== 'admin') {
@@ -295,7 +298,7 @@ export default function ShopSalesLogPage() {
                             size="sm"
                           className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                             disabled={deletingId === order.id}
-                            onClick={() => deleteOrder(order.id)}
+                            onClick={() => setDeleteTarget(order)}
                           onPointerDown={(e) => e.stopPropagation()}
                           >
                             {deletingId === order.id ? 'Deleting...' : 'Delete'}
@@ -316,6 +319,16 @@ export default function ShopSalesLogPage() {
         </div>
       )}
       <ReceiptModal open={receiptOpen} receipt={selectedReceipt} onClose={() => setReceiptOpen(false)} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete sale record?"
+        description={`Are you sure you want to delete invoice "${deleteTarget?.invoice_id ?? ''}"? Stock will be restored.`}
+        confirmLabel="Delete"
+        onConfirm={deleteOrder}
+        onCancel={() => setDeleteTarget(null)}
+        confirmVariant="destructive"
+        loading={deleteTarget ? deletingId === deleteTarget.id : false}
+      />
       {editOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl">

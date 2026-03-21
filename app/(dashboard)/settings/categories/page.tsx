@@ -5,6 +5,7 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type CategoryRow = {
   id: string;
@@ -19,6 +20,7 @@ export default function CategoriesSettingsPage() {
   const [newName, setNewName] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [editing, setEditing] = React.useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = React.useState<CategoryRow | null>(null);
 
   const getAccessToken = React.useCallback(async () => {
     const { data } = await supabaseClient.auth.getSession();
@@ -45,7 +47,7 @@ export default function CategoriesSettingsPage() {
   }, []);
 
   React.useEffect(() => {
-    if (role === 'admin') {
+    if (role) {
       fetchCategories();
     } else {
       setLoading(false);
@@ -114,13 +116,15 @@ export default function CategoriesSettingsPage() {
     setSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     setSaving(true);
     setError(null);
     const token = await getAccessToken();
     if (!token) {
       setError('Session expired.');
       setSaving(false);
+      setDeleteTarget(null);
       return;
     }
     const res = await fetch('/api/categories', {
@@ -129,7 +133,7 @@ export default function CategoriesSettingsPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: deleteTarget.id }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -138,13 +142,14 @@ export default function CategoriesSettingsPage() {
       await fetchCategories();
     }
     setSaving(false);
+    setDeleteTarget(null);
   };
 
-  if (role !== 'admin') {
+  if (!role) {
     return (
       <div className="space-y-3">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Manage Categories</h1>
-        <p className="text-sm text-muted-foreground">Admin access required.</p>
+        <p className="text-sm text-muted-foreground">Access restricted. Please sign in to continue.</p>
       </div>
     );
   }
@@ -224,7 +229,7 @@ export default function CategoriesSettingsPage() {
                         size="sm"
                         variant="outline"
                         className="border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
-                        onClick={() => handleDelete(cat.id)}
+                        onClick={() => setDeleteTarget(cat)}
                         disabled={saving}
                       >
                         Delete
@@ -238,6 +243,16 @@ export default function CategoriesSettingsPage() {
           </table>
         </div>
       </div>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete category?"
+        description={`Are you sure you want to delete "${deleteTarget?.name ?? 'this category'}"?`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        confirmVariant="destructive"
+        loading={saving}
+      />
     </div>
   );
 }

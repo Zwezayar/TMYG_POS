@@ -19,7 +19,7 @@ export async function GET() {
   }
 }
 
-async function requireAdmin(req: Request) {
+async function requireUser(req: Request) {
   const authHeader = req.headers.get('authorization');
   const accessToken = authHeader?.replace(/^Bearer\s+/i, '');
   if (!accessToken) {
@@ -38,22 +38,11 @@ async function requireAdmin(req: Request) {
   }
 
   const admin = createServerSupabaseClient();
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (profileError) {
-    return { error: NextResponse.json({ error: profileError.message }, { status: 500 }) };
-  }
-  if (profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
   return { admin };
 }
 
 export async function POST(req: Request) {
-  const gate = await requireAdmin(req);
+  const gate = await requireUser(req);
   if ('error' in gate) return gate.error;
   try {
     const body = await req.json();
@@ -86,7 +75,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = await requireAdmin(req);
+  const gate = await requireUser(req);
   if ('error' in gate) return gate.error;
   try {
     const body = await req.json();

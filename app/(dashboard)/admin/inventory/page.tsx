@@ -440,7 +440,7 @@ export default function AdminInventoryPage() {
     } else {
       applyOptimistic(products.map((p) => (p.id === productId ? { ...p, ...optimistic, id: productId! } : p)));
     }
-  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, name, price, products, size, stockQuantity, imageUrlInput]);
+  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, isAdmin, name, price, products, remark, size, stockQuantity, imageUrlInput]);
 
   const syncQueue = React.useCallback(async () => {
     if (!isOnline) return;
@@ -512,10 +512,13 @@ export default function AdminInventoryPage() {
             }
             imageUrl = withCacheBust(publicData.publicUrl);
           }
-          const payload = {
+          const payload: Record<string, any> = {
             ...item.payload,
             ...(imageUrl ? { image_url: imageUrl } : {}),
           };
+          if (payload.purchase_price === undefined) {
+            delete payload.purchase_price;
+          }
           const { error: updateError } = await supabaseClient
             .from('products')
             .update(payload)
@@ -934,6 +937,7 @@ export default function AdminInventoryPage() {
     if (deleteError) {
       setError(deleteError.message);
       setDeletingId(null);
+      setDeleteTarget(null);
       return;
     }
     applyOptimistic(products.filter((p) => p.id !== deleteTarget.id));

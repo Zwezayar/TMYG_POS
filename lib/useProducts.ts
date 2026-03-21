@@ -22,7 +22,8 @@ export interface Product {
   created_at: string | null;
 }
 
-export function useProducts() {
+export function useProducts(options?: { includePurchasePrice?: boolean }) {
+  const includePurchasePrice = options?.includePurchasePrice ?? true;
   const [products, setProducts] = React.useState<Product[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -31,28 +32,29 @@ export function useProducts() {
     setLoading(true);
     setError(null);
 
+    const selectFields = [
+      'id',
+      'product_name',
+      'default_code',
+      'barcode',
+      'image_url',
+      'category',
+      'size',
+      'variant',
+      'sale_price',
+      'stock_quantity',
+      'description_en',
+      'description_mm',
+      'reorder',
+      'remark',
+      'created_at',
+    ];
+    if (includePurchasePrice) {
+      selectFields.push('purchase_price');
+    }
     const { data, error } = await supabaseClient
       .from('products')
-      .select(
-        `
-        id,
-        product_name,
-        default_code,
-        barcode,
-        image_url,
-        category,
-        size,
-        variant,
-        purchase_price,
-        sale_price,
-        stock_quantity,
-        description_en,
-        description_mm,
-        reorder,
-        remark,
-        created_at
-      `
-      )
+      .select(selectFields.join(','))
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -61,9 +63,9 @@ export function useProducts() {
       return;
     }
 
-    setProducts((data ?? []) as Product[]);
+    setProducts((data ?? []) as unknown as Product[]);
     setLoading(false);
-  }, []);
+  }, [includePurchasePrice]);
 
   React.useEffect(() => {
     fetchProducts();

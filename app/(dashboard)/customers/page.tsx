@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Loader2 } from 'lucide-react';
 import { downloadExcel } from '@/lib/excel';
 
@@ -36,6 +37,7 @@ export default function CustomersPage() {
   const [loyalStatus, setLoyalStatus] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<Customer | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const fetchCustomers = React.useCallback(async () => {
@@ -70,7 +72,7 @@ export default function CustomersPage() {
   }, [customers]);
 
   React.useEffect(() => {
-    if (role === 'admin') {
+    if (role) {
       fetchCustomers();
     }
   }, [role, fetchCustomers]);
@@ -151,27 +153,28 @@ export default function CustomersPage() {
     }
   };
 
-  const handleDelete = async (customerId: number) => {
-    if (!window.confirm('Delete this customer?')) return;
-    setDeletingId(customerId);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
     const { error: deleteError } = await supabaseClient
       .from('customers')
       .delete()
-      .eq('id', customerId);
+      .eq('id', deleteTarget.id);
     if (!deleteError) {
-      setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+      setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
     }
     setDeletingId(null);
+    setDeleteTarget(null);
   };
 
-  if (role !== 'admin') {
+  if (!role) {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Customers
         </h1>
         <p className="text-sm text-muted-foreground">
-          Access restricted. Customer data is available to admins only.
+          Access restricted. Please sign in to continue.
         </p>
       </div>
     );
@@ -260,7 +263,7 @@ export default function CustomersPage() {
                           size="sm"
                           className="border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                           disabled={deletingId === customer.id}
-                          onClick={() => handleDelete(customer.id)}
+                          onClick={() => setDeleteTarget(customer)}
                         >
                           {deletingId === customer.id ? 'Deleting...' : 'Delete'}
                         </Button>
@@ -380,6 +383,16 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete customer?"
+        description={`Are you sure you want to delete "${deleteTarget?.name ?? 'this customer'}"?`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        confirmVariant="destructive"
+        loading={deleteTarget ? deletingId === deleteTarget.id : false}
+      />
     </div>
   );
 }
