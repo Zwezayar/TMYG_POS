@@ -21,7 +21,7 @@ type PendingAction = {
   payload: {
     product_name: string;
     sale_price: number;
-    purchase_price: number | null;
+    purchase_price?: number | null;
     stock_quantity: number | null;
     default_code: string | null;
     image_url: string | null;
@@ -386,10 +386,9 @@ export default function AdminInventoryPage() {
   const queueAction = React.useCallback(async (mode: 'create' | 'update', productId?: number) => {
     const parsedCost = costPrice.trim() ? Number(costPrice) : null;
     const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
-    const payload = {
+    const payload: PendingAction['payload'] = {
       product_name: name.trim(),
       sale_price: Number(price),
-      purchase_price: Number.isFinite(parsedCost as number) ? parsedCost : null,
       stock_quantity: Number.isFinite(parsedStock as number) ? parsedStock : null,
       default_code: defaultCode.trim() || null,
       size: size.trim() || null,
@@ -400,6 +399,9 @@ export default function AdminInventoryPage() {
       image_url: imageUrlInput.trim() || null,
       remark: remark.trim() || null,
     };
+    if (isAdmin) {
+      payload.purchase_price = Number.isFinite(parsedCost as number) ? parsedCost : null;
+    }
     const item: PendingAction = {
       id: crypto.randomUUID(),
       type: 'upsert',
