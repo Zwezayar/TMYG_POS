@@ -42,14 +42,32 @@ export default function CustomersPage() {
 
   const fetchCustomers = React.useCallback(async () => {
     setLoading(true);
+    const fields =
+      'id,phone,phone_2,name,facebook_username,address,remark,total_spent,loyal_status,created_at';
     const { data, error } = await supabaseClient
       .from('customers')
-      .select('*')
+      .select(fields)
       .order('total_spent', { ascending: false });
+    if (error && /column/i.test(error.message) && /facebook_username/i.test(error.message)) {
+      const { data: fallbackData, error: fallbackError } = await supabaseClient
+        .from('customers')
+        .select('id,phone,phone_2,name,address,remark,total_spent,loyal_status,created_at')
+        .order('total_spent', { ascending: false });
+      if (fallbackError) {
+        console.error('Error fetching customers:', fallbackError);
+        setError(fallbackError.message);
+      } else {
+        setCustomers((fallbackData ?? []) as Customer[]);
+        setError('facebook_username column cache is not refreshed yet. Please retry in a moment.');
+      }
+      setLoading(false);
+      return;
+    }
     if (error) {
       console.error('Error fetching customers:', error);
+      setError(error.message);
     } else {
-      setCustomers(data || []);
+      setCustomers((data ?? []) as Customer[]);
     }
     setLoading(false);
   }, []);
@@ -61,11 +79,11 @@ export default function CustomersPage() {
         c.name ?? '',
         c.phone ?? '',
         c.phone_2 ?? '',
-        c.phone_2 ?? '',
         c.facebook_username ?? '',
         c.address ?? '',
         c.remark ?? '',
         c.total_spent ?? 0,
+        c.loyal_status ? 'Yes' : 'No',
       ]),
     ];
     downloadExcel('customers-export.xlsx', rows);

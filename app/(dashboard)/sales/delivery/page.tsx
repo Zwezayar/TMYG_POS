@@ -207,7 +207,7 @@ export default function DeliverySalesLogPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Delivery Sales Log
@@ -223,8 +223,8 @@ export default function DeliverySalesLogPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Summary
           </div>
@@ -232,7 +232,7 @@ export default function DeliverySalesLogPage() {
             <select
               value={selectedCourier}
               onChange={(e) => setSelectedCourier(e.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-2 text-xs"
+              className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
             >
               <option value="all">All Couriers</option>
               {courierOptions.map((courier) => (
@@ -242,7 +242,7 @@ export default function DeliverySalesLogPage() {
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-2 text-xs"
+              className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
             >
               <option value="daily">Daily</option>
               <option value="monthly">Monthly</option>
@@ -256,59 +256,48 @@ export default function DeliverySalesLogPage() {
         {Object.entries(periodSummary).map(([date, summary]) => {
           const totalCollected = Object.values(summary.methods).reduce((a, b) => a + b, 0);
           const netSale = totalCollected - summary.fees;
+          const courierTotals = courierPeriodTotals[date] ?? {};
           return (
             <div key={date} className="space-y-2">
-            <div className="text-2xl font-semibold">{date}</div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(summary.methods).map(([method, total]) => (
-                <span key={method} className="rounded-full bg-secondary px-3 py-2 text-base font-semibold">
-                  {method}: {total.toLocaleString()} Ks
-                  </span>
-                ))}
-              <span className="rounded-full bg-emerald-500/10 px-3 py-2 text-base font-semibold">
-                Net Sale: {netSale.toLocaleString()} Ks
-                </span>
-              </div>
-            <div className="text-base font-bold text-orange-500">
-                Total Delivery Fees: {summary.fees.toLocaleString()} Ks
+              <div className="text-base font-semibold">{date}</div>
+              <div className="grid gap-2 md:grid-cols-4">
+                <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Collected</div>
+                  <div className="text-sm font-semibold">{totalCollected.toLocaleString()} Ks</div>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Net Sale</div>
+                  <div className="text-sm font-semibold">{netSale.toLocaleString()} Ks</div>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Courier Fees</div>
+                  <div className="text-sm font-semibold">{summary.fees.toLocaleString()} Ks</div>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <div className="text-[10px] uppercase text-muted-foreground">Couriers</div>
+                  <div className="text-xs font-semibold">
+                    {Object.keys(courierTotals).length === 0
+                      ? '—'
+                      : Object.entries(courierTotals)
+                          .map(([courier, total]) => `${courier}: ${total.toLocaleString()} Ks`)
+                          .join(' • ')}
+                  </div>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Courier Fee Totals
-        </div>
-        <div className="space-y-3">
-          {Object.keys(courierPeriodTotals).length === 0 && (
-            <div className="text-xs text-muted-foreground">No courier data.</div>
-          )}
-          {Object.entries(courierPeriodTotals).map(([period, totals]) => (
-            <div key={period} className="space-y-2">
-              <div className="text-lg font-semibold">{period}</div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(totals).map(([courier, total]) => (
-                  <span key={courier} className="rounded-full bg-secondary px-3 py-2 text-base font-semibold">
-                    {courier}: {total.toLocaleString()} Ks
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {loading && orders.length === 0 ? (
-        <div className="flex justify-center py-10">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="max-h-[50vh] overflow-y-auto">
+          <div className="max-h-[60vh] overflow-y-auto">
             <table className="w-full table-fixed text-sm text-left">
-              <thead className="bg-secondary/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+              <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-2 py-2">Date</th>
                   <th className="px-2 py-2">Invoice</th>

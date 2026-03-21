@@ -163,7 +163,7 @@ export default function ShopSalesLogPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Shop Sales Log
@@ -179,35 +179,35 @@ export default function ShopSalesLogPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Summary (By Payment Method)
           </div>
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
-            className="flex h-9 rounded-md border border-input bg-transparent px-2 text-xs"
+            className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
           >
             <option value="daily">Daily</option>
             <option value="monthly">Monthly</option>
             <option value="yearly">Yearly</option>
           </select>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {Object.keys(periodSummary).length === 0 && (
             <div className="text-xs text-muted-foreground">No summary available.</div>
           )}
           {Object.entries(periodSummary).map(([date, methods]) => (
             <div key={date} className="space-y-1">
-              <div className="text-2xl font-semibold">{date}</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="text-base font-semibold">{date}</div>
+              <div className="flex flex-wrap gap-1.5">
                 {Object.entries(methods).map(([method, total]) => (
-                  <span key={method} className="rounded-full bg-secondary px-3 py-2 text-base font-semibold">
+                  <span key={method} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">
                     {method}: {total.toLocaleString()} Ks
                   </span>
                 ))}
-                <span className="rounded-full bg-primary/10 px-3 py-2 text-base font-semibold">
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold">
                   Total: {Object.values(methods).reduce((a, b) => a + b, 0).toLocaleString()} Ks
                 </span>
               </div>
@@ -217,14 +217,14 @@ export default function ShopSalesLogPage() {
       </div>
 
       {loading && orders.length === 0 ? (
-        <div className="flex justify-center py-10">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="max-h-[50vh] overflow-y-auto">
+          <div className="max-h-[60vh] overflow-y-auto">
             <table className="w-full table-fixed text-sm text-left">
-              <thead className="bg-secondary/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+              <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-2 py-2">Date</th>
                   <th className="px-2 py-2">Invoice</th>

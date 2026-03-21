@@ -179,8 +179,8 @@ function ProductCard({
         <p className="line-clamp-3 min-h-[3.5rem] text-[12px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
           {product.product_name || '—'}
         </p>
-        <div className="flex flex-col gap-1 mt-1">
-          <span className="text-[11px] text-muted-foreground truncate">
+        <div className="flex flex-col gap-1.5 mt-1">
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
             {product.size || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
           </span>
           <div className="flex items-center justify-between">
