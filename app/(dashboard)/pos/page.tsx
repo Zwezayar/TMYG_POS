@@ -180,7 +180,7 @@ function ProductCard({
           {product.product_name || '—'}
         </p>
         <div className="flex flex-col gap-1.5 mt-1">
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+          <span className="inline-flex max-w-full self-start rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900 truncate">
             {product.size || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
           </span>
           <div className="flex items-center justify-between">
@@ -1464,6 +1464,7 @@ export default function PosPage() {
       return [...prev, { product, quantity: add }];
     });
     setQuery('');
+    setSelectedMainCategory(null);
     searchRef.current?.focus();
     triggerCartPulse();
   }

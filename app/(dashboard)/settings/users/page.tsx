@@ -243,8 +243,9 @@ export default function UsersPage() {
       )}
       {!loading && !error && (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
-          <table className="min-w-full border-collapse text-sm">
-            <thead className="border-b border-border/60 bg-muted/50">
+          <div className="max-h-[65vh] overflow-y-auto">
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border/60">
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
                   User (email)
@@ -259,8 +260,8 @@ export default function UsersPage() {
                   Actions
                 </th>
               </tr>
-            </thead>
-            <tbody>
+              </thead>
+              <tbody>
               {users.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
@@ -334,8 +335,9 @@ export default function UsersPage() {
                   </tr>
                 ))
               )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
