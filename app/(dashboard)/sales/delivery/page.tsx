@@ -45,6 +45,7 @@ export default function DeliverySalesLogPage() {
   const [savingEdit, setSavingEdit] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Order | null>(null);
+  const [query, setQuery] = React.useState('');
 
   const fetchOrders = React.useCallback(async () => {
     setLoading(true);
@@ -92,9 +93,49 @@ export default function DeliverySalesLogPage() {
   };
 
   const filteredOrders = React.useMemo(() => {
-    if (selectedCourier === 'all') return orders;
-    return orders.filter((order) => (order.courier_name || 'Unknown') === selectedCourier);
-  }, [orders, selectedCourier]);
+    const q = query.trim().toLowerCase();
+    const base = selectedCourier === 'all'
+      ? orders
+      : orders.filter((order) => (order.courier_name || 'Unknown') === selectedCourier);
+    if (!q) return base;
+    return base.filter((order) => {
+      const invoice = (order.invoice_id ?? '').toLowerCase();
+      const customer = (order.customer_name ?? '').toLowerCase();
+      const phone = (order.customer_phone ?? '').toLowerCase();
+      const courier = (order.courier_name ?? '').toLowerCase();
+      const payment = (order.payment_method ?? '').toLowerCase();
+      return (
+        invoice.includes(q) ||
+        customer.includes(q) ||
+        phone.includes(q) ||
+        courier.includes(q) ||
+        payment.includes(q)
+      );
+    });
+  }, [orders, selectedCourier, query]);
+
+  const groupedOrders = React.useMemo(() => {
+    const dateMap = new Map<string, Map<string, Order[]>>();
+    filteredOrders.forEach((order) => {
+      const dateKey = new Date(order.created_at).toLocaleDateString();
+      const courierKey = order.courier_name || 'Unknown';
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, new Map());
+      }
+      const courierMap = dateMap.get(dateKey)!;
+      if (!courierMap.has(courierKey)) {
+        courierMap.set(courierKey, []);
+      }
+      courierMap.get(courierKey)!.push(order);
+    });
+    const entries = Array.from(dateMap.entries());
+    entries.sort((a, b) => {
+      const timeA = Date.parse(a[1].values().next().value?.[0]?.created_at ?? '');
+      const timeB = Date.parse(b[1].values().next().value?.[0]?.created_at ?? '');
+      return timeB - timeA;
+    });
+    return entries;
+  }, [filteredOrders]);
 
   const periodSummary = React.useMemo(() => {
     const summary: Record<string, { methods: Record<string, number>; fees: number }> = {};
@@ -208,19 +249,27 @@ export default function DeliverySalesLogPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Delivery Sales Log
         </h1>
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-          onClick={fetchOrders}
-          disabled={loading}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search invoice, customer, courier, phone..."
+            className="h-9 w-64"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={fetchOrders}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-3 space-y-3">
@@ -311,90 +360,109 @@ export default function DeliverySalesLogPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredOrders.map((order) => {
-                  const date = new Date(order.created_at).toLocaleDateString();
-                  const isConfirmed = order.payment_status === 'Confirmed';
-                  const deliveryFee = Number(order.delivery_fee || 0);
-                  const collected = (order.total_amount || 0) + deliveryFee;
-
-                  return (
-                    <tr
-                      key={order.id}
-                      className="hover:bg-secondary/20 transition-colors cursor-pointer"
-                      onClick={() => openReceipt(order)}
-                    >
-                      <td className="px-2 py-2 text-xs whitespace-normal md:whitespace-nowrap text-muted-foreground">
-                        {date}
-                      </td>
-                      <td className="px-2 py-2 text-xs font-mono font-medium break-words">
-                        <span className="underline decoration-dotted underline-offset-4">
-                          {order.invoice_id}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-xs hidden lg:table-cell">
-                        {order.customer_name || '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs">
-                        {order.courier_name || '—'}
-                      </td>
-                      <td className="px-2 py-2 text-right text-xs font-semibold">
-                        {deliveryFee.toLocaleString()} Ks
-                      </td>
-                      <td className="px-2 py-2 text-lg font-semibold break-words">
-                        {order.payment_method || '—'}
-                      </td>
-                      <td className="px-2 py-2 text-right text-2xl font-bold">
-                        {collected.toLocaleString()} Ks
-                      </td>
-                      <td className="px-2 py-2 text-center hidden lg:table-cell">
-                        <Button
-                          variant={isConfirmed ? 'ghost' : 'outline'}
-                          size="sm"
-                          className={`h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm gap-1.5 ${isConfirmed ? 'text-emerald-400 hover:text-emerald-300' : 'text-amber-400 hover:text-amber-300'}`}
-                          onClick={() => togglePaymentStatus(order.id, order.payment_status)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          disabled={updatingId === order.id}
-                        >
-                          {updatingId === order.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : isConfirmed ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4" />
-                          )}
-                          {order.payment_status}
-                        </Button>
-                      </td>
-                      <td className="px-2 py-2 text-right">
-                      <div className="flex justify-end gap-2 flex-wrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-                          onClick={() => openEdit(order)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
-                            disabled={deletingId === order.id}
-                            onClick={() => setDeleteTarget(order)}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            {deletingId === order.id ? 'Deleting...' : 'Delete'}
-                          </Button>
-                        </div>
+                {groupedOrders.map(([dateKey, courierMap]) => (
+                  <React.Fragment key={dateKey}>
+                    <tr className="sticky top-8 z-10 bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                      <td colSpan={9} className="px-2 py-2 text-xs font-bold">
+                        {dateKey}
                       </td>
                     </tr>
-                  );
-                })}
+                    {Array.from(courierMap.entries()).map(([courierName, courierOrders]) => {
+                      const totalFee = courierOrders.reduce((sum, o) => sum + Number(o.delivery_fee || 0), 0);
+                      return (
+                        <React.Fragment key={`${dateKey}-${courierName}`}>
+                          <tr className="bg-secondary/30 text-muted-foreground">
+                            <td colSpan={9} className="px-2 py-2 text-xs font-semibold">
+                              {courierName} • {courierOrders.length} orders • Fees {totalFee.toLocaleString()} Ks
+                            </td>
+                          </tr>
+                          {courierOrders.map((order) => {
+                            const isConfirmed = order.payment_status === 'Confirmed';
+                            const deliveryFee = Number(order.delivery_fee || 0);
+                            const collected = (order.total_amount || 0) + deliveryFee;
+                            return (
+                              <tr
+                                key={order.id}
+                                className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                                onClick={() => openReceipt(order)}
+                              >
+                                <td className="px-2 py-2 text-xs whitespace-normal md:whitespace-nowrap text-muted-foreground">
+                                  {dateKey}
+                                </td>
+                                <td className="px-2 py-2 text-xs font-mono font-medium break-words">
+                                  <span className="underline decoration-dotted underline-offset-4">
+                                    {order.invoice_id}
+                                  </span>
+                                </td>
+                                <td className="px-2 py-2 text-xs hidden lg:table-cell">
+                                  {order.customer_name || '—'}
+                                </td>
+                                <td className="px-2 py-2 text-xs">
+                                  {order.courier_name || '—'}
+                                </td>
+                                <td className="px-2 py-2 text-right text-xs font-semibold">
+                                  {deliveryFee.toLocaleString()} Ks
+                                </td>
+                                <td className="px-2 py-2 text-lg font-semibold break-words">
+                                  {order.payment_method || '—'}
+                                </td>
+                                <td className="px-2 py-2 text-right text-2xl font-bold">
+                                  {collected.toLocaleString()} Ks
+                                </td>
+                                <td className="px-2 py-2 text-center hidden lg:table-cell">
+                                  <Button
+                                    variant={isConfirmed ? 'ghost' : 'outline'}
+                                    size="sm"
+                                    className={`h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm gap-1.5 ${isConfirmed ? 'text-emerald-400 hover:text-emerald-300' : 'text-amber-400 hover:text-amber-300'}`}
+                                    onClick={() => togglePaymentStatus(order.id, order.payment_status)}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    disabled={updatingId === order.id}
+                                  >
+                                    {updatingId === order.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : isConfirmed ? (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    ) : (
+                                      <AlertCircle className="h-4 w-4" />
+                                    )}
+                                    {order.payment_status}
+                                  </Button>
+                                </td>
+                                <td className="px-2 py-2 text-right">
+                                  <div className="flex justify-end gap-2 flex-wrap">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+                                      onClick={() => openEdit(order)}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
+                                      disabled={deletingId === order.id}
+                                      onClick={() => setDeleteTarget(order)}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                    >
+                                      {deletingId === order.id ? 'Deleting...' : 'Delete'}
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
               </tbody>
             </table>
           </div>
-          {orders.length === 0 && (
+          {filteredOrders.length === 0 && (
             <div className="py-20 text-center text-muted-foreground">
               No delivery records found.
             </div>

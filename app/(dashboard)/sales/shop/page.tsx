@@ -40,6 +40,7 @@ export default function ShopSalesLogPage() {
   const [savingEdit, setSavingEdit] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Order | null>(null);
+  const [query, setQuery] = React.useState('');
 
   const fetchOrders = React.useCallback(async () => {
     setLoading(true);
@@ -103,6 +104,41 @@ export default function ShopSalesLogPage() {
     return grouped;
   }, [orders, viewMode]);
 
+  const filteredOrders = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter((order) => {
+      const invoice = (order.invoice_id ?? '').toLowerCase();
+      const customer = (order.customer_name ?? '').toLowerCase();
+      const phone = (order.customer_phone ?? '').toLowerCase();
+      const payment = (order.payment_method ?? '').toLowerCase();
+      return (
+        invoice.includes(q) ||
+        customer.includes(q) ||
+        phone.includes(q) ||
+        payment.includes(q)
+      );
+    });
+  }, [orders, query]);
+
+  const groupedOrders = React.useMemo(() => {
+    const map = new Map<string, Order[]>();
+    filteredOrders.forEach((order) => {
+      const dateKey = new Date(order.created_at).toLocaleDateString();
+      if (!map.has(dateKey)) {
+        map.set(dateKey, []);
+      }
+      map.get(dateKey)!.push(order);
+    });
+    const entries = Array.from(map.entries());
+    entries.sort((a, b) => {
+      const timeA = Date.parse(a[1][0]?.created_at ?? '');
+      const timeB = Date.parse(b[1][0]?.created_at ?? '');
+      return timeB - timeA;
+    });
+    return entries;
+  }, [filteredOrders]);
+
   const openReceipt = (order: Order) => {
     setSelectedReceipt(order.receipt_payload ?? null);
     setReceiptOpen(true);
@@ -164,19 +200,27 @@ export default function ShopSalesLogPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Shop Sales Log
         </h1>
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-          onClick={fetchOrders}
-          disabled={loading}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search invoice, customer, phone, payment..."
+            className="h-9 w-64"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={fetchOrders}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-3">
@@ -236,18 +280,25 @@ export default function ShopSalesLogPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {orders.map((order) => {
-                  const date = new Date(order.created_at).toLocaleDateString();
-                  const isConfirmed = order.payment_status === 'Confirmed';
-
+                {groupedOrders.map(([dateKey, dayOrders]) => {
+                  const dailyTotal = dayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
                   return (
-                <tr
-                  key={order.id}
-                  className="hover:bg-secondary/20 transition-colors cursor-pointer"
-                  onClick={() => openReceipt(order)}
-                >
+                    <React.Fragment key={dateKey}>
+                      <tr className="sticky top-8 z-10 bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                        <td colSpan={7} className="px-2 py-2 text-xs font-bold">
+                          {dateKey} • Daily Total: {dailyTotal.toLocaleString()} Ks
+                        </td>
+                      </tr>
+                      {dayOrders.map((order) => {
+                        const isConfirmed = order.payment_status === 'Confirmed';
+                        return (
+                          <tr
+                            key={order.id}
+                            className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                            onClick={() => openReceipt(order)}
+                          >
                       <td className="px-2 py-2 text-xs whitespace-normal md:whitespace-nowrap text-muted-foreground">
-                        {date}
+                        {dateKey}
                       </td>
                       <td className="px-2 py-2 text-xs font-mono font-medium break-words">
                         <span className="underline decoration-dotted underline-offset-4">
@@ -305,13 +356,16 @@ export default function ShopSalesLogPage() {
                           </Button>
                         </div>
                       </td>
-                    </tr>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          {orders.length === 0 && (
+          {filteredOrders.length === 0 && (
             <div className="py-20 text-center text-muted-foreground">
               No sales records found.
             </div>
