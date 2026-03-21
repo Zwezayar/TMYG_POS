@@ -310,7 +310,7 @@ export function ProductForm({
         <Button
           type="button"
           variant="outline"
-          className="h-[44px] px-6 rounded-xl border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+          className="h-[44px] px-6 rounded-xl border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
           onClick={onClose}
         >
           Cancel

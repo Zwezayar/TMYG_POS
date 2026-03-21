@@ -156,7 +156,7 @@ const InventoryRow = React.memo(function InventoryRow({
           <Button
             size="sm"
             variant="outline"
-            className="h-9 px-3 border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            className="h-9 px-3 border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={() => onEdit(product)}
           >
             Edit
@@ -1021,7 +1021,7 @@ export default function AdminInventoryPage() {
               onClick={() => setSortRecent((prev) => !prev)}
               className={sortRecent
                 ? "h-10 px-4 rounded-xl text-xs font-bold bg-primary text-primary-foreground border-primary"
-                : "h-10 px-4 rounded-xl text-xs font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                : "h-10 px-4 rounded-xl text-xs font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
               }
             >
               Recently Added
@@ -1037,7 +1037,7 @@ export default function AdminInventoryPage() {
             onClick={() => setActiveLetter(null)}
             className={activeLetter === null
               ? "h-6 px-2 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
-              : "h-6 px-2 rounded-full text-[9px] font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+              : "h-6 px-2 rounded-full text-[9px] font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             }
           >
             All
@@ -1049,7 +1049,7 @@ export default function AdminInventoryPage() {
               onClick={() => setActiveLetter(letter)}
               className={activeLetter === letter
                 ? "h-6 w-6 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
-                : "h-6 w-6 rounded-full text-[9px] font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                : "h-6 w-6 rounded-full text-[9px] font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
               }
             >
               {letter}

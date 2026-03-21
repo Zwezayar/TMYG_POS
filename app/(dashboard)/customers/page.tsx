@@ -190,7 +190,7 @@ export default function CustomersPage() {
           <Button
             variant="outline"
             size="sm"
-            className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={fetchCustomers}
             disabled={loading}
           >
@@ -199,7 +199,7 @@ export default function CustomersPage() {
           <Button
             variant="outline"
             size="sm"
-            className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={handleExportCustomers}
           >
             Export to Excel
@@ -253,7 +253,7 @@ export default function CustomersPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                          className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                           onClick={() => openEdit(customer)}
                         >
                           Edit
@@ -370,7 +370,7 @@ export default function CustomersPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                  className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                   onClick={() => setDialogOpen(false)}
                 >
                   Cancel

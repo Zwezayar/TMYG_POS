@@ -295,7 +295,7 @@ function ProductArea({
               "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
               activeCategory === null
                 ? "bg-primary text-primary-foreground border-primary"
-                : "border-slate-500 text-slate-800 hover:bg-slate-100 dark:border-cyan-400/60 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
+                : "border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             )}
           >
             All Products
@@ -311,7 +311,7 @@ function ProductArea({
                   "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
                   activeCategory === label
                     ? "bg-primary text-primary-foreground border-primary"
-                    : "border-slate-500 text-slate-800 hover:bg-slate-100 dark:border-cyan-400/60 dark:text-cyan-300 dark:hover:bg-cyan-500/10"
+                    : "border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                 )}
               >
                 {label}
@@ -2564,7 +2564,7 @@ export default function PosPage() {
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="flex-1 h-12 rounded-xl font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                className="flex-1 h-12 rounded-xl font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                 onClick={() => setIsConfirmingCheckout(false)}
                 disabled={checkingOut}
               >

@@ -171,7 +171,7 @@ export default function ShopSalesLogPage() {
         <Button
           variant="outline"
           size="sm"
-          className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+          className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
           onClick={fetchOrders}
           disabled={loading}
         >
@@ -287,7 +287,7 @@ export default function ShopSalesLogPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                           onClick={() => openEdit(order)}
                           onPointerDown={(e) => e.stopPropagation()}
                         >
@@ -337,7 +337,7 @@ export default function ShopSalesLogPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                 onClick={() => setEditOpen(false)}
               >
                 Close
@@ -364,7 +364,7 @@ export default function ShopSalesLogPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                  className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                   onClick={() => setEditOpen(false)}
                 >
                   Cancel
