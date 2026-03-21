@@ -15,7 +15,7 @@ type ReportResult = {
   topItems: ReportItem[];
 };
 
-async function buildReport(admin: any) {
+async function buildReport(admin: ReturnType<typeof createServerSupabaseClient>) {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -30,8 +30,13 @@ async function buildReport(admin: any) {
     throw new Error(ordersError.message);
   }
 
-  const orderIds = (orders ?? []).map((o: any) => o.id).filter(Boolean);
-  let items: any[] = [];
+  const orderIds = (orders ?? []).map((o) => o.id).filter(Boolean);
+  let items: {
+    product_id: number | null;
+    quantity: number | null;
+    unit_price: number | null;
+    products?: { product_name: string | null; purchase_price: number | null }[] | null;
+  }[] = [];
 
   if (orderIds.length > 0) {
     const { data: itemsData, error: itemsError } = await admin
@@ -45,10 +50,10 @@ async function buildReport(admin: any) {
   }
 
   const totalRevenue = (orders ?? []).reduce(
-    (sum: number, o: any) => sum + Number(o.total_amount ?? 0),
+    (sum, o) => sum + Number(o.total_amount ?? 0),
     0
   );
-  const totalProfit = items.reduce((sum: number, item: any) => {
+  const totalProfit = items.reduce((sum, item) => {
     const unit = Number(item.unit_price ?? 0);
     const product = Array.isArray(item.products) ? item.products[0] : item.products;
     const cost = Number(product?.purchase_price ?? 0);
@@ -57,7 +62,7 @@ async function buildReport(admin: any) {
   }, 0);
 
   const itemTotals = new Map<string, { name: string; qty: number }>();
-  items.forEach((item: any) => {
+  items.forEach((item) => {
     const product = Array.isArray(item.products) ? item.products[0] : item.products;
     const name = product?.product_name || 'Item';
     const key = `${item.product_id ?? name}`;
@@ -190,8 +195,7 @@ export async function POST(req: Request) {
   }
 }
 
-// ဖြုတ်လိုက်သော export: ဤနေရာတွင် export စာလုံးမပါရပါ
-async function sendDailyReportForCron() {
+export async function sendDailyReportForCron() {
   const admin = createServerSupabaseClient();
   const toAddress = process.env.REPORT_TO;
   if (!toAddress) {

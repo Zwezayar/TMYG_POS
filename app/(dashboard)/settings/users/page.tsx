@@ -446,8 +446,9 @@ export default function UsersPage() {
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
+                className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
                 onClick={() => {
                   setResettingId(null);
                   setNewPassword('');

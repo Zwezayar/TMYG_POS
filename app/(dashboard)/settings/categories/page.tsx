@@ -165,7 +165,7 @@ export default function CategoriesSettingsPage() {
           placeholder="New category name"
           className="h-10"
         />
-        <Button onClick={handleCreate} disabled={saving}>
+        <Button onClick={handleCreate} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
           Add Category
         </Button>
       </div>
@@ -177,14 +177,15 @@ export default function CategoriesSettingsPage() {
       )}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="border-b border-border/60 bg-muted/50">
+        <div className="max-h-[60vh] overflow-y-auto">
+          <table className="min-w-full border-collapse text-sm">
+            <thead className="border-b border-border/60 bg-muted/50 sticky top-0 z-10">
             <tr>
               <th className="px-4 py-2 text-left font-medium text-muted-foreground">Category</th>
               <th className="px-4 py-2 text-right font-medium text-muted-foreground">Actions</th>
             </tr>
-          </thead>
-          <tbody>
+            </thead>
+            <tbody>
             {loading ? (
               <tr>
                 <td colSpan={2} className="px-4 py-6 text-center text-muted-foreground">
@@ -210,10 +211,10 @@ export default function CategoriesSettingsPage() {
                     />
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 flex-wrap">
                       <Button
                         size="sm"
-                        variant="outline"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
                         onClick={() => handleSave(cat.id)}
                         disabled={saving}
                       >
@@ -222,7 +223,7 @@ export default function CategoriesSettingsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                        className="border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                         onClick={() => handleDelete(cat.id)}
                         disabled={saving}
                       >
@@ -233,8 +234,9 @@ export default function CategoriesSettingsPage() {
                 </tr>
               ))
             )}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

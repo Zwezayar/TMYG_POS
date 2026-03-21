@@ -27,6 +27,26 @@ type CartLine = {
   manualPrice?: number;
 };
 
+type PersistedCartLine = {
+  productId: number;
+  quantity: number;
+  manualPrice?: number;
+};
+
+type PersistedPosState = {
+  cart: PersistedCartLine[];
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  saleType: 'Shop' | 'Delivery';
+  paymentMethod: string;
+  courierName: string;
+  deliFee: string;
+  isBagoSpecial: boolean;
+  remark: string;
+  amountReceived: string;
+};
+
 type ReceiptItem = {
   name: string;
   qty: number;
@@ -56,6 +76,7 @@ type ReceiptData = {
   grandTotal: number;
   amountReceived: number;
   changeAmount: number;
+  amountDue: number;
 };
 
 type Toast = {
@@ -67,6 +88,7 @@ type Toast = {
 type CameraState = 'IDLE' | 'STARTING' | 'SCANNING' | 'RUNNING' | 'STOPPING';
 
 const normalizeBarcode = (bc: string | null | undefined) => bc?.trim() || "";
+const POS_STATE_KEY = 'pos-state-v1';
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("en-US").format(price) + " Ks";
@@ -200,6 +222,7 @@ function ProductArea({
   query,
   onQueryChange,
   onScanClick,
+  onAddNewProduct,
   onAddToCart,
   onProductClick,
   categories,
@@ -213,6 +236,7 @@ function ProductArea({
   query: string;
   onQueryChange: (q: string) => void;
   onScanClick: () => void;
+  onAddNewProduct: () => void;
   onAddToCart: (p: Product) => void;
   onProductClick: (p: Product) => void;
   categories: { id: string; name: string }[];
@@ -222,79 +246,11 @@ function ProductArea({
   missingBarcode: string | null;
   onQuickAdd: () => void;
 }) {
-  const [isCategoryOpen, setCategoryOpen] = React.useState(false);
-
   return (
     <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-background/50">
-      <div className="h-[72px] flex items-center border-b border-border bg-card px-4 gap-2 shrink-0">
-        {/* Category Dropdown */}
-        <div className="relative shrink-0">
-          <Button
-            variant="outline"
-            onClick={() => setCategoryOpen(!isCategoryOpen)}
-            className={cn(
-              "h-[48px] px-3 gap-1.5 rounded-xl border-border transition-all font-bold active:scale-95 shadow-sm min-w-[100px]",
-              activeCategory ? "border-primary text-primary" : "text-muted-foreground"
-            )}
-          >
-            <LayoutGrid className="h-5 w-5" />
-            <span className="truncate max-w-[60px] hidden sm:inline-block text-[13px]">
-              {activeCategory || "Category"}
-            </span>
-            <span className="truncate max-w-[60px] sm:hidden text-[13px]">
-              {activeCategory || "Cat"}
-            </span>
-            <ChevronRight className={cn("h-4 w-4 transition-transform ml-auto", isCategoryOpen && "rotate-90")} />
-          </Button>
-
-          {isCategoryOpen && (
-            <>
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setCategoryOpen(false)} 
-              />
-              <div className="absolute left-0 top-full mt-2 z-50 w-64 rounded-xl border border-border bg-card shadow-xl p-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="max-h-[60vh] overflow-y-auto custom-scrollbar flex flex-col gap-1">
-                  <button
-                    onClick={() => {
-                      onCategoryChange(null);
-                      setCategoryOpen(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 w-full px-4 py-3 rounded-lg text-sm font-bold transition-colors",
-                      activeCategory === null
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted text-muted-foreground"
-                    )}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                    All Products
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        onCategoryChange(cat.name);
-                        setCategoryOpen(false);
-                      }}
-                      className={cn(
-                        "flex items-center gap-2 w-full px-4 py-3 rounded-lg text-sm font-bold transition-colors text-left",
-                        activeCategory === cat.name
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Search & Scan */}
-        <div className="flex flex-1 items-center gap-2 min-w-0">
+      <div className="border-b border-border bg-card">
+        <div className="h-[72px] flex items-center px-4 gap-2 shrink-0">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
           <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
             <Input
@@ -321,6 +277,46 @@ function ProductArea({
             <ScanLine className="h-5 w-5" />
             <span className="hidden min-[800px]:inline text-xs">Scan</span>
           </Button>
+          <Button
+            onClick={onAddNewProduct}
+            className="h-[48px] px-3 sm:px-4 gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold active:scale-95 shadow-sm shrink-0"
+          >
+            <Plus className="h-5 w-5" />
+            <span className="hidden min-[800px]:inline text-xs">Add Product</span>
+          </Button>
+        </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+          <Button
+            variant="outline"
+            onClick={() => onCategoryChange(null)}
+            className={cn(
+              "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
+              activeCategory === null
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-cyan-400/60 text-cyan-400 hover:bg-cyan-500/10"
+            )}
+          >
+            All Products
+          </Button>
+          {categories.map((cat) => {
+            const label = cat.name.split('/').pop()?.trim() || cat.name;
+            return (
+              <Button
+                key={cat.id}
+                variant="outline"
+                onClick={() => onCategoryChange(label)}
+                className={cn(
+                  "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
+                  activeCategory === label
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-cyan-400/60 text-cyan-400 hover:bg-cyan-500/10"
+                )}
+              >
+                {label}
+              </Button>
+            );
+          })}
         </div>
       </div>
       {missingBarcode && (
@@ -390,6 +386,7 @@ function CartSidebar({
   amountReceived,
   onAmountReceivedChange,
   changeAmount,
+  amountDue,
   isBagoSpecial,
   onBagoSpecialChange,
   remark,
@@ -430,6 +427,7 @@ function CartSidebar({
   amountReceived: string;
   onAmountReceivedChange: (v: string) => void;
   changeAmount: number;
+  amountDue: number;
   isBagoSpecial: boolean;
   onBagoSpecialChange: (v: boolean) => void;
   remark: string;
@@ -698,7 +696,7 @@ function CartSidebar({
                       placeholder="Phone Number"
                       className="h-12"
                     />
-                  {customerMatch?.phone === customerPhone.trim() && (
+                  {customerMatch && (
                     <div className="text-[10px] text-muted-foreground">
                       Customer found: {customerMatch.name || 'Unknown'}
                     </div>
@@ -876,12 +874,21 @@ function CartSidebar({
                     className="h-11 rounded-xl"
                   />
                 </div>
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
-                  <div className="text-[10px] uppercase tracking-wider text-emerald-700">Change</div>
-                  <div className="text-lg font-black text-emerald-700">
-                    {changeAmount.toLocaleString()} Ks
+                {amountDue > 0 ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-amber-700">Amount Due</div>
+                    <div className="text-lg font-black text-amber-700">
+                      {amountDue.toLocaleString()} Ks
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-emerald-700">Change</div>
+                    <div className="text-lg font-black text-emerald-700">
+                      {changeAmount.toLocaleString()} Ks
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -951,6 +958,8 @@ export default function PosPage() {
   const [cartSidebarKey, setCartSidebarKey] = React.useState(0);
   const [cartPulse, setCartPulse] = React.useState(false);
   const cartPulseTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [posHydrated, setPosHydrated] = React.useState(false);
+  const pendingCartRef = React.useRef<PersistedCartLine[] | null>(null);
 
   const [scanOpen, setScanOpen] = React.useState(false);
   const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
@@ -969,6 +978,67 @@ export default function PosPage() {
   const videoTrackRef = React.useRef<MediaStreamTrack | null>(null);
   const isProcessingScan = React.useRef(false);
   const scanUnlockTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPersistedPos = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(POS_STATE_KEY);
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(POS_STATE_KEY);
+    if (!raw) {
+      setPosHydrated(true);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as Partial<PersistedPosState>;
+      if (parsed.customerName != null) setCustomerName(parsed.customerName);
+      if (parsed.customerPhone != null) setCustomerPhone(parsed.customerPhone);
+      if (parsed.customerAddress != null) setCustomerAddress(parsed.customerAddress);
+      if (parsed.saleType === 'Delivery' || parsed.saleType === 'Shop') {
+        setSaleType(parsed.saleType);
+      }
+      if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod);
+      if (parsed.courierName != null) setCourierName(parsed.courierName);
+      if (parsed.deliFee != null) setDeliFee(parsed.deliFee);
+      if (typeof parsed.isBagoSpecial === 'boolean') setIsBagoSpecial(parsed.isBagoSpecial);
+      if (parsed.remark != null) setRemark(parsed.remark);
+      if (parsed.amountReceived != null) setAmountReceived(parsed.amountReceived);
+      if (Array.isArray(parsed.cart)) {
+        pendingCartRef.current = parsed.cart.filter(
+          (line) =>
+            typeof line?.productId === 'number' &&
+            typeof line?.quantity === 'number'
+        );
+        if (!pendingCartRef.current?.length) {
+          pendingCartRef.current = null;
+          setPosHydrated(true);
+        }
+      } else {
+        setPosHydrated(true);
+      }
+    } catch {
+      setPosHydrated(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!pendingCartRef.current || products.length === 0) return;
+    const nextCart: CartLine[] = [];
+    pendingCartRef.current.forEach((line) => {
+      const product = products.find((p) => p.id === line.productId);
+      if (!product) return;
+      nextCart.push({
+        product,
+        quantity: line.quantity,
+        manualPrice: line.manualPrice,
+      });
+    });
+    setCart(nextCart);
+    pendingCartRef.current = null;
+    setPosHydrated(true);
+  }, [products]);
 
   const cleanupCamera = React.useCallback(() => {
     const container = typeof document === 'undefined' ? null : document.getElementById('reader');
@@ -1080,6 +1150,41 @@ export default function PosPage() {
   const [paymentMethod, setPaymentMethod] = React.useState('cash');
   const [customerMatch, setCustomerMatch] = React.useState<{ name: string | null; address: string | null; phone: string } | null>(null);
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
+
+  React.useEffect(() => {
+    if (!posHydrated || typeof window === 'undefined') return;
+    const payload: PersistedPosState = {
+      cart: cart.map((line) => ({
+        productId: line.product.id,
+        quantity: line.quantity,
+        manualPrice: line.manualPrice,
+      })),
+      customerName,
+      customerPhone,
+      customerAddress,
+      saleType,
+      paymentMethod,
+      courierName,
+      deliFee,
+      isBagoSpecial,
+      remark,
+      amountReceived,
+    };
+    window.localStorage.setItem(POS_STATE_KEY, JSON.stringify(payload));
+  }, [
+    posHydrated,
+    cart,
+    customerName,
+    customerPhone,
+    customerAddress,
+    saleType,
+    paymentMethod,
+    courierName,
+    deliFee,
+    isBagoSpecial,
+    remark,
+    amountReceived,
+  ]);
   
   // Last Toast Time Ref
   const lastToastRef = React.useRef<{ msg: string; time: number } | null>(null);
@@ -1100,7 +1205,7 @@ export default function PosPage() {
     if ((dbCategories ?? []).length > 0) {
       return dbCategories.map((c, idx) => ({
         id: String(c.id ?? idx),
-        name: c.name || '',
+        name: (c.name || '').split('/').pop()?.trim() || '',
         icon: ['Sparkles', 'Droplets', 'Wind', 'Palette', 'Scissors'][idx % 5],
       }));
     }
@@ -1172,25 +1277,33 @@ export default function PosPage() {
       setCustomerMatch(null);
       return;
     }
-    const phone = customerPhone.trim();
-    if (phone.length < 4) {
+    const rawPhone = customerPhone.trim();
+    const tokens = rawPhone.replace(/[^\d+]/g, ' ').split(' ').filter(Boolean);
+    const candidates = (tokens.length ? tokens : [rawPhone]).filter((value) => value.length >= 4).slice(0, 2);
+    if (candidates.length === 0) {
       setCustomerMatch(null);
       return;
     }
     const timer = setTimeout(async () => {
+      const orClause = [
+        ...candidates.map((value) => `phone.eq.${value}`),
+        ...candidates.map((value) => `phone_2.eq.${value}`),
+      ].join(',');
       const { data, error } = await supabaseClient
         .from('customers')
-        .select('phone, name, address')
-        .eq('phone', phone)
+        .select('phone, phone_2, name, address')
+        .or(orClause)
         .maybeSingle();
       if (error) {
         console.error('Customer lookup error:', error);
         return;
       }
-      if (data?.phone) {
-        setCustomerMatch({ phone: data.phone, name: data.name ?? null, address: data.address ?? null });
-        if (data.name) setCustomerName(data.name);
-        if (data.address) setCustomerAddress(data.address);
+      const record = data ?? null;
+      const matchedPhone = record?.phone ?? record?.phone_2;
+      if (matchedPhone) {
+        setCustomerMatch({ phone: matchedPhone, name: record?.name ?? null, address: record?.address ?? null });
+        if (record?.name) setCustomerName(record.name);
+        if (record?.address) setCustomerAddress(record.address);
       } else {
         setCustomerMatch(null);
       }
@@ -1273,7 +1386,8 @@ export default function PosPage() {
   const deliveryFeeNum = saleType === 'Delivery' ? Number(deliFee) || 0 : 0;
   const grandTotal = totalAmount + deliveryFeeNum;
   const amountReceivedNum = Number(amountReceived) || 0;
-  const changeAmount = amountReceivedNum - grandTotal;
+  const amountDue = Math.max(0, grandTotal - amountReceivedNum);
+  const changeAmount = Math.max(0, amountReceivedNum - grandTotal);
 
   const cartQtyByProductId = React.useMemo(() => {
     const m = new Map<number, number>();
@@ -1404,7 +1518,8 @@ export default function PosPage() {
         };
       });
       const receiptTotal = totalAmount + deliveryFee;
-      const changeDue = receivedAmount - receiptTotal;
+      const changeDue = Math.max(0, receivedAmount - receiptTotal);
+      const amountDueValue = Math.max(0, receiptTotal - receivedAmount);
       const receiptSnapshot: ReceiptData = {
         invoiceId: '',
         date: now.toLocaleDateString('en-US'),
@@ -1427,6 +1542,7 @@ export default function PosPage() {
         grandTotal: receiptTotal,
         amountReceived: receivedAmount,
         changeAmount: changeDue,
+        amountDue: amountDueValue,
       };
       const items = cart.map((line) => ({
         product_id: Number(line.product.id),
@@ -1455,17 +1571,7 @@ export default function PosPage() {
         });
         window.localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(queued));
         refreshOfflineQueueCount();
-        setCart([]);
-        setCustomerName('');
-        setCustomerPhone('');
-        setCustomerAddress('');
-        setSaleType('Shop');
-        setCourierName('');
-        setDeliFee('');
-        setAmountReceived('');
-        setIsBagoSpecial(false);
-        setRemark('');
-        setPaymentMethod('cash');
+        clearPosState();
         setIsConfirmingCheckout(false);
         setLastReceipt(receiptSnapshot);
         setCheckoutSuccessOpen(true);
@@ -1505,17 +1611,7 @@ export default function PosPage() {
         setCheckingOut(false);
         return;
       }
-      setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerAddress('');
-      setSaleType('Shop');
-      setCourierName('');
-      setDeliFee('');
-      setAmountReceived('');
-      setIsBagoSpecial(false);
-      setRemark('');
-      setPaymentMethod('cash');
+      clearPosState();
       setIsConfirmingCheckout(false);
       const invoiceIdValue = data?.invoiceId ?? '';
       setCheckoutInvoiceId(invoiceIdValue || null);
@@ -1546,8 +1642,7 @@ export default function PosPage() {
     window.print();
   };
 
-  const handleCloseSuccessModal = () => {
-    setCheckoutSuccessOpen(false);
+  const clearPosState = React.useCallback(() => {
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
@@ -1560,12 +1655,18 @@ export default function PosPage() {
     setRemark('');
     setPaymentMethod('cash');
     setCustomerMatch(null);
+    setQuery('');
+    setMissingBarcode(null);
+    clearPersistedPos();
+  }, [clearPersistedPos]);
+
+  const handleCloseSuccessModal = () => {
+    setCheckoutSuccessOpen(false);
+    clearPosState();
     setCheckoutInvoiceId(null);
     setLastReceipt(null);
     setCheckoutError(null);
     setCheckoutMode(false);
-    setQuery('');
-    setMissingBarcode(null);
     setProductsOverride(null);
     setCartSidebarKey((value) => value + 1);
   };
@@ -2066,10 +2167,17 @@ export default function PosPage() {
             <span>Cash Received</span>
             <span>{lastReceipt.amountReceived.toLocaleString()} Ks</span>
           </div>
-          <div className="receipt-row">
-            <span>Change</span>
-            <span>{lastReceipt.changeAmount.toLocaleString()} Ks</span>
-          </div>
+          {lastReceipt.amountDue > 0 ? (
+            <div className="receipt-row">
+              <span>Amount Due</span>
+              <span>{lastReceipt.amountDue.toLocaleString()} Ks</span>
+            </div>
+          ) : (
+            <div className="receipt-row">
+              <span>Change</span>
+              <span>{lastReceipt.changeAmount.toLocaleString()} Ks</span>
+            </div>
+          )}
         </div>
       )}
       {/* Main content area */}
@@ -2082,6 +2190,9 @@ export default function PosPage() {
               query={query}
               onQueryChange={setQuery}
               onScanClick={() => setScanOpen(true)}
+              onAddNewProduct={() => {
+                openQuickAddForBarcode('', { resumeScanner: false });
+              }}
               onAddToCart={addToCart}
               onProductClick={setSelectedProduct}
               categories={mainCategoriesList}
@@ -2123,6 +2234,7 @@ export default function PosPage() {
             amountReceived={amountReceived}
             onAmountReceivedChange={setAmountReceived}
             changeAmount={changeAmount}
+            amountDue={amountDue}
             isBagoSpecial={isBagoSpecial}
             onBagoSpecialChange={setIsBagoSpecial}
             remark={remark}
@@ -2133,7 +2245,7 @@ export default function PosPage() {
             checkoutError={checkoutError}
             collapsed={cartCollapsed}
             onToggleCollapse={() => setCartCollapsed(!cartCollapsed)}
-            onClearCart={() => setCart([])}
+            onClearCart={clearPosState}
             checkoutMode={checkoutMode}
             onToggleCheckout={() => setCheckoutMode(!checkoutMode)}
             isOnline={isOnline}
@@ -2402,18 +2514,27 @@ export default function PosPage() {
                   className="h-12 rounded-xl"
                 />
               </div>
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
-                <div className="text-[11px] uppercase tracking-wider text-emerald-700">Change</div>
-                <div className="text-2xl font-black text-emerald-700">
-                  {formatPrice(changeAmount)}
+              {amountDue > 0 ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center">
+                  <div className="text-[11px] uppercase tracking-wider text-amber-700">Amount Due</div>
+                  <div className="text-2xl font-black text-amber-700">
+                    {formatPrice(amountDue)}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
+                  <div className="text-[11px] uppercase tracking-wider text-emerald-700">Change</div>
+                  <div className="text-2xl font-black text-emerald-700">
+                    {formatPrice(changeAmount)}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="flex-1 h-12 rounded-xl font-bold"
+                className="flex-1 h-12 rounded-xl font-bold border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
                 onClick={() => setIsConfirmingCheckout(false)}
                 disabled={checkingOut}
               >

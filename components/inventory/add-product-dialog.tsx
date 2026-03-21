@@ -359,13 +359,14 @@ export function AddProductDialog({
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
+              className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
               onClick={() => onOpenChange(false)}
               disabled={submitting}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="bg-primary text-primary-foreground hover:bg-primary/90">
               {submitting ? 'Saving...' : 'Save product'}
             </Button>
           </div>

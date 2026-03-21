@@ -11,6 +11,7 @@ import { downloadExcel } from '@/lib/excel';
 type Customer = {
   id: number;
   phone: string;
+  phone_2: string | null;
   name: string | null;
   facebook_username: string | null;
   address: string | null;
@@ -28,6 +29,7 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
+  const [phone2, setPhone2] = React.useState('');
   const [address, setAddress] = React.useState('');
   const [facebookUsername, setFacebookUsername] = React.useState('');
   const [remark, setRemark] = React.useState('');
@@ -52,15 +54,16 @@ export default function CustomersPage() {
 
   const handleExportCustomers = React.useCallback(() => {
     const rows = [
-      ['Name', 'Phone', 'Facebook', 'Address', 'Remark', 'TotalSpent', 'Loyal'],
+      ['Name', 'Phone', 'Phone 2', 'Facebook', 'Address', 'Remark', 'TotalSpent', 'Loyal'],
       ...customers.map((c) => [
         c.name ?? '',
         c.phone ?? '',
+        c.phone_2 ?? '',
+        c.phone_2 ?? '',
         c.facebook_username ?? '',
         c.address ?? '',
         c.remark ?? '',
         c.total_spent ?? 0,
-        c.loyal_status ? 'Yes' : 'No',
       ]),
     ];
     downloadExcel('customers-export.xlsx', rows);
@@ -76,6 +79,7 @@ export default function CustomersPage() {
     setEditingCustomer(null);
     setName('');
     setPhone('');
+    setPhone2('');
     setAddress('');
     setFacebookUsername('');
     setRemark('');
@@ -88,6 +92,7 @@ export default function CustomersPage() {
     setEditingCustomer(customer);
     setName(customer.name || '');
     setPhone(customer.phone || '');
+    setPhone2(customer.phone_2 || '');
     setAddress(customer.address || '');
     setFacebookUsername(customer.facebook_username || '');
     setRemark(customer.remark || '');
@@ -111,6 +116,7 @@ export default function CustomersPage() {
           .update({
             name: name.trim() || null,
             phone: phone.trim(),
+            phone_2: phone2.trim() || null,
             address: address.trim() || null,
             facebook_username: facebookUsername.trim() || null,
             remark: remark.trim() || null,
@@ -127,6 +133,7 @@ export default function CustomersPage() {
           .insert({
             name: name.trim() || null,
             phone: phone.trim(),
+            phone_2: phone2.trim() || null,
             address: address.trim() || null,
             facebook_username: facebookUsername.trim() || null,
             remark: remark.trim() || null,
@@ -177,13 +184,24 @@ export default function CustomersPage() {
           Customers
         </h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchCustomers} disabled={loading}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={fetchCustomers}
+            disabled={loading}
+          >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportCustomers}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={handleExportCustomers}
+          >
             Export to Excel
           </Button>
-          <Button size="sm" onClick={openCreate} className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button size="sm" onClick={openCreate} className="bg-primary text-primary-foreground hover:bg-primary/90">
             Add Customer
           </Button>
         </div>
@@ -200,8 +218,9 @@ export default function CustomersPage() {
               <thead className="bg-secondary/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Facebook</th>
                   <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Phone 2</th>
+                  <th className="px-4 py-3">Facebook</th>
                   <th className="px-4 py-3">Address</th>
                   <th className="px-4 py-3">Remark</th>
                   <th className="px-4 py-3 text-right">Total Spent</th>
@@ -213,8 +232,9 @@ export default function CustomersPage() {
                 {customers.map((customer) => (
                   <tr key={customer.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-4">{customer.name || '—'}</td>
-                    <td className="px-4 py-4">{customer.facebook_username || '—'}</td>
                     <td className="px-4 py-4 font-mono">{customer.phone}</td>
+                    <td className="px-4 py-4 font-mono">{customer.phone_2 || '—'}</td>
+                    <td className="px-4 py-4">{customer.facebook_username || '—'}</td>
                     <td className="px-4 py-4">{customer.address || '—'}</td>
                     <td className="px-4 py-4">{customer.remark || '—'}</td>
                     <td className="px-4 py-4 text-right font-semibold">
@@ -226,14 +246,19 @@ export default function CustomersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" className="border-blue-500 text-blue-600 hover:bg-blue-50" onClick={() => openEdit(customer)}>
+                      <div className="flex justify-end gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                          onClick={() => openEdit(customer)}
+                        >
                           Edit
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                          className="border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                           disabled={deletingId === customer.id}
                           onClick={() => handleDelete(customer.id)}
                         >
@@ -277,6 +302,15 @@ export default function CustomersPage() {
                   className="h-10"
                 />
               </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-semibold">Phone 2</label>
+                <Input
+                  value={phone2}
+                  onChange={(e) => setPhone2(e.target.value)}
+                  placeholder="Secondary phone"
+                  className="h-10"
+                />
+              </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Name</label>
                 <Input
@@ -304,13 +338,13 @@ export default function CustomersPage() {
                   className="h-10"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="text-xs font-semibold">Remark</label>
-                <Input
+                <textarea
                   value={remark}
                   onChange={(e) => setRemark(e.target.value)}
-                  placeholder="Remark"
-                  className="h-10"
+                  placeholder="Notes"
+                  className="min-h-[70px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
               <div className="space-y-1.5 md:col-span-2">
@@ -330,10 +364,15 @@ export default function CustomersPage() {
                 </div>
               )}
               <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                  onClick={() => setDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving} className="bg-blue-600 text-white hover:bg-blue-700">
+                <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
                   {saving ? 'Saving...' : 'Save'}
                 </Button>
               </div>

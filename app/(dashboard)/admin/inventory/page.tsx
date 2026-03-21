@@ -152,14 +152,19 @@ const InventoryRow = React.memo(function InventoryRow({
       <td className="px-3 py-3 text-right text-[12px] font-semibold">{formatPrice(product.sale_price)}</td>
       <td className="px-3 py-3 text-right">
         <div className="flex justify-end gap-2">
-          <Button size="sm" variant="outline" className="h-12 px-4" onClick={() => onEdit(product)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-12 px-4 border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={() => onEdit(product)}
+          >
             Edit
           </Button>
           {isAdmin && (
             <Button
               size="sm"
               variant="outline"
-              className="h-12 px-4 text-destructive border-destructive/40 hover:bg-destructive/10"
+              className="h-12 px-4 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
               onClick={() => onDelete(product)}
               disabled={deleting}
             >
@@ -215,7 +220,6 @@ export default function AdminInventoryPage() {
   const [scanFlash, setScanFlash] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
   const [scanManualInput, setScanManualInput] = React.useState('');
-  const [manualLookup, setManualLookup] = React.useState('');
   const [scanningForForm, setScanningForForm] = React.useState(false);
   const isBusy = saving || uploading;
 
@@ -716,21 +720,25 @@ export default function AdminInventoryPage() {
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => {
-      const nameValue = (p.product_name ?? '').toLowerCase();
-      const skuValue = (p.default_code ?? '').toLowerCase();
-      const barcodeValue = (p.barcode ?? '').toLowerCase();
-      const categoryValue = (p.category ?? '').toLowerCase();
-      const variantValue = (p.size ?? p.variant ?? '').toLowerCase();
-      return (
-        nameValue.includes(q) ||
-        skuValue.includes(q) ||
-        barcodeValue.includes(q) ||
-        categoryValue.includes(q) ||
-        variantValue.includes(q)
-      );
-    });
+    const list = q
+      ? products.filter((p) => {
+          const nameValue = (p.product_name ?? '').toLowerCase();
+          const skuValue = (p.default_code ?? '').toLowerCase();
+          const barcodeValue = (p.barcode ?? '').toLowerCase();
+          const categoryValue = (p.category ?? '').toLowerCase();
+          const variantValue = (p.size ?? p.variant ?? '').toLowerCase();
+          return (
+            nameValue.includes(q) ||
+            skuValue.includes(q) ||
+            barcodeValue.includes(q) ||
+            categoryValue.includes(q) ||
+            variantValue.includes(q)
+          );
+        })
+      : products;
+    return [...list].sort((a, b) =>
+      (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' })
+    );
   }, [products, query]);
 
   const categoryOptions = React.useMemo(() => {
@@ -751,24 +759,6 @@ export default function AdminInventoryPage() {
     resetForm();
     setDialogOpen(true);
   };
-
-  const handleManualLookup = React.useCallback(() => {
-    const value = manualLookup.trim();
-    if (!value) return;
-    const lowered = value.toLowerCase();
-    const matched = products.find((p) =>
-      p.barcode === value ||
-      p.default_code === value ||
-      (p.product_name ?? '').toLowerCase() === lowered
-    );
-    if (matched) {
-      setQuery(value);
-    } else {
-      openCreate();
-      setBarcode(value);
-    }
-    setManualLookup('');
-  }, [manualLookup, openCreate, products]);
 
   const openEdit = (product: Product) => {
     setEditing(product);
@@ -987,22 +977,6 @@ export default function AdminInventoryPage() {
                 placeholder="Search by name, category, or barcode..."
                 className="h-12 rounded-xl text-base"
               />
-            </div>
-            <div className="flex gap-2">
-              <Input
-                value={manualLookup}
-                onChange={(e) => setManualLookup(e.target.value)}
-                placeholder="Manual product search/add..."
-                className="h-12 rounded-xl text-base"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleManualLookup();
-                  }
-                }}
-              />
-              <Button variant="outline" className="h-12 px-4" onClick={handleManualLookup}>
-                Search/Add
-              </Button>
             </div>
           </div>
           <div className="text-xs text-muted-foreground">

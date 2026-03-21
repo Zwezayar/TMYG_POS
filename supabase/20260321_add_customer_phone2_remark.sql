@@ -1,0 +1,3 @@
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS phone_2 text,
+ADD COLUMN IF NOT EXISTS remark text;

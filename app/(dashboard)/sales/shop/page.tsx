@@ -165,7 +165,13 @@ export default function ShopSalesLogPage() {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           Shop Sales Log
         </h1>
-        <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+          onClick={fetchOrders}
+          disabled={loading}
+        >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
         </Button>
       </div>
@@ -274,11 +280,11 @@ export default function ShopSalesLogPage() {
                         </Button>
                       </td>
                       <td className="px-2 py-2 text-right">
-                        <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 flex-wrap">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm"
+                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
                           onClick={() => openEdit(order)}
                           onPointerDown={(e) => e.stopPropagation()}
                         >
@@ -287,7 +293,7 @@ export default function ShopSalesLogPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm"
+                          className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                             disabled={deletingId === order.id}
                             onClick={() => deleteOrder(order.id)}
                           onPointerDown={(e) => e.stopPropagation()}
@@ -315,7 +321,12 @@ export default function ShopSalesLogPage() {
           <div className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold">Edit Sale</div>
-              <Button variant="ghost" size="sm" onClick={() => setEditOpen(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => setEditOpen(false)}
+              >
                 Close
               </Button>
             </div>
@@ -337,10 +348,15 @@ export default function ShopSalesLogPage() {
                 <Input value={editPaymentMethod} onChange={(e) => setEditPaymentMethod(e.target.value)} />
               </div>
               <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
+                  onClick={() => setEditOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={savingEdit}>
+                <Button type="submit" disabled={savingEdit} className="bg-primary text-primary-foreground hover:bg-primary/90">
                   {savingEdit ? 'Saving...' : 'Save'}
                 </Button>
               </div>

@@ -309,8 +309,8 @@ export function ProductForm({
       <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-border bg-card px-5 py-4">
         <Button
           type="button"
-          variant="ghost"
-          className="h-[44px] px-6 rounded-xl"
+          variant="outline"
+          className="h-[44px] px-6 rounded-xl border-cyan-400/70 text-cyan-400 hover:bg-cyan-500/10"
           onClick={onClose}
         >
           Cancel
