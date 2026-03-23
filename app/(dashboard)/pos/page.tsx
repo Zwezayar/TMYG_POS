@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
+import { formatDateDDMMYYYY, formatTimeHHMM } from '@/lib/date';
 import { ProductForm } from '@/components/forms/product-form';
 
 // --- Types & Helpers ---
@@ -460,14 +461,8 @@ function CartSidebar({
   const saleTypeValue = saleType;
 
   const formatDateTime = () => {
-    return new Intl.DateTimeFormat("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }).format(new Date());
+    const now = new Date();
+    return `${formatDateDDMMYYYY(now)} ${formatTimeHHMM(now)}`;
   };
 
   const paymentMethodsList: { id: string; label: string; icon: React.ElementType }[] = [
@@ -1553,8 +1548,8 @@ export default function PosPage() {
       const amountDueValue = Math.max(0, receiptTotal - receivedAmount);
       const receiptSnapshot: ReceiptData = {
         invoiceId: '',
-        date: now.toLocaleDateString('en-US'),
-        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        date: formatDateDDMMYYYY(now),
+        time: formatTimeHHMM(now),
         staffName: displayName?.trim() || formatStaffName(username),
         cashierRole: formatRole(role),
         saleType,

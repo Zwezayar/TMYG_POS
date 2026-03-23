@@ -7,6 +7,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
+import { formatDateDDMMYYYY } from '@/lib/date';
 
 export default function DashboardPage() {
   const t = useT();
@@ -89,7 +90,7 @@ export default function DashboardPage() {
         for (let i = startIndex; i < diffDays; i += 1) {
           const day = new Date(trendStart.getFullYear(), trendStart.getMonth(), trendStart.getDate() + i);
           const nextDay = new Date(trendStart.getFullYear(), trendStart.getMonth(), trendStart.getDate() + i + 1);
-          const label = day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const label = formatDateDDMMYYYY(day);
           const total = orders.reduce((sum, order) => {
             const created = new Date(order.created_at);
             if (created >= day && created < nextDay) {

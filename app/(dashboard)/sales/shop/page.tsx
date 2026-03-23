@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
 import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
+import { formatDateDDMMYYYY, formatDateRangeDDMMYYYY } from '@/lib/date';
+import { useT } from '@/components/language-provider';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Order = {
@@ -25,6 +27,7 @@ type Order = {
 };
 
 export default function ShopSalesLogPage() {
+  const t = useT();
   const { role } = useDashboardAuth();
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -42,6 +45,9 @@ export default function ShopSalesLogPage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Order | null>(null);
   const [query, setQuery] = React.useState('');
+  const [monthFilter, setMonthFilter] = React.useState('');
+  const [exporting, setExporting] = React.useState(false);
+  const [toasts, setToasts] = React.useState<{ id: number; type: 'success' | 'error'; message: string }[]>([]);
 
   const fetchOrders = React.useCallback(async () => {
     setLoading(true);
@@ -88,13 +94,26 @@ export default function ShopSalesLogPage() {
     }
   };
 
+  const monthFilteredOrders = React.useMemo(() => {
+    if (!monthFilter) return orders;
+    const [yearText, monthText] = monthFilter.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!year || !month) return orders;
+    return orders.filter((order) => {
+      const date = new Date(order.created_at);
+      return date.getFullYear() === year && date.getMonth() + 1 === month;
+    });
+  }, [orders, monthFilter]);
+
   const periodSummary = React.useMemo(() => {
     const grouped: Record<string, Record<string, number>> = {};
-    orders.forEach((order) => {
+    const list = monthFilteredOrders;
+    list.forEach((order) => {
       const date = new Date(order.created_at);
       const key =
         viewMode === 'daily'
-          ? date.toLocaleDateString()
+          ? formatDateDDMMYYYY(date)
           : viewMode === 'monthly'
             ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
             : `${date.getFullYear()}`;
@@ -103,12 +122,12 @@ export default function ShopSalesLogPage() {
       grouped[key][method] = (grouped[key][method] || 0) + (order.total_amount || 0);
     });
     return grouped;
-  }, [orders, viewMode]);
+  }, [monthFilteredOrders, viewMode]);
 
   const filteredOrders = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter((order) => {
+    if (!q) return monthFilteredOrders;
+    return monthFilteredOrders.filter((order) => {
       const invoice = (order.invoice_id ?? '').toLowerCase();
       const customer = (order.customer_name ?? '').toLowerCase();
       const phone = (order.customer_phone ?? '').toLowerCase();
@@ -120,12 +139,12 @@ export default function ShopSalesLogPage() {
         payment.includes(q)
       );
     });
-  }, [orders, query]);
+  }, [monthFilteredOrders, query]);
 
   const groupedOrders = React.useMemo(() => {
     const map = new Map<string, Order[]>();
     filteredOrders.forEach((order) => {
-      const dateKey = new Date(order.created_at).toLocaleDateString();
+      const dateKey = formatDateDDMMYYYY(order.created_at);
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
       }
@@ -146,51 +165,77 @@ export default function ShopSalesLogPage() {
     return items.map((item) => `${item.name} x${item.qty}`).join(', ');
   };
 
-  const handleExportExcel = React.useCallback(async () => {
-    const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
-    const latest = allDates[0];
-    const oldest = allDates[allDates.length - 1];
-    const dateRange = latest
-      ? `${new Date(latest).toLocaleDateString()} - ${new Date(oldest).toLocaleDateString()}`
-      : '—';
-    const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+  const getStatusLabel = (status: string | null) =>
+    status === 'Confirmed' ? t('statusConfirmed') : t('statusCheck');
 
-    const rows: SalesExportRow[] = [];
-    let serial = 1;
-    groupedOrders.forEach(([dateKey, dayOrders]) => {
-      const dailyTotal = dayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-      rows.push({
-        kind: 'group',
-        cells: ['', dateKey, '', '', `Daily Total`, dailyTotal, '', ''],
-      });
-      dayOrders.forEach((order) => {
+  const addToast = React.useCallback((type: 'success' | 'error', message: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 4000);
+  }, []);
+
+  const handleExportExcel = React.useCallback(async () => {
+    setExporting(true);
+    try {
+      const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
+      const latest = allDates[0];
+      const oldest = allDates[allDates.length - 1];
+      const dateRange = latest ? formatDateRangeDDMMYYYY(new Date(latest), new Date(oldest)) : '—';
+      const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+
+      const rows: SalesExportRow[] = [];
+      let serial = 1;
+      groupedOrders.forEach(([dateKey, dayOrders]) => {
+        const dailyTotal = dayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
         rows.push({
-          kind: 'data',
-          cells: [
-            serial++,
-            dateKey,
-            order.invoice_id ?? '',
-            order.customer_name ?? '',
-            buildItemSummary(order),
-            order.total_amount ?? 0,
-            order.payment_method ?? '',
-            order.payment_status ?? '',
-          ],
+          kind: 'group',
+          cells: ['', dateKey, '', '', t('dailyTotal'), dailyTotal, '', ''],
+        });
+        dayOrders.forEach((order) => {
+          rows.push({
+            kind: 'data',
+            cells: [
+              serial++,
+              dateKey,
+              order.invoice_id ?? '',
+              order.customer_name ?? '',
+              buildItemSummary(order),
+              order.total_amount ?? 0,
+              order.payment_method ?? '',
+              getStatusLabel(order.payment_status ?? ''),
+            ],
+          });
         });
       });
-    });
 
-    await downloadSalesXlsx({
-      filename: 'shop-sales-log.xlsx',
-      title: 'Shop Sales Log',
-      summaryRows: [
-        ['Date Range', dateRange],
-        ['Total Sales', totalSales],
-      ],
-      columns: ['No.', 'Date', 'Invoice ID', 'Customer Name', 'Items (Summary)', 'Total Amount', 'Payment Method', 'Status'],
-      rows,
-    });
-  }, [filteredOrders, groupedOrders]);
+      await downloadSalesXlsx({
+        filename: 'shop-sales-log.xlsx',
+        title: t('shopSalesLogTitle'),
+        summaryRows: [
+          [t('dateRange'), dateRange],
+          [t('totalSales'), totalSales],
+        ],
+        columns: [
+          t('number'),
+          t('date'),
+          t('invoice'),
+          t('customer'),
+          t('itemsSummary'),
+          t('totalAmount'),
+          t('paymentMethod'),
+          t('status'),
+        ],
+        rows,
+      });
+      addToast('success', t('exportSuccess'));
+    } catch {
+      addToast('error', t('exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }, [filteredOrders, groupedOrders, t, addToast]);
 
   const openReceipt = (order: Order) => {
     setSelectedReceipt(order.receipt_payload ?? null);
@@ -242,10 +287,10 @@ export default function ShopSalesLogPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Shop Sales Log
+          {t('shopSalesLogTitle')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Access restricted. Sales reports are available to admins only.
+          {t('accessRestricted')} {t('salesAdminOnly')}
         </p>
       </div>
     );
@@ -255,14 +300,21 @@ export default function ShopSalesLogPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Shop Sales Log
+          {t('shopSalesLogTitle')}
         </h1>
         <div className="flex items-center gap-2">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search invoice, customer, phone, payment..."
+            placeholder={t('searchSalesPlaceholder')}
             className="h-9 w-64"
+          />
+          <Input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="h-9 w-40"
+            placeholder={t('monthFilter')}
           />
           <Button
             variant="outline"
@@ -271,7 +323,7 @@ export default function ShopSalesLogPage() {
             onClick={handleExportExcel}
             disabled={loading}
           >
-            Download Excel
+            {t('downloadExcel')}
           </Button>
           <Button
             variant="outline"
@@ -280,29 +332,34 @@ export default function ShopSalesLogPage() {
             onClick={fetchOrders}
             disabled={loading}
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t('refresh')}
           </Button>
         </div>
       </div>
+      {exporting && (
+        <div className="text-xs text-muted-foreground">
+          {t('exportLoading')}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Summary (By Payment Method)
+            {t('summaryByPayment')}
           </div>
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
             className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
           >
-            <option value="daily">Daily</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
+            <option value="daily">{t('daily')}</option>
+            <option value="monthly">{t('monthly')}</option>
+            <option value="yearly">{t('yearly')}</option>
           </select>
         </div>
         <div className="space-y-2">
           {Object.keys(periodSummary).length === 0 && (
-            <div className="text-xs text-muted-foreground">No summary available.</div>
+            <div className="text-xs text-muted-foreground">{t('noSummary')}</div>
           )}
           {Object.entries(periodSummary).map(([date, methods]) => (
             <div key={date} className="space-y-1">
@@ -314,7 +371,7 @@ export default function ShopSalesLogPage() {
                   </span>
                 ))}
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold">
-                  Total: {Object.values(methods).reduce((a, b) => a + b, 0).toLocaleString()} Ks
+                  {t('totalLabel')}: {Object.values(methods).reduce((a, b) => a + b, 0).toLocaleString()} Ks
                 </span>
               </div>
             </div>
@@ -332,13 +389,13 @@ export default function ShopSalesLogPage() {
             <table className="w-full table-fixed text-sm text-left">
               <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
-                  <th className="px-2 py-2">Date</th>
-                  <th className="px-2 py-2">Invoice</th>
-                  <th className="px-2 py-2 hidden lg:table-cell">Customer</th>
-                  <th className="px-2 py-2">Payment Method</th>
-                  <th className="px-2 py-2 text-right">Amount</th>
-                  <th className="px-2 py-2 text-center hidden lg:table-cell">Payment Status</th>
-                  <th className="px-2 py-2 text-right">Action</th>
+                  <th className="px-2 py-2">{t('date')}</th>
+                  <th className="px-2 py-2">{t('invoice')}</th>
+                  <th className="px-2 py-2 hidden lg:table-cell">{t('customer')}</th>
+                  <th className="px-2 py-2">{t('paymentMethod')}</th>
+                  <th className="px-2 py-2 text-right">{t('totalAmount')}</th>
+                  <th className="px-2 py-2 text-center hidden lg:table-cell">{t('status')}</th>
+                  <th className="px-2 py-2 text-right">{t('action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -348,7 +405,7 @@ export default function ShopSalesLogPage() {
                     <React.Fragment key={dateKey}>
                       <tr className="sticky top-8 z-10 bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                         <td colSpan={7} className="px-2 py-2 text-xs font-bold">
-                          {dateKey} • Daily Total: {dailyTotal.toLocaleString()} Ks
+                          {dateKey} • {t('dailyTotal')}: {dailyTotal.toLocaleString()} Ks
                         </td>
                       </tr>
                       {dayOrders.map((order) => {
@@ -392,7 +449,7 @@ export default function ShopSalesLogPage() {
                           ) : (
                             <AlertCircle className="h-4 w-4" />
                           )}
-                          {order.payment_status}
+                                    {getStatusLabel(order.payment_status)}
                         </Button>
                       </td>
                       <td className="px-2 py-2 text-right">
@@ -404,7 +461,7 @@ export default function ShopSalesLogPage() {
                           onClick={() => openEdit(order)}
                           onPointerDown={(e) => e.stopPropagation()}
                         >
-                            Edit
+                            {t('edit')}
                           </Button>
                           <Button
                             variant="outline"
@@ -414,7 +471,7 @@ export default function ShopSalesLogPage() {
                             onClick={() => setDeleteTarget(order)}
                           onPointerDown={(e) => e.stopPropagation()}
                           >
-                            {deletingId === order.id ? 'Deleting...' : 'Delete'}
+                            {deletingId === order.id ? t('deleting') : t('delete')}
                           </Button>
                         </div>
                       </td>
@@ -429,7 +486,7 @@ export default function ShopSalesLogPage() {
           </div>
           {filteredOrders.length === 0 && (
             <div className="py-20 text-center text-muted-foreground">
-              No sales records found.
+              {t('noSalesRecords')}
             </div>
           )}
         </div>
@@ -437,9 +494,9 @@ export default function ShopSalesLogPage() {
       <ReceiptModal open={receiptOpen} receipt={selectedReceipt} onClose={() => setReceiptOpen(false)} />
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete sale record?"
-        description={`Are you sure you want to delete invoice "${deleteTarget?.invoice_id ?? ''}"? Stock will be restored.`}
-        confirmLabel="Delete"
+        title={t('deleteSaleRecordTitle')}
+        description={`${t('deleteSaleRecordDesc')} ${deleteTarget?.invoice_id ? `"${deleteTarget.invoice_id}"` : ''}`}
+        confirmLabel={t('delete')}
         onConfirm={deleteOrder}
         onCancel={() => setDeleteTarget(null)}
         confirmVariant="destructive"
@@ -449,31 +506,31 @@ export default function ShopSalesLogPage() {
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold">Edit Sale</div>
+              <div className="text-sm font-semibold">{t('editSaleTitle')}</div>
               <Button
                 variant="outline"
                 size="sm"
                 className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                 onClick={() => setEditOpen(false)}
               >
-                Close
+                {t('close')}
               </Button>
             </div>
             <form className="grid gap-3 text-xs md:grid-cols-2" onSubmit={saveEdit}>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Customer Name</label>
+                <label className="text-xs font-semibold">{t('customerName')}</label>
                 <Input value={editCustomerName} onChange={(e) => setEditCustomerName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Phone</label>
+                <label className="text-xs font-semibold">{t('phone')}</label>
                 <Input value={editCustomerPhone} onChange={(e) => setEditCustomerPhone(e.target.value)} />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Address</label>
+                <label className="text-xs font-semibold">{t('address')}</label>
                 <Input value={editCustomerAddress} onChange={(e) => setEditCustomerAddress(e.target.value)} />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Payment Method</label>
+                <label className="text-xs font-semibold">{t('paymentMethod')}</label>
                 <Input value={editPaymentMethod} onChange={(e) => setEditPaymentMethod(e.target.value)} />
               </div>
               <div className="md:col-span-2 flex justify-end gap-2 pt-2">
@@ -483,14 +540,29 @@ export default function ShopSalesLogPage() {
                   className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                   onClick={() => setEditOpen(false)}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button type="submit" disabled={savingEdit} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  {savingEdit ? 'Saving...' : 'Save'}
+                  {savingEdit ? t('saving') : t('save')}
                 </Button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 space-y-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`rounded-md border px-3 py-2 text-sm shadow-md ${toast.type === 'success'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                : 'border-destructive/60 bg-destructive/10 text-destructive'
+                }`}
+            >
+              {toast.message}
+            </div>
+          ))}
         </div>
       )}
     </div>

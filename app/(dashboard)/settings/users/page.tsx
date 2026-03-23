@@ -6,6 +6,7 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/components/language-provider';
 
 type ProfileRow = {
   id: string;
@@ -15,6 +16,7 @@ type ProfileRow = {
 };
 
 export default function UsersPage() {
+  const t = useT();
   const { role } = useDashboardAuth();
   const [users, setUsers] = React.useState<ProfileRow[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -41,7 +43,7 @@ export default function UsersPage() {
         data: { session },
       } = await supabaseClient.auth.getSession();
       if (!session) {
-        setError('Not logged in.');
+        setError(t('notLoggedIn'));
         setLoading(false);
         return;
       }
@@ -72,7 +74,7 @@ export default function UsersPage() {
         data: { session },
       } = await supabaseClient.auth.getSession();
       if (!session) {
-        setError('Session expired.');
+        setError(t('sessionExpired'));
         return;
       }
       const res = await fetch('/api/admin/users/update', {
@@ -99,7 +101,7 @@ export default function UsersPage() {
         return next;
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
+      setError(e instanceof Error ? e.message : t('updateFailed'));
     } finally {
       setSavingId(null);
     }
@@ -111,7 +113,7 @@ export default function UsersPage() {
     const email = inviteEmail.trim();
     const password = invitePassword.trim();
     if (!email || password.length < 6) {
-      setInviteError('Email and password (min 6 chars) are required.');
+      setInviteError(t('emailPasswordRequired'));
       return;
     }
     try {
@@ -119,7 +121,7 @@ export default function UsersPage() {
         data: { session },
       } = await supabaseClient.auth.getSession();
       if (!session) {
-        setInviteError('Session expired.');
+        setInviteError(t('sessionExpired'));
         return;
       }
       const res = await fetch('/api/admin/users/create', {
@@ -147,7 +149,7 @@ export default function UsersPage() {
       setInviteRole('staff');
       await fetchUsers();
     } catch (e) {
-      setInviteError(e instanceof Error ? e.message : 'Invite failed');
+      setInviteError(e instanceof Error ? e.message : t('inviteFailed'));
     }
   };
 
@@ -172,7 +174,7 @@ export default function UsersPage() {
   async function handleResetPassword(userId: string) {
     const pwd = newPassword.trim();
     if (pwd.length < 6) {
-      setResetError('Password must be at least 6 characters');
+      setResetError(t('passwordMinLength'));
       return;
     }
     setResetError(null);
@@ -182,7 +184,7 @@ export default function UsersPage() {
         data: { session },
       } = await supabaseClient.auth.getSession();
       if (!session) {
-        setResetError('Session expired.');
+        setResetError(t('sessionExpired'));
         return;
       }
       const res = await fetch('/api/admin/reset-password', {
@@ -202,7 +204,7 @@ export default function UsersPage() {
       setNewPassword('');
       setResettingId(null);
     } catch (e) {
-      setResetError(e instanceof Error ? e.message : 'Reset failed');
+      setResetError(e instanceof Error ? e.message : t('resetFailed'));
     }
   }
 
@@ -210,10 +212,10 @@ export default function UsersPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          User Management
+          {t('usersTitle')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Access restricted. This page is for admins only.
+          {t('usersAdminOnly')}
         </p>
       </div>
     );
@@ -224,19 +226,19 @@ export default function UsersPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          User Management
+          {t('usersTitle')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          View staff and reset passwords. Only admins can access this page.
+          {t('usersSubtext')}
         </p>
         </div>
         <Button size="sm" onClick={() => setInviteOpen(true)}>
-          Invite/Create New User
+          {t('inviteUser')}
         </Button>
       </div>
 
       {loading && (
-        <p className="text-sm text-muted-foreground">Loading users...</p>
+        <p className="text-sm text-muted-foreground">{t('loadingUsers')}</p>
       )}
       {error && (
         <p className="text-sm text-destructive">{error}</p>
@@ -248,16 +250,16 @@ export default function UsersPage() {
               <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border/60">
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                  User (email)
+                  {t('userEmail')}
                 </th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                  Display Name / Staff ID
+                  {t('displayNameStaffId')}
                 </th>
                 <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                  Role
+                  {t('role')}
                 </th>
                 <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                  Actions
+                  {t('actions')}
                 </th>
               </tr>
               </thead>
@@ -265,7 +267,7 @@ export default function UsersPage() {
               {users.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                    No users found.
+                    {t('noUsersFound')}
                   </td>
                 </tr>
               ) : (
@@ -286,7 +288,7 @@ export default function UsersPage() {
                             },
                           }))
                         }
-                        placeholder={u.username ?? 'No Name'}
+                        placeholder={u.username ?? t('noName')}
                         className="h-9"
                       />
                     </td>
@@ -304,8 +306,8 @@ export default function UsersPage() {
                         }
                         className="h-9 rounded-md border border-input bg-transparent px-2 text-xs"
                       >
-                        <option value="admin">Admin</option>
-                        <option value="staff">Staff</option>
+                        <option value="admin">{t('adminRole')}</option>
+                        <option value="staff">{t('staffRole')}</option>
                       </select>
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -316,7 +318,7 @@ export default function UsersPage() {
                           onClick={() => handleSaveProfile(u.id)}
                           disabled={savingId === u.id || !localEdits[u.id]}
                         >
-                          {savingId === u.id ? 'Saving...' : 'Save'}
+                          {savingId === u.id ? t('saving') : t('save')}
                         </Button>
                         <Button
                           variant="outline"
@@ -328,7 +330,7 @@ export default function UsersPage() {
                             setResetSuccess(false);
                           }}
                         >
-                          Reset password
+                          {t('resetPassword')}
                         </Button>
                       </div>
                     </td>
@@ -344,49 +346,49 @@ export default function UsersPage() {
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={() => setInviteOpen(false)}>
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-3 text-sm font-semibold">Invite / Create User</h3>
+            <h3 className="mb-3 text-sm font-semibold">{t('inviteCreateUser')}</h3>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="invite-email">Email</Label>
+                <Label htmlFor="invite-email">{t('loginEmail')}</Label>
                 <Input
                   id="invite-email"
                   type="email"
                   autoComplete="off"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="staff@example.com"
+                  placeholder={t('inviteEmailPlaceholder')}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-password">Temporary Password</Label>
+                <Label htmlFor="invite-password">{t('tempPassword')}</Label>
                 <Input
                   id="invite-password"
                   type="password"
                   autoComplete="new-password"
                   value={invitePassword}
                   onChange={(e) => setInvitePassword(e.target.value)}
-                  placeholder="Min 6 characters"
+                  placeholder={t('invitePasswordPlaceholder')}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-display-name">Display Name / Staff ID</Label>
+                <Label htmlFor="invite-display-name">{t('displayNameStaffId')}</Label>
                 <Input
                   id="invite-display-name"
                   value={inviteDisplayName}
                   onChange={(e) => setInviteDisplayName(e.target.value)}
-                  placeholder="Staff 01 / Cashier Su Su"
+                  placeholder={t('inviteDisplayNamePlaceholder')}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-role">Role</Label>
+                <Label htmlFor="invite-role">{t('role')}</Label>
                 <select
                   id="invite-role"
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as 'admin' | 'staff')}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-xs"
                 >
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
+                  <option value="admin">{t('adminRole')}</option>
+                  <option value="staff">{t('staffRole')}</option>
                 </select>
               </div>
               {inviteError && (
@@ -394,16 +396,16 @@ export default function UsersPage() {
               )}
               {inviteSuccess && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  User created successfully.
+                  {t('userCreatedSuccess')}
                 </p>
               )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setInviteOpen(false)}>
-                Cancel
+                {t('cancel')}
               </Button>
               <Button size="sm" onClick={handleInviteUser}>
-                Create User
+                {t('createUser')}
               </Button>
             </div>
           </div>
@@ -420,20 +422,20 @@ export default function UsersPage() {
             className="w-full max-w-sm rounded-lg border border-border bg-card p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-3 text-sm font-semibold">Reset password</h3>
+            <h3 className="mb-3 text-sm font-semibold">{t('resetPasswordTitle')}</h3>
             <p className="mb-3 text-xs text-muted-foreground">
-              Enter a new password for this user. They can change it later after logging in.
+              {t('resetPasswordHint')}
             </p>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="new-password">New password</Label>
+                <Label htmlFor="new-password">{t('newPassword')}</Label>
                 <Input
                   id="new-password"
                   type="password"
                   autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min 6 characters"
+                  placeholder={t('invitePasswordPlaceholder')}
                   minLength={6}
                 />
               </div>
@@ -442,7 +444,7 @@ export default function UsersPage() {
               )}
               {resetSuccess && (
                 <p className="text-xs text-green-600 dark:text-green-400">
-                  Password updated.
+                  {t('passwordUpdated')}
                 </p>
               )}
             </div>
@@ -457,14 +459,14 @@ export default function UsersPage() {
                   setResetError(null);
                 }}
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 size="sm"
                 onClick={() => handleResetPassword(resettingId)}
                 disabled={newPassword.trim().length < 6}
               >
-                Update password
+                {t('updatePassword')}
               </Button>
             </div>
           </div>

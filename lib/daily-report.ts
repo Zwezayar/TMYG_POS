@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { createServerSupabaseClient } from '@/lib/supabaseServer';
+import { formatDateDDMMYYYY } from '@/lib/date';
 
 export type ReportItem = {
   name: string;
@@ -74,7 +75,7 @@ export async function buildReport(admin: any): Promise<ReportResult> {
     .slice(0, 5);
 
   return {
-    dateLabel: start.toISOString().slice(0, 10),
+    dateLabel: formatDateDDMMYYYY(start),
     totalRevenue,
     totalProfit,
     topItems,

@@ -18,21 +18,22 @@ import {
 import { cn } from '@/lib/utils';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/components/language-provider';
 
 const mainItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
-  { label: 'POS', icon: ShoppingBag, href: '/pos' },
-  { label: 'Inventory', icon: Package, href: '/admin/inventory' },
-  { label: 'Shop Sales Log', icon: ClipboardList, href: '/sales/shop' },
-  { label: 'Delivery Sales Log', icon: Truck, href: '/sales/delivery' },
+  { key: 'menuDashboard', icon: LayoutDashboard, href: '/' },
+  { key: 'menuPos', icon: ShoppingBag, href: '/pos' },
+  { key: 'menuInventory', icon: Package, href: '/admin/inventory' },
+  { key: 'menuShopSales', icon: ClipboardList, href: '/sales/shop' },
+  { key: 'menuDeliverySales', icon: Truck, href: '/sales/delivery' },
 ];
 
 const crmItems = [
-  { label: 'Customers', icon: Users, href: '/customers' },
+  { key: 'menuCustomers', icon: Users, href: '/customers' },
 ];
 
 const settingsItems = [
-  { label: 'Settings', icon: Settings, href: '/settings' },
+  { key: 'menuSettings', icon: Settings, href: '/settings' },
 ];
 
 interface SidebarProps {
@@ -46,6 +47,7 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
   const [year, setYear] = React.useState<string>('');
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
 
   React.useEffect(() => {
     setYear(String(new Date().getFullYear()));
@@ -66,14 +68,15 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
         "mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 transition-all duration-300",
         collapsed ? "opacity-0 invisible h-0" : "opacity-100 visible h-auto"
       )}>
-        Main Menu
+        {t('menuMain')}
       </div>
       <ul className="flex flex-1 flex-col gap-1.5">
         {mainItems.map((item) => {
           const Icon = item.icon;
           const active = (item.href === '/' && pathname === '/') || (item.href !== '/' && pathname.startsWith(item.href));
+          const label = t(item.key);
           return (
-            <li key={item.label}>
+            <li key={item.key}>
               <Link
                 href={item.href}
                 className={cn(
@@ -83,10 +86,10 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                   collapsed ? "justify-center px-0 w-10 mx-auto" : "w-full"
                 )}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
               >
                 <Icon className={cn("h-5 w-5 shrink-0 transition-transform", !active && "opacity-70")} />
-                {!collapsed && <span className="font-bold text-[13px]">{item.label}</span>}
+                {!collapsed && <span className="font-bold text-[13px]">{label}</span>}
               </Link>
             </li>
           );
@@ -95,13 +98,14 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
           "px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 transition-all duration-300 mt-3",
           collapsed ? "opacity-0 h-0 invisible" : "opacity-100 h-auto visible"
         )}>
-          CRM
+          {t('menuCrm')}
         </li>
         {crmItems.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
+          const label = t(item.key);
           return (
-            <li key={item.label}>
+            <li key={item.key}>
               <Link
                 href={item.href}
                 className={cn(
@@ -111,10 +115,10 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                   collapsed ? "justify-center px-0 w-10 mx-auto" : "w-full"
                 )}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
               >
                 <Icon className={cn("h-5 w-5 shrink-0 transition-transform", !active && "opacity-70")} />
-                {!collapsed && <span className="font-bold text-[13px]">{item.label}</span>}
+                {!collapsed && <span className="font-bold text-[13px]">{label}</span>}
               </Link>
             </li>
           );
@@ -123,13 +127,14 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
           "px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 transition-all duration-300 mt-3",
           collapsed ? "opacity-0 h-0 invisible" : "opacity-100 h-auto visible"
         )}>
-          Settings
+          {t('menuSettingsSection')}
         </li>
         {settingsItems.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
+          const label = t(item.key);
           return (
-            <li key={item.label}>
+            <li key={item.key}>
               <Link
                 href={item.href}
                 className={cn(
@@ -139,10 +144,10 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                   collapsed ? "justify-center px-0 w-10 mx-auto" : "w-full"
                 )}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
               >
                 <Icon className={cn("h-5 w-5 shrink-0 transition-transform", !active && "opacity-70")} />
-                {!collapsed && <span className="font-bold text-[13px]">{item.label}</span>}
+                {!collapsed && <span className="font-bold text-[13px]">{label}</span>}
               </Link>
             </li>
           );
@@ -157,10 +162,10 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
             collapsed && "justify-center px-0"
           )}
           onClick={handleLogout}
-          title={collapsed ? "Log out" : undefined}
+          title={collapsed ? t('menuLogout') : undefined}
         >
           <LogOut className="h-5 w-5 shrink-0 opacity-70" />
-          {!collapsed && <span className="font-bold text-[13px]">Log out</span>}
+          {!collapsed && <span className="font-bold text-[13px]">{t('menuLogout')}</span>}
         </Button>
         <div className={cn(
           "px-2 text-[10px] text-muted-foreground font-black uppercase tracking-wider transition-all duration-300 text-center",

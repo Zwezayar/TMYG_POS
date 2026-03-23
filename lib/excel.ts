@@ -40,8 +40,8 @@ export async function downloadInventoryXlsxWithImages({
   imageColumnIndex: number;
   thumbnailSize?: number;
   rowHeight?: number;
-}) {
-  if (typeof window === 'undefined') return;
+}): Promise<{ failedImages: number }> {
+  if (typeof window === 'undefined') return { failedImages: 0 };
   const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Inventory');
@@ -83,6 +83,7 @@ export async function downloadInventoryXlsxWithImages({
     return { buffer, extension: getExtension(contentType) };
   };
 
+  let failedImages = 0;
   for (let i = 0; i < rows.length; i += 1) {
     const rowIndex = i + 2;
     const safeCells = [...rows[i].cells];
@@ -103,7 +104,7 @@ export async function downloadInventoryXlsxWithImages({
           ext: { width: thumbnailSize, height: thumbnailSize },
         });
       } catch {
-        continue;
+        failedImages += 1;
       }
     }
   }
@@ -118,6 +119,7 @@ export async function downloadInventoryXlsxWithImages({
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+  return { failedImages };
 }
 
 export async function downloadSalesXlsx({

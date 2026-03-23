@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
 import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
+import { formatDateDDMMYYYY, formatDateRangeDDMMYYYY } from '@/lib/date';
+import { useT } from '@/components/language-provider';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Order = {
@@ -27,6 +29,7 @@ type Order = {
 };
 
 export default function DeliverySalesLogPage() {
+  const t = useT();
   const { role } = useDashboardAuth();
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -47,6 +50,9 @@ export default function DeliverySalesLogPage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Order | null>(null);
   const [query, setQuery] = React.useState('');
+  const [monthFilter, setMonthFilter] = React.useState('');
+  const [exporting, setExporting] = React.useState(false);
+  const [toasts, setToasts] = React.useState<{ id: number; type: 'success' | 'error'; message: string }[]>([]);
 
   const fetchOrders = React.useCallback(async () => {
     setLoading(true);
@@ -93,11 +99,26 @@ export default function DeliverySalesLogPage() {
     }
   };
 
+  const monthFilteredOrders = React.useMemo(() => {
+    if (!monthFilter) return orders;
+    const [yearText, monthText] = monthFilter.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    if (!year || !month) return orders;
+    return orders.filter((order) => {
+      const date = new Date(order.created_at);
+      return date.getFullYear() === year && date.getMonth() + 1 === month;
+    });
+  }, [orders, monthFilter]);
+
+  const courierFilteredOrders = React.useMemo(() => {
+    if (selectedCourier === 'all') return monthFilteredOrders;
+    return monthFilteredOrders.filter((order) => (order.courier_name || 'Unknown') === selectedCourier);
+  }, [monthFilteredOrders, selectedCourier]);
+
   const filteredOrders = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = selectedCourier === 'all'
-      ? orders
-      : orders.filter((order) => (order.courier_name || 'Unknown') === selectedCourier);
+    const base = courierFilteredOrders;
     if (!q) return base;
     return base.filter((order) => {
       const invoice = (order.invoice_id ?? '').toLowerCase();
@@ -113,12 +134,12 @@ export default function DeliverySalesLogPage() {
         payment.includes(q)
       );
     });
-  }, [orders, selectedCourier, query]);
+  }, [courierFilteredOrders, query]);
 
   const groupedOrders = React.useMemo(() => {
     const dateMap = new Map<string, Map<string, Order[]>>();
     filteredOrders.forEach((order) => {
-      const dateKey = new Date(order.created_at).toLocaleDateString();
+      const dateKey = formatDateDDMMYYYY(order.created_at);
       const courierKey = order.courier_name || 'Unknown';
       if (!dateMap.has(dateKey)) {
         dateMap.set(dateKey, new Map());
@@ -144,69 +165,96 @@ export default function DeliverySalesLogPage() {
     return items.map((item) => `${item.name} x${item.qty}`).join(', ');
   };
 
-  const handleExportExcel = React.useCallback(async () => {
-    const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
-    const latest = allDates[0];
-    const oldest = allDates[allDates.length - 1];
-    const dateRange = latest
-      ? `${new Date(latest).toLocaleDateString()} - ${new Date(oldest).toLocaleDateString()}`
-      : '—';
-    const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
-    const totalFees = filteredOrders.reduce((sum, order) => sum + Number(order.delivery_fee || 0), 0);
+  const getStatusLabel = (status: string | null) =>
+    status === 'Confirmed' ? t('statusConfirmed') : t('statusCheck');
 
-    const rows: SalesExportRow[] = [];
-    let serial = 1;
-    groupedOrders.forEach(([dateKey, courierMap]) => {
-      rows.push({
-        kind: 'group',
-        cells: ['', dateKey, '', '', '', '', '', '', ''],
-      });
-      Array.from(courierMap.entries()).forEach(([courierName, courierOrders]) => {
-        const totalFee = courierOrders.reduce((sum, o) => sum + Number(o.delivery_fee || 0), 0);
+  const addToast = React.useCallback((type: 'success' | 'error', message: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 4000);
+  }, []);
+
+  const handleExportExcel = React.useCallback(async () => {
+    setExporting(true);
+    try {
+      const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
+      const latest = allDates[0];
+      const oldest = allDates[allDates.length - 1];
+      const dateRange = latest ? formatDateRangeDDMMYYYY(new Date(latest), new Date(oldest)) : '—';
+      const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+      const totalFees = filteredOrders.reduce((sum, order) => sum + Number(order.delivery_fee || 0), 0);
+
+      const rows: SalesExportRow[] = [];
+      let serial = 1;
+      groupedOrders.forEach(([dateKey, courierMap]) => {
         rows.push({
-          kind: 'subgroup',
-          cells: ['', '', '', '', courierName, totalFee, 'Subtotal', '', ''],
+          kind: 'group',
+          cells: ['', dateKey, '', '', '', '', '', '', ''],
         });
-        courierOrders.forEach((order) => {
-          const deliveryFee = Number(order.delivery_fee || 0);
+        Array.from(courierMap.entries()).forEach(([courierName, courierOrders]) => {
+          const totalFee = courierOrders.reduce((sum, o) => sum + Number(o.delivery_fee || 0), 0);
           rows.push({
-            kind: 'data',
-            cells: [
-              serial++,
-              dateKey,
-              order.invoice_id ?? '',
-              order.customer_name ?? '',
-              order.courier_name ?? '',
-              deliveryFee,
-              buildItemSummary(order),
-              (order.total_amount || 0) + deliveryFee,
-              order.payment_status ?? '',
-            ],
+            kind: 'subgroup',
+            cells: ['', '', '', '', courierName, totalFee, t('subtotal'), '', ''],
+          });
+          courierOrders.forEach((order) => {
+            const deliveryFee = Number(order.delivery_fee || 0);
+            rows.push({
+              kind: 'data',
+              cells: [
+                serial++,
+                dateKey,
+                order.invoice_id ?? '',
+                order.customer_name ?? '',
+                order.courier_name ?? '',
+                deliveryFee,
+                buildItemSummary(order),
+                (order.total_amount || 0) + deliveryFee,
+                getStatusLabel(order.payment_status ?? ''),
+              ],
+            });
           });
         });
       });
-    });
 
-    await downloadSalesXlsx({
-      filename: 'delivery-sales-log.xlsx',
-      title: 'Delivery Sales Log',
-      summaryRows: [
-        ['Date Range', dateRange],
-        ['Total Sales', totalSales],
-        ['Total Fees', totalFees],
-      ],
-      columns: ['No.', 'Date', 'Invoice ID', 'Customer Name', 'Courier Name', 'Delivery Fee', 'Items (Summary)', 'Total Amount', 'Status'],
-      rows,
-    });
-  }, [filteredOrders, groupedOrders]);
+      await downloadSalesXlsx({
+        filename: 'delivery-sales-log.xlsx',
+        title: t('deliverySalesLogTitle'),
+        summaryRows: [
+          [t('dateRange'), dateRange],
+          [t('totalSales'), totalSales],
+          [t('totalFees'), totalFees],
+        ],
+        columns: [
+          t('number'),
+          t('date'),
+          t('invoice'),
+          t('customer'),
+          t('courier'),
+          t('deliveryFee'),
+          t('itemsSummary'),
+          t('totalAmount'),
+          t('status'),
+        ],
+        rows,
+      });
+      addToast('success', t('exportSuccess'));
+    } catch {
+      addToast('error', t('exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }, [filteredOrders, groupedOrders, t, addToast]);
 
   const periodSummary = React.useMemo(() => {
     const summary: Record<string, { methods: Record<string, number>; fees: number }> = {};
-    filteredOrders.forEach((order) => {
+    courierFilteredOrders.forEach((order) => {
       const date = new Date(order.created_at);
       const key =
         viewMode === 'daily'
-          ? date.toLocaleDateString()
+          ? formatDateDDMMYYYY(date)
           : viewMode === 'monthly'
             ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
             : `${date.getFullYear()}`;
@@ -220,15 +268,15 @@ export default function DeliverySalesLogPage() {
       summary[key].fees += deliveryFee;
     });
     return summary;
-  }, [filteredOrders, viewMode]);
+  }, [courierFilteredOrders, viewMode]);
 
   const courierPeriodTotals = React.useMemo(() => {
     const totals: Record<string, Record<string, number>> = {};
-    filteredOrders.forEach((order) => {
+    courierFilteredOrders.forEach((order) => {
       const date = new Date(order.created_at);
       const key =
         viewMode === 'daily'
-          ? date.toLocaleDateString()
+          ? formatDateDDMMYYYY(date)
           : viewMode === 'monthly'
             ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
             : `${date.getFullYear()}`;
@@ -237,7 +285,7 @@ export default function DeliverySalesLogPage() {
       totals[key][courier] = (totals[key][courier] || 0) + Number(order.delivery_fee || 0);
     });
     return totals;
-  }, [filteredOrders, viewMode]);
+  }, [courierFilteredOrders, viewMode]);
 
   const courierOptions = React.useMemo(() => {
     const set = new Set<string>();
@@ -301,10 +349,10 @@ export default function DeliverySalesLogPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Delivery Sales Log
+          {t('deliverySalesLogTitle')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Access restricted. Sales reports are available to admins only.
+          {t('accessRestricted')} {t('salesAdminOnly')}
         </p>
       </div>
     );
@@ -314,14 +362,21 @@ export default function DeliverySalesLogPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Delivery Sales Log
+          {t('deliverySalesLogTitle')}
         </h1>
         <div className="flex items-center gap-2">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search invoice, customer, courier, phone..."
+            placeholder={t('searchDeliveryPlaceholder')}
             className="h-9 w-64"
+          />
+          <Input
+            type="month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="h-9 w-40"
+            placeholder={t('monthFilter')}
           />
           <Button
             variant="outline"
@@ -330,7 +385,7 @@ export default function DeliverySalesLogPage() {
             onClick={handleExportExcel}
             disabled={loading}
           >
-            Download Excel
+            {t('downloadExcel')}
           </Button>
           <Button
             variant="outline"
@@ -339,15 +394,20 @@ export default function DeliverySalesLogPage() {
             onClick={fetchOrders}
             disabled={loading}
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t('refresh')}
           </Button>
         </div>
       </div>
+      {exporting && (
+        <div className="text-xs text-muted-foreground">
+          {t('exportLoading')}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Summary
+            {t('summary')}
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -355,7 +415,7 @@ export default function DeliverySalesLogPage() {
               onChange={(e) => setSelectedCourier(e.target.value)}
               className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
             >
-              <option value="all">All Couriers</option>
+              <option value="all">{t('allCouriers')}</option>
               {courierOptions.map((courier) => (
                 <option key={courier} value={courier}>{courier}</option>
               ))}
@@ -365,14 +425,14 @@ export default function DeliverySalesLogPage() {
               onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
               className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs"
             >
-              <option value="daily">Daily</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
+              <option value="daily">{t('daily')}</option>
+              <option value="monthly">{t('monthly')}</option>
+              <option value="yearly">{t('yearly')}</option>
             </select>
           </div>
         </div>
         {Object.keys(periodSummary).length === 0 && (
-          <div className="text-xs text-muted-foreground">No summary available.</div>
+          <div className="text-xs text-muted-foreground">{t('noSummary')}</div>
         )}
         {Object.entries(periodSummary).map(([date, summary]) => {
           const totalCollected = Object.values(summary.methods).reduce((a, b) => a + b, 0);
@@ -383,19 +443,19 @@ export default function DeliverySalesLogPage() {
               <div className="text-base font-semibold">{date}</div>
               <div className="grid gap-2 md:grid-cols-4">
                 <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Collected</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t('collected')}</div>
                   <div className="text-sm font-semibold">{totalCollected.toLocaleString()} Ks</div>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Net Sale</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t('netSale')}</div>
                   <div className="text-sm font-semibold">{netSale.toLocaleString()} Ks</div>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Courier Fees</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t('courierFees')}</div>
                   <div className="text-sm font-semibold">{summary.fees.toLocaleString()} Ks</div>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">Couriers</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{t('couriers')}</div>
                   <div className="text-xs font-semibold">
                     {Object.keys(courierTotals).length === 0
                       ? '—'
@@ -420,15 +480,15 @@ export default function DeliverySalesLogPage() {
             <table className="w-full table-fixed text-sm text-left">
               <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
-                  <th className="px-2 py-2">Date</th>
-                  <th className="px-2 py-2">Invoice</th>
-                  <th className="px-2 py-2 hidden lg:table-cell">Customer</th>
-                  <th className="px-2 py-2">Courier</th>
-                  <th className="px-2 py-2 text-right">Delivery Fee</th>
-                  <th className="px-2 py-2">Payment Method</th>
-                  <th className="px-2 py-2 text-right">Collected</th>
-                  <th className="px-2 py-2 text-center hidden lg:table-cell">Payment Status</th>
-                  <th className="px-2 py-2 text-right">Action</th>
+                  <th className="px-2 py-2">{t('date')}</th>
+                  <th className="px-2 py-2">{t('invoice')}</th>
+                  <th className="px-2 py-2 hidden lg:table-cell">{t('customer')}</th>
+                  <th className="px-2 py-2">{t('courier')}</th>
+                  <th className="px-2 py-2 text-right">{t('deliveryFee')}</th>
+                  <th className="px-2 py-2">{t('paymentMethod')}</th>
+                  <th className="px-2 py-2 text-right">{t('collected')}</th>
+                  <th className="px-2 py-2 text-center hidden lg:table-cell">{t('status')}</th>
+                  <th className="px-2 py-2 text-right">{t('action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -445,7 +505,7 @@ export default function DeliverySalesLogPage() {
                         <React.Fragment key={`${dateKey}-${courierName}`}>
                           <tr className="bg-secondary/30 text-muted-foreground">
                             <td colSpan={9} className="px-2 py-2 text-xs font-semibold">
-                              {courierName} • {courierOrders.length} orders • Fees {totalFee.toLocaleString()} Ks
+                              {courierName} • {courierOrders.length} {t('ordersLabel')} • {t('feesLabel')} {totalFee.toLocaleString()} Ks
                             </td>
                           </tr>
                           {courierOrders.map((order) => {
@@ -497,7 +557,7 @@ export default function DeliverySalesLogPage() {
                                     ) : (
                                       <AlertCircle className="h-4 w-4" />
                                     )}
-                                    {order.payment_status}
+                                    {getStatusLabel(order.payment_status)}
                                   </Button>
                                 </td>
                                 <td className="px-2 py-2 text-right">
@@ -509,7 +569,7 @@ export default function DeliverySalesLogPage() {
                                       onClick={() => openEdit(order)}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      Edit
+                                      {t('edit')}
                                     </Button>
                                     <Button
                                       variant="outline"
@@ -519,7 +579,7 @@ export default function DeliverySalesLogPage() {
                                       onClick={() => setDeleteTarget(order)}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      {deletingId === order.id ? 'Deleting...' : 'Delete'}
+                                      {deletingId === order.id ? t('deleting') : t('delete')}
                                     </Button>
                                   </div>
                                 </td>
@@ -536,7 +596,7 @@ export default function DeliverySalesLogPage() {
           </div>
           {filteredOrders.length === 0 && (
             <div className="py-20 text-center text-muted-foreground">
-              No delivery records found.
+              {t('noDeliveryRecords')}
             </div>
           )}
         </div>
@@ -544,9 +604,9 @@ export default function DeliverySalesLogPage() {
       <ReceiptModal open={receiptOpen} receipt={selectedReceipt} onClose={() => setReceiptOpen(false)} />
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete sale record?"
-        description={`Are you sure you want to delete invoice "${deleteTarget?.invoice_id ?? ''}"? Stock will be restored.`}
-        confirmLabel="Delete"
+        title={t('deleteSaleRecordTitle')}
+        description={`${t('deleteSaleRecordDesc')} ${deleteTarget?.invoice_id ? `"${deleteTarget.invoice_id}"` : ''}`}
+        confirmLabel={t('delete')}
         onConfirm={deleteOrder}
         onCancel={() => setDeleteTarget(null)}
         confirmVariant="destructive"
@@ -556,35 +616,35 @@ export default function DeliverySalesLogPage() {
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold">Edit Delivery Sale</div>
+              <div className="text-sm font-semibold">{t('editDeliveryTitle')}</div>
               <Button
                 variant="outline"
                 size="sm"
                 className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                 onClick={() => setEditOpen(false)}
               >
-                Close
+                {t('close')}
               </Button>
             </div>
             <form className="grid gap-3 text-xs md:grid-cols-2" onSubmit={saveEdit}>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Customer Name</label>
+                <label className="text-xs font-semibold">{t('customerName')}</label>
                 <Input value={editCustomerName} onChange={(e) => setEditCustomerName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Phone</label>
+                <label className="text-xs font-semibold">{t('phone')}</label>
                 <Input value={editCustomerPhone} onChange={(e) => setEditCustomerPhone(e.target.value)} />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Address</label>
+                <label className="text-xs font-semibold">{t('address')}</label>
                 <Input value={editCustomerAddress} onChange={(e) => setEditCustomerAddress(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Courier</label>
+                <label className="text-xs font-semibold">{t('courier')}</label>
                 <Input value={editCourierName} onChange={(e) => setEditCourierName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Delivery Fee</label>
+                <label className="text-xs font-semibold">{t('deliveryFee')}</label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -593,7 +653,7 @@ export default function DeliverySalesLogPage() {
                 />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Payment Method</label>
+                <label className="text-xs font-semibold">{t('paymentMethod')}</label>
                 <Input value={editPaymentMethod} onChange={(e) => setEditPaymentMethod(e.target.value)} />
               </div>
               <div className="md:col-span-2 flex justify-end gap-2 pt-2">
@@ -603,14 +663,29 @@ export default function DeliverySalesLogPage() {
                   className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                   onClick={() => setEditOpen(false)}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button type="submit" disabled={savingEdit} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  {savingEdit ? 'Saving...' : 'Save'}
+                  {savingEdit ? t('saving') : t('save')}
                 </Button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 space-y-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`rounded-md border px-3 py-2 text-sm shadow-md ${toast.type === 'success'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                : 'border-destructive/60 bg-destructive/10 text-destructive'
+                }`}
+            >
+              {toast.message}
+            </div>
+          ))}
         </div>
       )}
     </div>

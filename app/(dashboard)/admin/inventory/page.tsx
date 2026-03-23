@@ -10,6 +10,7 @@ import { useCategories } from '@/lib/useCategories';
 import { compressImageFile } from '@/lib/image';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import type { Product } from '@/lib/useProducts';
+import { useT } from '@/components/language-provider';
 import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
 import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
@@ -177,6 +178,7 @@ const InventoryRow = React.memo(function InventoryRow({
 });
 
 export default function AdminInventoryPage() {
+  const t = useT();
   const { role } = useDashboardAuth();
   const isAdmin = role === 'admin';
   const [products, setProducts] = React.useState<AdminProduct[]>([]);
@@ -188,6 +190,8 @@ export default function AdminInventoryPage() {
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [toasts, setToasts] = React.useState<{ id: number; type: 'success' | 'error'; message: string }[]>([]);
   const { categories: dbCategories, refresh: refreshCategories } = useCategories();
   const bulkInputRef = React.useRef<HTMLInputElement | null>(null);
   const [bulkStatus, setBulkStatus] = React.useState<string | null>(null);
@@ -224,6 +228,14 @@ export default function AdminInventoryPage() {
   const [scanManualInput, setScanManualInput] = React.useState('');
   const [scanningForForm, setScanningForForm] = React.useState(false);
   const isBusy = saving || uploading;
+
+  const addToast = React.useCallback((type: 'success' | 'error', message: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 4000);
+  }, []);
 
   const uploadProductImage = React.useCallback(
     async (productId: number, file: File) => {
@@ -595,33 +607,57 @@ export default function AdminInventoryPage() {
   }, [isAdmin]);
 
   const handleExportInventory = React.useCallback(async () => {
-    const { header, rows } = buildExportRows(products);
-    await downloadInventoryXlsxWithImages({
-      filename: 'inventory-export.xlsx',
-      header,
-      rows,
-      imageColumnIndex: header.indexOf('Image') + 1,
-      thumbnailSize: 50,
-      rowHeight: 50,
-    });
-  }, [products, buildExportRows]);
+    setExporting(true);
+    try {
+      const { header, rows } = buildExportRows(products);
+      const result = await downloadInventoryXlsxWithImages({
+        filename: 'inventory-export.xlsx',
+        header,
+        rows,
+        imageColumnIndex: header.indexOf('Image') + 1,
+        thumbnailSize: 50,
+        rowHeight: 50,
+      });
+      if (result.failedImages > 0) {
+        addToast('error', t('exportError'));
+      } else {
+        addToast('success', t('exportSuccess'));
+      }
+    } catch {
+      addToast('error', t('exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }, [products, buildExportRows, addToast, t]);
 
   const handleExportRecent = React.useCallback(async () => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const recent = products.filter((p) => {
-      if (!p.created_at) return false;
-      return Date.parse(p.created_at) >= cutoff;
-    });
-    const { header, rows } = buildExportRows(recent);
-    await downloadInventoryXlsxWithImages({
-      filename: 'inventory-export-recent.xlsx',
-      header,
-      rows,
-      imageColumnIndex: header.indexOf('Image') + 1,
-      thumbnailSize: 50,
-      rowHeight: 50,
-    });
-  }, [products, buildExportRows]);
+    setExporting(true);
+    try {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const recent = products.filter((p) => {
+        if (!p.created_at) return false;
+        return Date.parse(p.created_at) >= cutoff;
+      });
+      const { header, rows } = buildExportRows(recent);
+      const result = await downloadInventoryXlsxWithImages({
+        filename: 'inventory-export-recent.xlsx',
+        header,
+        rows,
+        imageColumnIndex: header.indexOf('Image') + 1,
+        thumbnailSize: 50,
+        rowHeight: 50,
+      });
+      if (result.failedImages > 0) {
+        addToast('error', t('exportError'));
+      } else {
+        addToast('success', t('exportSuccess'));
+      }
+    } catch {
+      addToast('error', t('exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }, [products, buildExportRows, addToast, t]);
 
   const handleBulkFile = React.useCallback(
     async (file: File) => {
@@ -1010,17 +1046,17 @@ export default function AdminInventoryPage() {
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Inventory Management</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{t('inventoryTitle')}</h1>
             <p className="text-sm text-muted-foreground">
-              {isOnline ? 'Online sync ready.' : 'Offline mode. Changes will sync later.'}
+              {isOnline ? t('onlineSyncReady') : t('offlineSyncLater')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="h-12 px-5 text-base" onClick={() => setScannerOpen(true)}>
-              Scan Barcode
+              {t('scanBarcode')}
             </Button>
             <Button variant="outline" className="h-12 px-5 text-base" onClick={handleDownloadTemplate}>
-              Download Template
+              {t('downloadTemplate')}
             </Button>
             <Button
               variant="outline"
@@ -1028,16 +1064,16 @@ export default function AdminInventoryPage() {
               onClick={() => bulkInputRef.current?.click()}
               disabled={bulkLoading}
             >
-              Bulk Upload
+              {t('bulkUpload')}
             </Button>
             <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportInventory}>
-              Export to Excel
+              {t('exportInventory')}
             </Button>
             <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportRecent}>
-              Export Recently Added
+              {t('exportRecent')}
             </Button>
             <Button className="h-12 px-5 text-base" onClick={openCreate}>
-              Add Product
+              {t('addProduct')}
             </Button>
             <input
               ref={bulkInputRef}
@@ -1052,13 +1088,18 @@ export default function AdminInventoryPage() {
             />
           </div>
         </div>
+        {exporting && (
+          <div className="text-xs text-muted-foreground">
+            {t('exportLoading')}
+          </div>
+        )}
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
             <div className="relative flex-1">
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name, category, or barcode..."
+                placeholder={t('searchInventoryPlaceholder')}
                 className="h-12 rounded-xl text-base"
               />
             </div>
@@ -1070,11 +1111,11 @@ export default function AdminInventoryPage() {
                 : "h-10 px-4 rounded-xl text-xs font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
               }
             >
-              Recently Added
+              {t('recentlyAdded')}
             </Button>
           </div>
           <div className="text-xs text-muted-foreground">
-            {syncing ? 'Syncing changes...' : `${filtered.length} items`}
+            {syncing ? t('syncing') : `${filtered.length} ${t('itemCount')}`}
           </div>
         </div>
         <div className="flex flex-nowrap items-center gap-1 overflow-x-auto">
@@ -1086,7 +1127,7 @@ export default function AdminInventoryPage() {
               : "h-6 px-2 rounded-full text-[9px] font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             }
           >
-            All
+            {t('all')}
           </Button>
           {alphabet.map((letter) => (
             <Button
@@ -1119,16 +1160,16 @@ export default function AdminInventoryPage() {
           <table className="min-w-[980px] w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur">
               <tr className="border-b border-border/60 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-3 text-left font-semibold">ID</th>
-                <th className="px-3 py-3 text-left font-semibold">Image</th>
-                <th className="px-3 py-3 text-left font-semibold">Name</th>
-                <th className="px-3 py-3 text-left font-semibold">SKU</th>
-                <th className="px-3 py-3 text-left font-semibold">Category</th>
-                <th className="px-3 py-3 text-left font-semibold">Size</th>
-                <th className="px-3 py-3 text-left font-semibold">Barcode</th>
-                <th className="px-3 py-3 text-left font-semibold">Stock</th>
-                <th className="px-3 py-3 text-right font-semibold">Price</th>
-                <th className="px-3 py-3 text-right font-semibold">Action</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('productId')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('image')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('name')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('sku')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('category')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('size')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('barcode')}</th>
+                <th className="px-3 py-3 text-left font-semibold">{t('stock')}</th>
+                <th className="px-3 py-3 text-right font-semibold">{t('salePrice')}</th>
+                <th className="px-3 py-3 text-right font-semibold">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1271,6 +1312,22 @@ export default function AdminInventoryPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 space-y-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`rounded-md border px-3 py-2 text-sm shadow-md ${toast.type === 'success'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                : 'border-destructive/60 bg-destructive/10 text-destructive'
+                }`}
+            >
+              {toast.message}
+            </div>
+          ))}
         </div>
       )}
 

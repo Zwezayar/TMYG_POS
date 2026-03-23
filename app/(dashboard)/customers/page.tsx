@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Loader2 } from 'lucide-react';
 import { downloadExcel } from '@/lib/excel';
+import { useT } from '@/components/language-provider';
 
 type Customer = {
   id: number;
@@ -23,6 +24,7 @@ type Customer = {
 };
 
 export default function CustomersPage() {
+  const t = useT();
   const { role } = useDashboardAuth();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -58,7 +60,7 @@ export default function CustomersPage() {
         setError(fallbackError.message);
       } else {
         setCustomers((fallbackData ?? []) as Customer[]);
-        setError('facebook_username column cache is not refreshed yet. Please retry in a moment.');
+        setError(t('schemaCacheWait'));
       }
       setLoading(false);
       return;
@@ -74,7 +76,7 @@ export default function CustomersPage() {
 
   const handleExportCustomers = React.useCallback(() => {
     const rows = [
-      ['Name', 'Phone', 'Phone 2', 'Facebook', 'Address', 'Remark', 'TotalSpent', 'Loyal'],
+      [t('name'), t('phone'), t('phone2'), t('facebook'), t('address'), t('remark'), t('totalSpent'), t('loyalty')],
       ...customers.map((c) => [
         c.name ?? '',
         c.phone ?? '',
@@ -83,7 +85,7 @@ export default function CustomersPage() {
         c.address ?? '',
         c.remark ?? '',
         c.total_spent ?? 0,
-        c.loyal_status ? 'Yes' : 'No',
+        c.loyal_status ? t('yes') : t('no'),
       ]),
     ];
     downloadExcel('customers-export.xlsx', rows);
@@ -124,7 +126,7 @@ export default function CustomersPage() {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!phone.trim()) {
-      setError('Phone is required.');
+      setError(t('phoneRequired'));
       return;
     }
     setSaving(true);
@@ -189,10 +191,10 @@ export default function CustomersPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Customers
+          {t('customersTitle')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Access restricted. Please sign in to continue.
+          {t('accessRestrictedSignIn')}
         </p>
       </div>
     );
@@ -202,7 +204,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
-          Customers
+          {t('customersTitle')}
         </h1>
         <div className="flex items-center gap-2">
           <Button
@@ -212,7 +214,7 @@ export default function CustomersPage() {
             onClick={fetchCustomers}
             disabled={loading}
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t('refresh')}
           </Button>
           <Button
             variant="outline"
@@ -220,10 +222,10 @@ export default function CustomersPage() {
             className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={handleExportCustomers}
           >
-            Export to Excel
+            {t('downloadExcel')}
           </Button>
           <Button size="sm" onClick={openCreate} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Add Customer
+            {t('addCustomer')}
           </Button>
         </div>
       </div>
@@ -238,15 +240,15 @@ export default function CustomersPage() {
             <table className="w-full text-sm text-left">
               <thead className="sticky top-0 z-10 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
                 <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Phone</th>
-                  <th className="px-4 py-3">Phone 2</th>
-                  <th className="px-4 py-3">Facebook</th>
-                  <th className="px-4 py-3">Address</th>
-                  <th className="px-4 py-3">Remark</th>
-                  <th className="px-4 py-3 text-right">Total Spent</th>
-                  <th className="px-4 py-3 text-center">Loyal</th>
-                  <th className="px-4 py-3 text-right">Action</th>
+                  <th className="px-4 py-3">{t('name')}</th>
+                  <th className="px-4 py-3">{t('phone')}</th>
+                  <th className="px-4 py-3">{t('phone2')}</th>
+                  <th className="px-4 py-3">{t('facebook')}</th>
+                  <th className="px-4 py-3">{t('address')}</th>
+                  <th className="px-4 py-3">{t('remark')}</th>
+                  <th className="px-4 py-3 text-right">{t('totalSpent')}</th>
+                  <th className="px-4 py-3 text-center">{t('loyalty')}</th>
+                  <th className="px-4 py-3 text-right">{t('action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -263,7 +265,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${customer.loyal_status ? 'bg-emerald-500/10 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
-                        {customer.loyal_status ? 'Loyal' : 'Standard'}
+                        {customer.loyal_status ? t('loyal') : t('standard')}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
@@ -274,7 +276,7 @@ export default function CustomersPage() {
                           className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                           onClick={() => openEdit(customer)}
                         >
-                          Edit
+                          {t('edit')}
                         </Button>
                         <Button
                           variant="outline"
@@ -283,7 +285,7 @@ export default function CustomersPage() {
                           disabled={deletingId === customer.id}
                           onClick={() => setDeleteTarget(customer)}
                         >
-                          {deletingId === customer.id ? 'Deleting...' : 'Delete'}
+                          {deletingId === customer.id ? t('deleting') : t('delete')}
                         </Button>
                       </div>
                     </td>
@@ -304,79 +306,79 @@ export default function CustomersPage() {
           <div className="w-full max-w-lg rounded-lg border border-border bg-card p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold">{editingCustomer ? 'Edit Customer' : 'Add Customer'}</h2>
+                <h2 className="text-sm font-semibold">{editingCustomer ? t('customerFormTitleEdit') : t('customerFormTitleAdd')}</h2>
                 <p className="text-xs text-muted-foreground">
-                  Manage customer details and loyalty status.
+                  {t('customerFormSubtext')}
                 </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setDialogOpen(false)}>
-                Close
+                {t('close')}
               </Button>
             </div>
             <form className="grid gap-3 text-xs md:grid-cols-2" onSubmit={handleSave}>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Phone</label>
+                <label className="text-xs font-semibold">{t('phone')}</label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number"
+                  placeholder={t('phonePlaceholder')}
                   className="h-10"
                 />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Phone 2</label>
+                <label className="text-xs font-semibold">{t('phone2')}</label>
                 <Input
                   value={phone2}
                   onChange={(e) => setPhone2(e.target.value)}
-                  placeholder="Secondary phone"
+                  placeholder={t('phone2Placeholder')}
                   className="h-10"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Name</label>
+                <label className="text-xs font-semibold">{t('name')}</label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Customer name"
+                  placeholder={t('customerNamePlaceholder')}
                   className="h-10"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Address</label>
+                <label className="text-xs font-semibold">{t('address')}</label>
                 <Input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Address"
+                  placeholder={t('addressPlaceholder')}
                   className="h-10"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Facebook User Name</label>
+                <label className="text-xs font-semibold">{t('facebook')}</label>
                 <Input
                   value={facebookUsername}
                   onChange={(e) => setFacebookUsername(e.target.value)}
-                  placeholder="Facebook user name"
+                  placeholder={t('facebookPlaceholder')}
                   className="h-10"
                 />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Remark</label>
+                <label className="text-xs font-semibold">{t('remark')}</label>
                 <textarea
                   value={remark}
                   onChange={(e) => setRemark(e.target.value)}
-                  placeholder="Notes"
+                  placeholder={t('notesPlaceholder')}
                   className="min-h-[70px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold">Loyal Status</label>
+                <label className="text-xs font-semibold">{t('loyalStatus')}</label>
                 <select
                   value={loyalStatus ? 'loyal' : 'standard'}
                   onChange={(e) => setLoyalStatus(e.target.value === 'loyal')}
                   className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <option value="standard">Standard</option>
-                  <option value="loyal">Loyal</option>
+                  <option value="standard">{t('standard')}</option>
+                  <option value="loyal">{t('loyal')}</option>
                 </select>
               </div>
               {error && (
@@ -391,10 +393,10 @@ export default function CustomersPage() {
                   className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
                   onClick={() => setDialogOpen(false)}
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  {saving ? 'Saving...' : 'Save'}
+                  {saving ? t('saving') : t('save')}
                 </Button>
               </div>
             </form>
@@ -403,9 +405,9 @@ export default function CustomersPage() {
       )}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete customer?"
-        description={`Are you sure you want to delete "${deleteTarget?.name ?? 'this customer'}"?`}
-        confirmLabel="Delete"
+        title={t('deleteConfirmCustomerTitle')}
+        description={`${t('deleteConfirmCustomerDesc')} "${deleteTarget?.name ?? ''}"`}
+        confirmLabel={t('delete')}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         confirmVariant="destructive"
