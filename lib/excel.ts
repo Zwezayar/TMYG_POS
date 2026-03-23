@@ -56,11 +56,12 @@ export async function downloadInventoryXlsxWithImages({
     }
   });
 
-  const getExtension = (type?: string) => {
-    if (!type) return 'jpeg';
+  const getExtension = (type?: string): 'jpeg' | 'png' | 'gif' => {
+    if (!type) return 'png';
     if (type.includes('png')) return 'png';
-    if (type.includes('webp')) return 'webp';
-    return 'jpeg';
+    if (type.includes('gif')) return 'gif';
+    if (type.includes('jpeg') || type.includes('jpg')) return 'jpeg';
+    return 'png';
   };
 
   const loadImageBuffer = async (url: string) => {
@@ -87,7 +88,7 @@ export async function downloadInventoryXlsxWithImages({
     if (imageUrl) {
       try {
         const { buffer, extension } = await loadImageBuffer(imageUrl);
-        const imageId = workbook.addImage({ buffer, extension });
+        const imageId = workbook.addImage({ buffer, extension: extension as 'jpeg' | 'png' | 'gif' });
         worksheet.addImage(imageId, {
           tl: { col: imageColumnIndex - 1 + 0.15, row: rowIndex - 1 + 0.15 },
           ext: { width: thumbnailSize, height: thumbnailSize },
