@@ -21,6 +21,11 @@ export type InventoryImageRow = {
   imageUrl?: string | null;
 };
 
+export type SalesExportRow = {
+  cells: (string | number | null | undefined)[];
+  kind?: 'group' | 'subgroup' | 'data';
+};
+
 export async function downloadInventoryXlsxWithImages({
   filename,
   header,
@@ -47,9 +52,13 @@ export async function downloadInventoryXlsxWithImages({
     const column = worksheet.getColumn(idx + 1);
     if (name.toLowerCase() === 'image') {
       column.width = 12;
+    } else if (name.toLowerCase() === 'no') {
+      column.width = 6;
     } else if (name.toLowerCase().includes('name')) {
       column.width = 24;
     } else if (name.toLowerCase().includes('category')) {
+      column.width = 18;
+    } else if (name.toLowerCase().includes('remark')) {
       column.width = 18;
     } else {
       column.width = 12;
@@ -98,6 +107,98 @@ export async function downloadInventoryXlsxWithImages({
       }
     }
   }
+
+  const out = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([out], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadSalesXlsx({
+  filename,
+  title,
+  summaryRows,
+  columns,
+  rows,
+}: {
+  filename: string;
+  title: string;
+  summaryRows: [string, string | number | null | undefined][];
+  columns: string[];
+  rows: SalesExportRow[];
+}) {
+  if (typeof window === 'undefined') return;
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Sales');
+
+  const titleRow = worksheet.addRow([title]);
+  titleRow.font = { bold: true, size: 14 };
+  worksheet.addRow([]);
+
+  summaryRows.forEach(([label, value]) => {
+    const row = worksheet.addRow([label, value ?? '']);
+    row.font = { bold: true };
+  });
+
+  worksheet.addRow([]);
+  const headerRow = worksheet.addRow(columns);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { vertical: 'middle' };
+
+  columns.forEach((name, idx) => {
+    const column = worksheet.getColumn(idx + 1);
+    if (name.toLowerCase() === 'no.') {
+      column.width = 6;
+    } else if (name.toLowerCase().includes('invoice')) {
+      column.width = 18;
+    } else if (name.toLowerCase().includes('customer')) {
+      column.width = 20;
+    } else if (name.toLowerCase().includes('items')) {
+      column.width = 32;
+    } else if (name.toLowerCase().includes('payment')) {
+      column.width = 16;
+    } else if (name.toLowerCase().includes('total')) {
+      column.width = 16;
+    } else {
+      column.width = 14;
+    }
+  });
+
+  let dataIndex = 0;
+  rows.forEach((row) => {
+    const excelRow = worksheet.addRow(row.cells);
+    if (row.kind === 'group') {
+      excelRow.font = { bold: true };
+      excelRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE5E7EB' },
+      };
+    } else if (row.kind === 'subgroup') {
+      excelRow.font = { bold: true };
+      excelRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF3F4F6' },
+      };
+    } else {
+      dataIndex += 1;
+      if (dataIndex % 2 === 0) {
+        excelRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF9FAFB' },
+        };
+      }
+    }
+  });
 
   const out = await workbook.xlsx.writeBuffer();
   const blob = new Blob([out], {

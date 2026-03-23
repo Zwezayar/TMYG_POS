@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
+import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Order = {
@@ -137,6 +138,68 @@ export default function DeliverySalesLogPage() {
     return entries;
   }, [filteredOrders]);
 
+  const buildItemSummary = (order: Order) => {
+    const items = order.receipt_payload?.items ?? [];
+    if (!items.length) return '—';
+    return items.map((item) => `${item.name} x${item.qty}`).join(', ');
+  };
+
+  const handleExportExcel = React.useCallback(async () => {
+    const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
+    const latest = allDates[0];
+    const oldest = allDates[allDates.length - 1];
+    const dateRange = latest
+      ? `${new Date(latest).toLocaleDateString()} - ${new Date(oldest).toLocaleDateString()}`
+      : '—';
+    const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+    const totalFees = filteredOrders.reduce((sum, order) => sum + Number(order.delivery_fee || 0), 0);
+
+    const rows: SalesExportRow[] = [];
+    let serial = 1;
+    groupedOrders.forEach(([dateKey, courierMap]) => {
+      rows.push({
+        kind: 'group',
+        cells: ['', dateKey, '', '', '', '', '', '', ''],
+      });
+      Array.from(courierMap.entries()).forEach(([courierName, courierOrders]) => {
+        const totalFee = courierOrders.reduce((sum, o) => sum + Number(o.delivery_fee || 0), 0);
+        rows.push({
+          kind: 'subgroup',
+          cells: ['', '', '', '', courierName, totalFee, 'Subtotal', '', ''],
+        });
+        courierOrders.forEach((order) => {
+          const deliveryFee = Number(order.delivery_fee || 0);
+          rows.push({
+            kind: 'data',
+            cells: [
+              serial++,
+              dateKey,
+              order.invoice_id ?? '',
+              order.customer_name ?? '',
+              order.courier_name ?? '',
+              deliveryFee,
+              buildItemSummary(order),
+              (order.total_amount || 0) + deliveryFee,
+              order.payment_status ?? '',
+            ],
+          });
+        });
+      });
+    });
+
+    await downloadSalesXlsx({
+      filename: 'delivery-sales-log.xlsx',
+      title: 'Delivery Sales Log',
+      summaryRows: [
+        ['Date Range', dateRange],
+        ['Total Sales', totalSales],
+        ['Total Fees', totalFees],
+      ],
+      columns: ['No.', 'Date', 'Invoice ID', 'Customer Name', 'Courier Name', 'Delivery Fee', 'Items (Summary)', 'Total Amount', 'Status'],
+      rows,
+    });
+  }, [filteredOrders, groupedOrders]);
+
   const periodSummary = React.useMemo(() => {
     const summary: Record<string, { methods: Record<string, number>; fees: number }> = {};
     filteredOrders.forEach((order) => {
@@ -260,6 +323,15 @@ export default function DeliverySalesLogPage() {
             placeholder="Search invoice, customer, courier, phone..."
             className="h-9 w-64"
           />
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={handleExportExcel}
+            disabled={loading}
+          >
+            Download Excel
+          </Button>
           <Button
             variant="outline"
             size="sm"

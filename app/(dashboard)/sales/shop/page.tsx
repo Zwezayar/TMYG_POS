@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
+import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type Order = {
@@ -139,6 +140,58 @@ export default function ShopSalesLogPage() {
     return entries;
   }, [filteredOrders]);
 
+  const buildItemSummary = (order: Order) => {
+    const items = order.receipt_payload?.items ?? [];
+    if (!items.length) return '—';
+    return items.map((item) => `${item.name} x${item.qty}`).join(', ');
+  };
+
+  const handleExportExcel = React.useCallback(async () => {
+    const allDates = filteredOrders.map((order) => new Date(order.created_at).getTime()).sort((a, b) => b - a);
+    const latest = allDates[0];
+    const oldest = allDates[allDates.length - 1];
+    const dateRange = latest
+      ? `${new Date(latest).toLocaleDateString()} - ${new Date(oldest).toLocaleDateString()}`
+      : '—';
+    const totalSales = filteredOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+
+    const rows: SalesExportRow[] = [];
+    let serial = 1;
+    groupedOrders.forEach(([dateKey, dayOrders]) => {
+      const dailyTotal = dayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+      rows.push({
+        kind: 'group',
+        cells: ['', dateKey, '', '', `Daily Total`, dailyTotal, '', ''],
+      });
+      dayOrders.forEach((order) => {
+        rows.push({
+          kind: 'data',
+          cells: [
+            serial++,
+            dateKey,
+            order.invoice_id ?? '',
+            order.customer_name ?? '',
+            buildItemSummary(order),
+            order.total_amount ?? 0,
+            order.payment_method ?? '',
+            order.payment_status ?? '',
+          ],
+        });
+      });
+    });
+
+    await downloadSalesXlsx({
+      filename: 'shop-sales-log.xlsx',
+      title: 'Shop Sales Log',
+      summaryRows: [
+        ['Date Range', dateRange],
+        ['Total Sales', totalSales],
+      ],
+      columns: ['No.', 'Date', 'Invoice ID', 'Customer Name', 'Items (Summary)', 'Total Amount', 'Payment Method', 'Status'],
+      rows,
+    });
+  }, [filteredOrders, groupedOrders]);
+
   const openReceipt = (order: Order) => {
     setSelectedReceipt(order.receipt_payload ?? null);
     setReceiptOpen(true);
@@ -211,6 +264,15 @@ export default function ShopSalesLogPage() {
             placeholder="Search invoice, customer, phone, payment..."
             className="h-9 w-64"
           />
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={handleExportExcel}
+            disabled={loading}
+          >
+            Download Excel
+          </Button>
           <Button
             variant="outline"
             size="sm"
