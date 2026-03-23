@@ -576,8 +576,8 @@ export default function AdminInventoryPage() {
 
   const buildExportRows = React.useCallback((items: AdminProduct[]) => {
     const header = isAdmin
-      ? ['No', 'Image', 'Barcode', 'Name', 'Category', 'Size', 'CostPrice', 'SalePrice', 'Stock', 'ActualCount', 'Remark']
-      : ['No', 'Image', 'Barcode', 'Name', 'Category', 'Size', 'SalePrice', 'Stock', 'ActualCount', 'Remark'];
+      ? ['No', 'Image', 'Barcode', 'Name', 'Category', 'Size', 'CostPrice', 'SalePrice', 'New Price', 'Stock', 'Count', 'Remark']
+      : ['No', 'Image', 'Barcode', 'Name', 'Category', 'Size', 'SalePrice', 'New Price', 'Stock', 'Count', 'Remark'];
     const sorted = [...items].sort((a, b) => {
       const categoryA = (a.category ?? '').toLowerCase();
       const categoryB = (b.category ?? '').toLowerCase();
@@ -602,6 +602,7 @@ export default function AdminInventoryPage() {
       }
       base.push(
         String(p.sale_price ?? ''),
+        '',
         String(p.stock_quantity ?? ''),
         '',
         ''

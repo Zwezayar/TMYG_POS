@@ -85,6 +85,10 @@ export async function downloadInventoryXlsxWithImages({
       column.width = 24;
     } else if (name.toLowerCase().includes('category')) {
       column.width = 18;
+    } else if (name.toLowerCase().includes('new price')) {
+      column.width = 16;
+    } else if (name.toLowerCase() === 'count') {
+      column.width = 16;
     } else if (name.toLowerCase().includes('remark')) {
       column.width = 18;
     } else {
