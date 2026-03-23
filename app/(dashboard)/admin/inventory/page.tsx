@@ -12,7 +12,7 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import type { Product } from '@/lib/useProducts';
 import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
-import { downloadExcel } from '@/lib/excel';
+import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
 
 type PendingAction = {
   id: string;
@@ -556,35 +556,70 @@ export default function AdminInventoryPage() {
   const handleDownloadTemplate = React.useCallback(() => {
     downloadExcel('inventory-template.xlsx', [
       isAdmin
-        ? ['Barcode', 'Name', 'Category', 'CostPrice', 'SalePrice', 'Stock']
-        : ['Barcode', 'Name', 'Category', 'SalePrice', 'Stock'],
+        ? ['Barcode', 'Name', 'Category', 'Size', 'CostPrice', 'SalePrice', 'Stock', 'ImageURL']
+        : ['Barcode', 'Name', 'Category', 'Size', 'SalePrice', 'Stock', 'ImageURL'],
     ]);
   }, [isAdmin]);
 
-  const handleExportInventory = React.useCallback(() => {
+  const buildExportRows = React.useCallback((items: AdminProduct[]) => {
     const header = isAdmin
-      ? ['Barcode', 'Name', 'Category', 'CostPrice', 'SalePrice', 'Stock']
-      : ['Barcode', 'Name', 'Category', 'SalePrice', 'Stock'];
-    const rows = [
+      ? ['Barcode', 'Name', 'Category', 'Size', 'CostPrice', 'SalePrice', 'Stock', 'Image', 'ActualCount']
+      : ['Barcode', 'Name', 'Category', 'Size', 'SalePrice', 'Stock', 'Image', 'ActualCount'];
+    const sorted = [...items].sort((a, b) => {
+      const categoryA = (a.category ?? '').toLowerCase();
+      const categoryB = (b.category ?? '').toLowerCase();
+      if (categoryA !== categoryB) return categoryA.localeCompare(categoryB);
+      return (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' });
+    });
+    const rows: InventoryImageRow[] = sorted.map((p) => {
+      const base = [
+        p.barcode ?? '',
+        p.product_name ?? '',
+        p.category ?? '',
+        p.size ?? p.variant ?? '',
+      ];
+      if (isAdmin) {
+        base.push(String(p.purchase_price ?? ''));
+      }
+      base.push(
+        String(p.sale_price ?? ''),
+        String(p.stock_quantity ?? ''),
+        '',
+        ''
+      );
+      return { cells: base, imageUrl: p.image_url ?? null };
+    });
+    return { header, rows };
+  }, [isAdmin]);
+
+  const handleExportInventory = React.useCallback(async () => {
+    const { header, rows } = buildExportRows(products);
+    await downloadInventoryXlsxWithImages({
+      filename: 'inventory-export.xlsx',
       header,
-      ...products.map((p) => {
-        const base = [
-          p.barcode ?? '',
-          p.product_name ?? '',
-          p.category ?? '',
-        ];
-        if (isAdmin) {
-          base.push(String(p.purchase_price ?? ''));
-        }
-        base.push(
-          String(p.sale_price ?? ''),
-          String(p.stock_quantity ?? '')
-        );
-        return base;
-      }),
-    ];
-    downloadExcel('inventory-export.xlsx', rows);
-  }, [products, isAdmin]);
+      rows,
+      imageColumnIndex: header.indexOf('Image') + 1,
+      thumbnailSize: 50,
+      rowHeight: 50,
+    });
+  }, [products, buildExportRows]);
+
+  const handleExportRecent = React.useCallback(async () => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const recent = products.filter((p) => {
+      if (!p.created_at) return false;
+      return Date.parse(p.created_at) >= cutoff;
+    });
+    const { header, rows } = buildExportRows(recent);
+    await downloadInventoryXlsxWithImages({
+      filename: 'inventory-export-recent.xlsx',
+      header,
+      rows,
+      imageColumnIndex: header.indexOf('Image') + 1,
+      thumbnailSize: 50,
+      rowHeight: 50,
+    });
+  }, [products, buildExportRows]);
 
   const handleBulkFile = React.useCallback(
     async (file: File) => {
@@ -618,9 +653,11 @@ export default function AdminInventoryPage() {
         const barcodeIdx = idx('barcode');
         const nameIdx = idx('name');
         const categoryIdx = idx('category');
+        const sizeIdx = idx('size');
         const costIdx = isAdmin ? idx('costprice') : -1;
         const saleIdx = idx('saleprice');
         const stockIdx = idx('stock');
+        const imageIdx = idx('imageurl');
         if (barcodeIdx < 0 || nameIdx < 0 || saleIdx < 0) {
           setError('Template columns missing. Use the provided template.');
           setBulkLoading(false);
@@ -642,9 +679,11 @@ export default function AdminInventoryPage() {
             continue;
           }
         const categoryValue = categoryIdx >= 0 ? (row[categoryIdx] ?? '').toString().trim() : '';
+        const sizeValue = sizeIdx >= 0 ? (row[sizeIdx] ?? '').toString().trim() : '';
           const costValue = costIdx >= 0 ? Number((row[costIdx] ?? '').toString().trim()) : null;
           const saleValue = saleIdx >= 0 ? Number((row[saleIdx] ?? '').toString().trim()) : null;
           const stockValue = stockIdx >= 0 ? Number((row[stockIdx] ?? '').toString().trim()) : null;
+        const imageValue = imageIdx >= 0 ? (row[imageIdx] ?? '').toString().trim() : '';
           const payload: any = {
             barcode,
             sale_price: Number.isFinite(saleValue) ? saleValue : 0,
@@ -653,8 +692,10 @@ export default function AdminInventoryPage() {
           if (isAdmin) {
             payload.purchase_price = Number.isFinite(costValue) ? costValue : null;
           }
-          if (name) payload.product_name = name;
-          if (categoryValue) payload.category = categoryValue;
+        if (name) payload.product_name = name;
+        if (categoryValue) payload.category = categoryValue;
+        if (sizeValue) payload.size = sizeValue;
+        if (imageValue) payload.image_url = imageValue;
           const existing = byBarcode.get(barcode);
           if (existing) {
             const { error: updateError } = await supabaseClient
@@ -989,6 +1030,9 @@ export default function AdminInventoryPage() {
             </Button>
             <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportInventory}>
               Export to Excel
+            </Button>
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportRecent}>
+              Export Recently Added
             </Button>
             <Button className="h-12 px-5 text-base" onClick={openCreate}>
               Add Product
