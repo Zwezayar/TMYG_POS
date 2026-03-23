@@ -14,6 +14,7 @@ import { useT } from '@/components/language-provider';
 import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
 import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
+import { Loader2 } from 'lucide-react';
 
 type PendingAction = {
   id: string;
@@ -1066,10 +1067,10 @@ export default function AdminInventoryPage() {
             >
               {t('bulkUpload')}
             </Button>
-            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportInventory}>
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportInventory} disabled={exporting}>
               {t('exportInventory')}
             </Button>
-            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportRecent}>
+            <Button variant="outline" className="h-12 px-5 text-base" onClick={handleExportRecent} disabled={exporting}>
               {t('exportRecent')}
             </Button>
             <Button className="h-12 px-5 text-base" onClick={openCreate}>
@@ -1088,11 +1089,6 @@ export default function AdminInventoryPage() {
             />
           </div>
         </div>
-        {exporting && (
-          <div className="text-xs text-muted-foreground">
-            {t('exportLoading')}
-          </div>
-        )}
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
             <div className="relative flex-1">
@@ -1315,12 +1311,21 @@ export default function AdminInventoryPage() {
         </div>
       )}
 
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-6 py-4 shadow-xl">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="text-sm font-semibold">{t('exportLoading')}</div>
+          </div>
+        </div>
+      )}
+
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 space-y-2">
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`rounded-md border px-3 py-2 text-sm shadow-md ${toast.type === 'success'
+              className={`rounded-md border px-4 py-3 text-base font-semibold shadow-md ${toast.type === 'success'
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
                 : 'border-destructive/60 bg-destructive/10 text-destructive'
                 }`}

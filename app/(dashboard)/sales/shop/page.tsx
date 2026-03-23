@@ -321,7 +321,7 @@ export default function ShopSalesLogPage() {
             size="sm"
             className="border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
             onClick={handleExportExcel}
-            disabled={loading}
+            disabled={loading || exporting}
           >
             {t('downloadExcel')}
           </Button>
@@ -336,11 +336,6 @@ export default function ShopSalesLogPage() {
           </Button>
         </div>
       </div>
-      {exporting && (
-        <div className="text-xs text-muted-foreground">
-          {t('exportLoading')}
-        </div>
-      )}
 
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -550,12 +545,20 @@ export default function ShopSalesLogPage() {
           </div>
         </div>
       )}
+      {exporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-6 py-4 shadow-xl">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="text-sm font-semibold">{t('exportLoading')}</div>
+          </div>
+        </div>
+      )}
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 space-y-2">
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`rounded-md border px-3 py-2 text-sm shadow-md ${toast.type === 'success'
+              className={`rounded-md border px-4 py-3 text-base font-semibold shadow-md ${toast.type === 'success'
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
                 : 'border-destructive/60 bg-destructive/10 text-destructive'
                 }`}

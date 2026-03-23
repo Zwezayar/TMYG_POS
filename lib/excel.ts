@@ -1,3 +1,35 @@
+async function saveBlobAsFile(filename: string, blob: Blob) {
+  if (typeof window === 'undefined') return;
+  const picker = (window as any).showSaveFilePicker as
+    | ((options: {
+        suggestedName?: string;
+        types?: { description: string; accept: Record<string, string[]> }[];
+      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>)
+    | undefined;
+  if (picker) {
+    const handle = await picker({
+      suggestedName: filename,
+      types: [
+        {
+          description: 'Excel',
+          accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
+        },
+      ],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadExcel(filename: string, rows: (string | number | null | undefined)[][]) {
   if (typeof window === 'undefined') return;
   const XLSX = await import('xlsx');
@@ -8,12 +40,7 @@ export async function downloadExcel(filename: string, rows: (string | number | n
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  await saveBlobAsFile(filename, blob);
 }
 
 export type InventoryImageRow = {
@@ -113,12 +140,7 @@ export async function downloadInventoryXlsxWithImages({
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  await saveBlobAsFile(filename, blob);
   return { failedImages };
 }
 
@@ -206,10 +228,5 @@ export async function downloadSalesXlsx({
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  await saveBlobAsFile(filename, blob);
 }

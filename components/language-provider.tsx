@@ -218,7 +218,7 @@ const translations = {
     statusConfirmed: 'Confirmed',
     statusCheck: 'Check',
     exportLoading: 'Generating Excel file, please wait...',
-    exportSuccess: 'Excel file downloaded successfully!',
+    exportSuccess: 'Download Started!',
     exportError: 'Export failed. Please try again.',
   },
   mm: {
@@ -387,7 +387,7 @@ const translations = {
     statusConfirmed: 'အတည်ပြု',
     statusCheck: 'စစ်ဆေးရန်',
     exportLoading: 'Excel ဖိုင် ပြုလုပ်နေသည်... ခဏစောင့်ပါ',
-    exportSuccess: 'Excel ဖိုင် ဒေါင်းလုဒ် ပြီးပါပြီ!',
+    exportSuccess: 'ဒေါင်းလုဒ် စတင်နေပါပြီ!',
     exportError: 'Export မအောင်မြင်ပါ။ ထပ်မံကြိုးစားပါ။',
   },
 } as const;
