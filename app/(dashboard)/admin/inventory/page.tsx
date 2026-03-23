@@ -581,8 +581,12 @@ export default function AdminInventoryPage() {
     const sorted = [...items].sort((a, b) => {
       const categoryA = (a.category ?? '').toLowerCase();
       const categoryB = (b.category ?? '').toLowerCase();
-      if (categoryA !== categoryB) return categoryA.localeCompare(categoryB);
-      return (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' });
+      if (categoryA !== categoryB) {
+        return categoryA.localeCompare(categoryB, undefined, { sensitivity: 'base' });
+      }
+      const nameA = (a.product_name ?? '').toLowerCase();
+      const nameB = (b.product_name ?? '').toLowerCase();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
     });
     const rows: InventoryImageRow[] = sorted.map((p, index) => {
       const base = [
@@ -1313,9 +1317,11 @@ export default function AdminInventoryPage() {
 
       {exporting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-6 py-4 shadow-xl">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <div className="text-sm font-semibold">{t('exportLoading')}</div>
+          <div className="flex items-center gap-4 rounded-lg border border-border bg-card px-8 py-6 shadow-xl">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            <div className="text-base font-semibold">
+              {t('exportLoadingInventory').replace('{count}', String(products.length))}
+            </div>
           </div>
         </div>
       )}
