@@ -18,9 +18,15 @@ import {
 import { cn } from '@/lib/utils';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { useT } from '@/components/language-provider';
+import { useT, type TranslationKey } from '@/components/language-provider';
 
-const mainItems = [
+type NavItem = {
+  key: TranslationKey;
+  icon: typeof LayoutDashboard;
+  href: string;
+};
+
+const mainItems: NavItem[] = [
   { key: 'menuDashboard', icon: LayoutDashboard, href: '/' },
   { key: 'menuPos', icon: ShoppingBag, href: '/pos' },
   { key: 'menuInventory', icon: Package, href: '/admin/inventory' },
@@ -28,11 +34,11 @@ const mainItems = [
   { key: 'menuDeliverySales', icon: Truck, href: '/sales/delivery' },
 ];
 
-const crmItems = [
+const crmItems: NavItem[] = [
   { key: 'menuCustomers', icon: Users, href: '/customers' },
 ];
 
-const settingsItems = [
+const settingsItems: NavItem[] = [
   { key: 'menuSettings', icon: Settings, href: '/settings' },
 ];
 
