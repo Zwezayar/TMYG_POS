@@ -15,6 +15,7 @@ import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
 import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
 import { Loader2 } from 'lucide-react';
+import { formatDateDDMMYYYY } from '@/lib/date';
 
 type PendingAction = {
   id: string;
@@ -615,14 +616,18 @@ export default function AdminInventoryPage() {
   const handleExportInventory = React.useCallback(async () => {
     setExporting(true);
     try {
+      const filename = `Inventory_Export_${formatDateDDMMYYYY(new Date()).replaceAll('/', '_')}.xlsx`;
       const { header, rows } = buildExportRows(products);
       const result = await downloadInventoryXlsxWithImages({
-        filename: 'inventory-export.xlsx',
+        filename,
         header,
         rows,
         imageColumnIndex: header.indexOf('Image') + 1,
         thumbnailSize: 50,
         rowHeight: 50,
+      });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 350);
       });
       if (result.failedImages > 0) {
         addToast('error', t('exportError'));
@@ -630,7 +635,7 @@ export default function AdminInventoryPage() {
         addToast('success', t('exportSuccess'));
       }
     } catch {
-      addToast('error', t('exportError'));
+      addToast('error', t('exportMemoryError'));
     } finally {
       setExporting(false);
     }
@@ -644,14 +649,18 @@ export default function AdminInventoryPage() {
         if (!p.created_at) return false;
         return Date.parse(p.created_at) >= cutoff;
       });
+      const filename = `Inventory_Export_Recent_${formatDateDDMMYYYY(new Date()).replaceAll('/', '_')}.xlsx`;
       const { header, rows } = buildExportRows(recent);
       const result = await downloadInventoryXlsxWithImages({
-        filename: 'inventory-export-recent.xlsx',
+        filename,
         header,
         rows,
         imageColumnIndex: header.indexOf('Image') + 1,
         thumbnailSize: 50,
         rowHeight: 50,
+      });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 350);
       });
       if (result.failedImages > 0) {
         addToast('error', t('exportError'));
@@ -659,7 +668,7 @@ export default function AdminInventoryPage() {
         addToast('success', t('exportSuccess'));
       }
     } catch {
-      addToast('error', t('exportError'));
+      addToast('error', t('exportMemoryError'));
     } finally {
       setExporting(false);
     }

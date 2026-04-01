@@ -1,33 +1,23 @@
 async function saveBlobAsFile(filename: string, blob: Blob) {
   if (typeof window === 'undefined') return;
-  const picker = (window as any).showSaveFilePicker as
-    | ((options: {
-        suggestedName?: string;
-        types?: { description: string; accept: Record<string, string[]> }[];
-      }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>)
-    | undefined;
-  if (picker) {
-    const handle = await picker({
-      suggestedName: filename,
-      types: [
-        {
-          description: 'Excel',
-          accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return;
-  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    link.remove();
+  }, 1000);
+}
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
 }
 
 export async function downloadExcel(filename: string, rows: (string | number | null | undefined)[][]) {
@@ -116,6 +106,9 @@ export async function downloadInventoryXlsxWithImages({
 
   let failedImages = 0;
   for (let i = 0; i < rows.length; i += 1) {
+    if (i > 0 && i % 25 === 0) {
+      await yieldToBrowser();
+    }
     const rowIndex = i + 2;
     const safeCells = [...rows[i].cells];
     while (safeCells.length < header.length) {
@@ -140,6 +133,7 @@ export async function downloadInventoryXlsxWithImages({
     }
   }
 
+  await yieldToBrowser();
   const out = await workbook.xlsx.writeBuffer();
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -228,6 +222,7 @@ export async function downloadSalesXlsx({
     }
   });
 
+  await yieldToBrowser();
   const out = await workbook.xlsx.writeBuffer();
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

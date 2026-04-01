@@ -221,6 +221,7 @@ const translations = {
     exportLoadingInventory: 'Preparing Excel file for {count} items. Please do not close this page...',
     exportSuccess: 'Download Started!',
     exportError: 'Export failed. Please try again.',
+    exportMemoryError: 'Export failed due to memory/file size. Please try again or contact support.',
   },
   mm: {
     appName: 'THE MORE YOU GLOW By Ingyin POS',
@@ -391,6 +392,7 @@ const translations = {
     exportLoadingInventory: '{count} ပစ္စည်းအတွက် Excel ဖိုင် ပြင်ဆင်နေသည်။ စာမျက်နှာကို မပိတ်ပါနှင့်...',
     exportSuccess: 'ဒေါင်းလုဒ် စတင်နေပါပြီ!',
     exportError: 'Export မအောင်မြင်ပါ။ ထပ်မံကြိုးစားပါ။',
+    exportMemoryError: 'ဖိုင်အရွယ်အစား သို့မဟုတ် မှတ်ဉာဏ်ပြဿနာကြောင့် Export မအောင်မြင်ပါ။ ထပ်မံကြိုးစားပါ သို့မဟုတ် support ကို ဆက်သွယ်ပါ။',
   },
 } as const;
 
