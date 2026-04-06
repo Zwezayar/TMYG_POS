@@ -437,8 +437,8 @@ export default function BulkSalePage() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="flex h-full min-h-0 flex-col gap-6 pb-8 lg:overflow-hidden lg:pb-0">
+      <div className="flex shrink-0 flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
             Bulk Sale Entry
@@ -453,8 +453,8 @@ export default function BulkSalePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)] lg:items-start">
-        <div className="min-w-0 space-y-4">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)]">
+        <div className="min-w-0 space-y-4 lg:flex lg:min-h-0 lg:flex-col">
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="grid gap-4 lg:grid-cols-[auto_auto_1fr]">
               <div className="space-y-2">
@@ -523,7 +523,7 @@ export default function BulkSalePage() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div>
               <div className="text-base font-semibold">Quick Item Entry</div>
               <p className="text-sm text-muted-foreground">
@@ -531,7 +531,7 @@ export default function BulkSalePage() {
               </p>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/50">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/50 lg:min-h-0 lg:flex-1">
               <MemoProductBrowser
                 products={filteredProducts}
                 query={query}
@@ -548,8 +548,8 @@ export default function BulkSalePage() {
                 loading={productsLoading}
                 onScanClick={() => setScanOpen(true)}
                 onAddNewProduct={() => handleOpenCreateProduct()}
-                className="h-[calc(100vh-300px)] min-h-[420px]"
-                contentClassName="h-[calc(100vh-372px)] min-h-[348px]"
+                className="min-h-[420px] lg:h-full lg:min-h-0"
+                contentClassName="min-h-[348px] lg:min-h-0"
               />
             </div>
             {productsError && !productsLoading && filteredProducts.length === 0 && (
@@ -560,8 +560,8 @@ export default function BulkSalePage() {
           </div>
         </div>
 
-        <div className="hidden lg:sticky lg:top-6 lg:flex lg:h-[calc(100vh-48px)] lg:min-h-0 lg:flex-col lg:gap-4">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="hidden lg:flex lg:min-h-0 lg:h-full lg:flex-col">
+          <div className="flex min-h-0 h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             <div className="flex h-[72px] flex-col justify-center border-b border-border px-4 py-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -607,112 +607,103 @@ export default function BulkSalePage() {
               )}
               className="min-h-0"
             />
-          </div>
 
-          <div className="shrink-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-base font-semibold">Bulk Sale Summary</div>
-                <p className="text-sm text-muted-foreground">
-                  Review mode, date, totals, and confirm the order.
-                </p>
-              </div>
-              <div className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                {lineItems.length} lines
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Mode</span>
-                <span className="font-medium">{mode}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Date</span>
-                <span className="font-medium">
-                  {formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Partner</span>
-                <span className="font-medium">
-                  {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total Items</span>
-                <span className="font-medium">{totals.quantity}</span>
-              </div>
-              <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery Fee</span>
-                  {mode !== 'Delivery' && (
-                    <span className="text-xs text-muted-foreground">Shop mode</span>
-                  )}
-                </div>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  value={deliveryFee}
-                  onChange={(e) => setDeliveryFee(e.target.value)}
-                  placeholder="0"
-                  disabled={mode !== 'Delivery'}
-                  className="h-11"
-                />
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Products Total</span>
-                <span className="font-medium">Ks {totals.subtotal.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Delivery Fee</span>
-                <span className="font-medium">Ks {totals.deliveryFee.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border pt-3">
-                <span className="text-sm font-semibold">Total Amount</span>
-                <span className="text-lg font-semibold">
-                  Ks {totals.grandTotal.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleConfirm}
-              disabled={!canSave}
-              className="mt-4 h-12 w-full rounded-xl text-base font-semibold"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving bulk sale...
-                </>
-              ) : (
-                'Confirm Bulk Sale'
-              )}
-            </Button>
-
-            <p className="mt-3 text-xs text-muted-foreground">
-              Confirming saves one order with multiple line items, updates stock,
-              and keeps the selected sale date for later reporting/export.
-            </p>
-          </div>
-
-          {successSummary && (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-100 shadow-sm">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="shrink-0 border-t border-border bg-card/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-card/85">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold">
-                    Bulk sale saved successfully
-                  </div>
-                  <div className="mt-1 text-sm text-emerald-200">
-                    Invoice {successSummary.invoiceId} • {successSummary.date} • Ks{' '}
-                    {successSummary.totalAmount.toLocaleString()}
-                  </div>
+                  <div className="text-sm font-semibold">Bulk Sale Summary</div>
+                  <p className="text-xs text-muted-foreground">
+                    Delivery fee, totals, and confirmation always stay visible.
+                  </p>
+                </div>
+                <div className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-secondary-foreground">
+                  {lineItems.length} lines
                 </div>
               </div>
+              <div className="mt-3 grid gap-2 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl border border-border bg-background/60 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Mode</div>
+                    <div className="mt-1 font-medium">{mode}</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background/60 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Total Items</div>
+                    <div className="mt-1 font-medium">{totals.quantity}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium">
+                    {formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Partner</span>
+                  <span className="max-w-[65%] truncate text-right font-medium">
+                    {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
+                  </span>
+                </div>
+                <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Delivery Fee</span>
+                    {mode !== 'Delivery' && (
+                      <span className="text-[11px] text-muted-foreground">Shop mode</span>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    value={deliveryFee}
+                    onChange={(e) => setDeliveryFee(e.target.value)}
+                    placeholder="0"
+                    disabled={mode !== 'Delivery'}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5 rounded-xl border border-border bg-background/40 p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Products Total</span>
+                    <span className="font-medium">Ks {totals.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Delivery Fee</span>
+                    <span className="font-medium">Ks {totals.deliveryFee.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-sm font-semibold">Total Amount</span>
+                    <span className="text-lg font-semibold">
+                      Ks {totals.grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                {successSummary && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                    <div className="font-semibold">Bulk sale saved successfully</div>
+                    <div className="mt-1 text-emerald-200">
+                      Invoice {successSummary.invoiceId} • {successSummary.date} • Ks{' '}
+                      {successSummary.totalAmount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                onClick={handleConfirm}
+                disabled={!canSave}
+                className="mt-4 h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving bulk sale...
+                  </>
+                ) : (
+                  'Confirm Bulk Sale'
+                )}
+              </Button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
