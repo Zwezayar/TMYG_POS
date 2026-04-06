@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ScannerModal } from '@/components/scanner/scanner-modal';
+import { AddProductDialog } from '@/components/inventory/add-product-dialog';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { useProducts, type Product } from '@/lib/useProducts';
@@ -45,6 +47,10 @@ function getTodayInputValue() {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeBarcode(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || '';
+}
+
 export default function BulkSalePage() {
   const { role, displayName, username } = useDashboardAuth();
   const { products, loading: productsLoading, error: productsError, refresh } =
@@ -57,6 +63,10 @@ export default function BulkSalePage() {
   const [selectedPartnerId, setSelectedPartnerId] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+  const [scanOpen, setScanOpen] = React.useState(false);
+  const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
+  const [addProductOpen, setAddProductOpen] = React.useState(false);
+  const [prefillBarcode, setPrefillBarcode] = React.useState('');
   const [lines, setLines] = React.useState<BulkSaleLine[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
@@ -211,6 +221,65 @@ export default function BulkSalePage() {
       return [...prev, { productId, quantity: 1 }];
     });
   };
+
+  const handleCloseScanner = React.useCallback(() => {
+    setScanOpen(false);
+    setManualBarcodeInput('');
+  }, []);
+
+  const handleOpenCreateProduct = React.useCallback(
+    (barcode = '') => {
+      setPrefillBarcode(barcode);
+      setAddProductOpen(true);
+    },
+    []
+  );
+
+  const handleScannedBarcode = React.useCallback(
+    (rawValue: string) => {
+      const value = rawValue.trim();
+      if (!value) return;
+      const matched = products.find(
+        (product) => normalizeBarcode(product.barcode) === normalizeBarcode(value)
+      );
+
+      if (matched) {
+        addProduct(Number(matched.id));
+        addToast('success', `${matched.product_name || 'Product'} added.`);
+        handleCloseScanner();
+        return;
+      }
+
+      addToast('error', 'Product Not Found');
+      handleCloseScanner();
+      handleOpenCreateProduct(value);
+    },
+    [addProduct, addToast, handleCloseScanner, handleOpenCreateProduct, products]
+  );
+
+  const handleCreatedProduct = React.useCallback(
+    async (product: Product) => {
+      await refresh();
+      const hasStock = Number(product.stock_quantity ?? 0) > 0;
+      if (hasStock) {
+        setLines((prev) => {
+          const existing = prev.find((line) => line.productId === Number(product.id));
+          if (existing) {
+            return prev;
+          }
+          return [...prev, { productId: Number(product.id), quantity: 1 }];
+        });
+      }
+      setPrefillBarcode('');
+      addToast(
+        'success',
+        hasStock
+          ? `${product.product_name || 'Product'} added to inventory and bulk sale.`
+          : `${product.product_name || 'Product'} added to inventory.`
+      );
+    },
+    [addToast, refresh]
+  );
 
   const updateQuantity = (productId: number, nextQuantity: number) => {
     setSuccessSummary(null);
@@ -455,6 +524,8 @@ export default function BulkSalePage() {
                 activeCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
                 loading={productsLoading}
+                onScanClick={() => setScanOpen(true)}
+                onAddNewProduct={() => handleOpenCreateProduct()}
                 className="h-[calc(100vh-300px)] min-h-[420px]"
                 contentClassName="h-[calc(100vh-372px)] min-h-[348px]"
               />
@@ -664,6 +735,38 @@ export default function BulkSalePage() {
           ))}
         </div>
       )}
+
+      <ScannerModal
+        open={scanOpen}
+        elementId="bulk-sale-reader"
+        onClose={handleCloseScanner}
+        onScanSuccess={handleScannedBarcode}
+        onScanError={(message: string) => addToast('error', message)}
+        manualValue={manualBarcodeInput}
+        onManualChange={setManualBarcodeInput}
+        onManualSubmit={() => {
+          handleScannedBarcode(manualBarcodeInput);
+        }}
+        secondaryActionLabel="Quick Add Product"
+        onSecondaryAction={() => {
+          handleCloseScanner();
+          handleOpenCreateProduct(manualBarcodeInput.trim());
+        }}
+      />
+
+      <AddProductDialog
+        open={addProductOpen}
+        onOpenChange={(open) => {
+          setAddProductOpen(open);
+          if (!open) {
+            setPrefillBarcode('');
+          }
+        }}
+        role={role}
+        categories={dbCategories}
+        initialBarcode={prefillBarcode}
+        onCreated={handleCreatedProduct}
+      />
     </div>
   );
 }

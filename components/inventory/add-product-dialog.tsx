@@ -7,6 +7,7 @@ import { compressImageFile } from '@/lib/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { type Product } from '@/lib/useProducts';
 
 type Role = 'admin' | 'staff' | null;
 
@@ -21,6 +22,8 @@ interface AddProductDialogProps {
   onOpenChange: (open: boolean) => void;
   role: Role;
   categories?: CategoryOption[];
+  initialBarcode?: string;
+  onCreated?: (product: Product) => void;
 }
 
 export function AddProductDialog({
@@ -28,6 +31,8 @@ export function AddProductDialog({
   onOpenChange,
   role,
   categories = [],
+  initialBarcode = '',
+  onCreated,
 }: AddProductDialogProps) {
   const [productName, setProductName] = React.useState('');
   const [defaultCode, setDefaultCode] = React.useState('');
@@ -55,6 +60,12 @@ export function AddProductDialog({
       setError(null);
     }
   }, [open]);
+
+  React.useEffect(() => {
+    if (open) {
+      setBarcode(initialBarcode);
+    }
+  }, [initialBarcode, open]);
 
   const reset = () => {
     setProductName('');
@@ -148,13 +159,21 @@ export function AddProductDialog({
         remark: remark || null,
       };
 
-      let { error: insertError } = await supabaseClient
+      let {
+        data: createdProduct,
+        error: insertError,
+      } = await supabaseClient
         .from('products')
-        .insert(payload);
+        .insert(payload)
+        .select()
+        .single();
 
       if (insertError && /duplicate key value violates unique constraint/i.test(insertError.message)) {
         await supabaseClient.rpc('sync_products_id_seq');
-        ({ error: insertError } = await supabaseClient.from('products').insert(payload));
+        ({
+          data: createdProduct,
+          error: insertError,
+        } = await supabaseClient.from('products').insert(payload).select().single());
       }
 
       if (insertError) {
@@ -163,6 +182,9 @@ export function AddProductDialog({
         return;
       }
 
+      if (createdProduct) {
+        onCreated?.(createdProduct as Product);
+      }
       reset();
       onOpenChange(false);
     } catch (err: any) {
