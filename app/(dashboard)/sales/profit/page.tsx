@@ -216,7 +216,7 @@ export default function ProfitDashboardPage() {
               <div>
                 <div className="text-lg font-semibold">Unlock Profit Dashboard</div>
                 <p className="text-sm text-muted-foreground">
-                  Enter the admin passcode before any profit data is shown.
+                  Enter Admin Passcode
                 </p>
               </div>
             </div>
@@ -226,12 +226,9 @@ export default function ProfitDashboardPage() {
                 type="password"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                placeholder="Enter passcode"
+                placeholder="Enter Admin Passcode"
                 className="h-12"
               />
-              <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Default passcode: 1234
-              </div>
               {error && (
                 <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {error}
