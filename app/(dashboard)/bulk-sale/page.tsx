@@ -6,8 +6,8 @@ import {
   Calendar,
   CheckCircle2,
   Loader2,
-  Minus,
-  Plus,
+  ShoppingBag,
+  X,
   Store,
   Trash2,
   Truck,
@@ -22,6 +22,7 @@ import { useProducts, type Product } from '@/lib/useProducts';
 import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { MemoProductBrowser } from '@/components/product-browser';
+import { PosCartItems } from '@/components/cart/pos-cart-items';
 
 type DeliveryPartner = {
   id: string;
@@ -31,6 +32,7 @@ type DeliveryPartner = {
 type BulkSaleLine = {
   productId: number;
   quantity: number;
+  manualPrice?: number;
 };
 
 type Toast = {
@@ -68,6 +70,7 @@ export default function BulkSalePage() {
   const [addProductOpen, setAddProductOpen] = React.useState(false);
   const [prefillBarcode, setPrefillBarcode] = React.useState('');
   const [lines, setLines] = React.useState<BulkSaleLine[]>([]);
+  const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [successSummary, setSuccessSummary] = React.useState<{
@@ -176,7 +179,8 @@ export default function BulkSalePage() {
           ? {
               line,
               product,
-              unitPrice: Number(product.sale_price ?? 0),
+              unitPrice: Number(line.manualPrice ?? product.sale_price ?? 0),
+              basePrice: Number(product.sale_price ?? 0),
               stock: Number(product.stock_quantity ?? 0),
             }
           : null;
@@ -186,6 +190,7 @@ export default function BulkSalePage() {
           line: BulkSaleLine;
           product: Product;
           unitPrice: number;
+          basePrice: number;
           stock: number;
         } => entry !== null
       );
@@ -283,14 +288,35 @@ export default function BulkSalePage() {
 
   const updateQuantity = (productId: number, nextQuantity: number) => {
     setSuccessSummary(null);
+    if (nextQuantity <= 0) {
+      setLines((prev) => prev.filter((line) => line.productId !== productId));
+      return;
+    }
     setLines((prev) =>
       prev
-        .map((line) =>
-          line.productId === productId
-            ? { ...line, quantity: Math.max(1, Math.floor(nextQuantity || 1)) }
-            : line
-        )
+        .map((line) => {
+          if (line.productId !== productId) return line;
+          const maxStock = Math.max(
+            1,
+            Number(productMap.get(productId)?.stock_quantity ?? line.quantity)
+          );
+          return {
+            ...line,
+            quantity: Math.min(maxStock, Math.max(1, Math.floor(nextQuantity || 1))),
+          };
+        })
         .filter((line) => line.quantity > 0)
+    );
+  };
+
+  const updateLinePrice = (productId: number, nextPrice: number) => {
+    setSuccessSummary(null);
+    setLines((prev) =>
+      prev.map((line) =>
+        line.productId === productId
+          ? { ...line, manualPrice: Math.max(0, Number(nextPrice) || 0) }
+          : line
+      )
     );
   };
 
@@ -310,10 +336,10 @@ export default function BulkSalePage() {
     (mode === 'Shop' || !!selectedPartnerId);
 
   const handleConfirm = async () => {
-    if (!canSave) return;
+    if (!canSave) return false;
     if (mode === 'Delivery' && !selectedPartnerId) {
       addToast('error', 'Please choose a delivery partner.');
-      return;
+      return false;
     }
 
     const hasInvalidQty = lineItems.some(
@@ -321,7 +347,7 @@ export default function BulkSalePage() {
     );
     if (hasInvalidQty) {
       addToast('error', 'Please check quantities against current stock.');
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -346,6 +372,7 @@ export default function BulkSalePage() {
           items: lineItems.map((entry) => ({
             product_id: Number(entry.product.id),
             quantity: entry.line.quantity,
+            sale_price: entry.unitPrice,
           })),
         }),
       });
@@ -364,11 +391,13 @@ export default function BulkSalePage() {
         totalAmount: totals.amount,
       });
       addToast('success', `Bulk sale saved successfully. Invoice ${result.invoiceId}.`);
+      return true;
     } catch (err) {
       addToast(
         'error',
         err instanceof Error ? err.message : 'Bulk sale failed.'
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -415,7 +444,7 @@ export default function BulkSalePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_420px] xl:items-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)] lg:items-start">
         <div className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="grid gap-4 lg:grid-cols-[auto_auto_1fr]">
@@ -538,119 +567,67 @@ export default function BulkSalePage() {
           </div>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-6">
+        <div className="hidden space-y-4 lg:sticky lg:top-6 lg:block">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex h-[72px] flex-col justify-center border-b border-border px-4 py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4.5 w-4.5 text-primary" />
+                  <h2 className="text-sm font-bold text-foreground">Selected Items</h2>
+                </div>
+                {lineItems.length > 0 && (
+                  <button
+                    onClick={() => setLines([])}
+                    className="flex h-[44px] w-[44px] items-center justify-center rounded-xl border-none bg-transparent text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    title="Clear Cart"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`)}
+                </span>
+                <span className="flex items-center gap-1 font-semibold text-primary">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {totals.quantity} items
+                </span>
+              </div>
+            </div>
+
+            <PosCartItems
+              items={lineItems.map((entry) => ({
+                id: Number(entry.product.id),
+                name: entry.product.product_name || 'Unnamed Product',
+                quantity: entry.line.quantity,
+                unitPrice: entry.unitPrice,
+                basePrice: entry.basePrice,
+              }))}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updateLinePrice}
+              onRemoveItem={removeLine}
+              emptyText="Add products from the left to start a bulk sale."
+              maxQuantityByItem={Object.fromEntries(
+                lineItems.map((entry) => [Number(entry.product.id), entry.stock])
+              )}
+              className="max-h-[calc(100vh-360px)]"
+            />
+          </div>
+
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold">Selected Items</div>
+                <div className="text-base font-semibold">Bulk Sale Summary</div>
                 <p className="text-sm text-muted-foreground">
-                  Adjust quantities before confirming stock deduction.
+                  Review mode, date, totals, and confirm the order.
                 </p>
               </div>
               <div className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
                 {lineItems.length} lines
               </div>
             </div>
-
-            <div className="mt-4 space-y-3 xl:max-h-[calc(100vh-280px)] xl:overflow-y-auto xl:pr-1">
-              {lineItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                  Add products from the left to start a bulk sale.
-                </div>
-              ) : (
-                lineItems.map((entry) => {
-                  const remainingStock = Math.max(
-                    0,
-                    entry.stock - entry.line.quantity
-                  );
-                  return (
-                    <div
-                      key={entry.product.id}
-                      className="rounded-2xl border border-border/60 bg-background p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            {entry.product.product_name || 'Unnamed Product'}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Stock now: {entry.stock} • After save: {remainingStock}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeLine(Number(entry.product.id))}
-                          className="rounded-lg p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateQuantity(
-                                Number(entry.product.id),
-                                Math.max(1, entry.line.quantity - 1)
-                              )
-                            }
-                            className="rounded-xl border border-border p-2 transition hover:bg-secondary"
-                          >
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={entry.stock}
-                            value={entry.line.quantity}
-                            onChange={(e) =>
-                              updateQuantity(
-                                Number(entry.product.id),
-                                Number(e.target.value)
-                              )
-                            }
-                            className="h-11 w-24 text-center"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateQuantity(
-                                Number(entry.product.id),
-                                Math.min(entry.stock, entry.line.quantity + 1)
-                              )
-                            }
-                            className="rounded-xl border border-border p-2 transition hover:bg-secondary"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">
-                            Unit Price
-                          </div>
-                          <div className="text-sm font-semibold">
-                            Ks {entry.unitPrice.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">
-                            Line Total
-                          </div>
-                          <div className="text-base font-semibold">
-                            Ks {(entry.line.quantity * entry.unitPrice).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Mode</span>
@@ -720,6 +697,17 @@ export default function BulkSalePage() {
         </div>
       </div>
 
+      <div className="lg:hidden">
+        <Button
+          type="button"
+          onClick={() => setMobileCartOpen(true)}
+          className="fixed bottom-4 left-4 right-4 z-40 h-12 rounded-xl text-base font-semibold shadow-lg"
+        >
+          <ShoppingBag className="mr-2 h-4 w-4" />
+          Selected Items ({totals.quantity}) • Ks {totals.amount.toLocaleString()}
+        </Button>
+      </div>
+
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 space-y-2">
           {toasts.map((toast) => (
@@ -733,6 +721,96 @@ export default function BulkSalePage() {
               {toast.message}
             </div>
           ))}
+        </div>
+      )}
+
+      {mobileCartOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 lg:hidden"
+          onClick={() => setMobileCartOpen(false)}
+        >
+          <div
+            className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="h-4.5 w-4.5 text-primary" />
+                <h2 className="text-sm font-bold text-foreground">Selected Items</h2>
+              </div>
+              <button
+                onClick={() => setMobileCartOpen(false)}
+                className="flex h-[44px] w-[44px] items-center justify-center rounded-xl border-none bg-transparent text-muted-foreground transition-colors hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <PosCartItems
+              items={lineItems.map((entry) => ({
+                id: Number(entry.product.id),
+                name: entry.product.product_name || 'Unnamed Product',
+                quantity: entry.line.quantity,
+                unitPrice: entry.unitPrice,
+                basePrice: entry.basePrice,
+              }))}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updateLinePrice}
+              onRemoveItem={removeLine}
+              emptyText="Add products from the left to start a bulk sale."
+              maxQuantityByItem={Object.fromEntries(
+                lineItems.map((entry) => [Number(entry.product.id), entry.stock])
+              )}
+              className="max-h-[42vh]"
+            />
+
+            <div className="border-t border-border bg-card p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Mode</span>
+                  <span className="font-medium">{mode}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium">
+                    {formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Partner</span>
+                  <span className="font-medium">
+                    {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <span className="text-sm font-semibold">Total Amount</span>
+                  <span className="text-lg font-semibold">
+                    Ks {totals.amount.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                onClick={async () => {
+                  const ok = await handleConfirm();
+                  if (ok) {
+                    setMobileCartOpen(false);
+                  }
+                }}
+                disabled={!canSave}
+                className="mt-4 h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving bulk sale...
+                  </>
+                ) : (
+                  'Confirm Bulk Sale'
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

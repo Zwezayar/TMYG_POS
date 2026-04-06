@@ -9,7 +9,7 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { compressImageFile } from '@/lib/image';
 import { ScannerModal } from '@/components/scanner/scanner-modal';
 import {
-  Loader2, Camera, Zap, Pencil, Check,
+  Loader2, Camera, Zap,
   Menu, ChevronLeft, ChevronRight, X, Phone, MapPin, Plus,
   ClipboardList, Package, Settings, ShoppingCart, Truck, Trash2, Smartphone,
   Minus, ShoppingBag, Store, Calendar, Hash, Banknote, CreditCard, Waves,
@@ -25,6 +25,7 @@ import {
   formatPrice,
   getValidImageUrl,
 } from '@/components/product-browser';
+import { PosCartItems } from '@/components/cart/pos-cart-items';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -202,9 +203,6 @@ function CartSidebar({
   offlineQueueCount: number;
   cartPulse: boolean;
 }) {
-  const [editingId, setEditingId] = React.useState<number | null>(null);
-  const [editPrice, setEditPrice] = React.useState("");
-
   const invoiceId = React.useMemo(() => {
     const now = new Date();
     const yy = String(now.getFullYear()).slice(-2);
@@ -228,20 +226,6 @@ function CartSidebar({
   ];
 
   const [paymentTier, setPaymentTier] = React.useState<'cash' | 'pay' | 'banking'>('cash');
-
-  const handleEditPrice = (id: number, currentPrice: number) => {
-    setEditingId(id);
-    setEditPrice(String(currentPrice));
-  };
-
-  const handleSavePrice = (id: number) => {
-    const newPrice = parseInt(editPrice, 10);
-    if (!isNaN(newPrice) && newPrice >= 0) {
-      onUpdatePrice(id, newPrice);
-    }
-    setEditingId(null);
-    setEditPrice("");
-  };
 
   const deliveryFeeNum = saleType === "Delivery" ? parseInt(deliFee, 10) || 0 : 0;
   const finalTotal = totalAmount + deliveryFeeNum;
@@ -326,69 +310,20 @@ function CartSidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-        {cart.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground opacity-50 px-4 text-center">
-            <ShoppingBag className="mb-3 h-10 w-10" />
-            <p className="text-sm font-medium">Cart is empty</p>
-          </div>
-        ) : (
-          <div className={cn("flex flex-col", checkoutMode && "mx-auto max-w-lg")}>
-            {cart.map((item, idx) => {
-              const price = item.manualPrice ?? item.product.sale_price ?? 0;
-              const isEditing = editingId === item.product.id;
-              return (
-                <div key={item.product.id} className={cn("px-4 py-3", idx < cart.length - 1 && "border-b border-border")}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="flex-1 text-[13px] font-bold leading-snug line-clamp-2">{item.product.product_name}</p>
-                    <button
-                      onClick={() => onRemoveItem(item.product.id)}
-                      className="flex h-[44px] w-[44px] items-center justify-center text-muted-foreground hover:text-destructive bg-transparent border-none transition-colors"
-                      title="Remove Item"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      {isEditing ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={editPrice}
-                            onChange={(e) => setEditPrice(e.target.value)}
-                            className="h-[44px] w-24 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none"
-                            autoFocus
-                          />
-                          <button onClick={() => handleSavePrice(item.product.id)} className="h-[44px] w-[44px] rounded-lg bg-primary text-primary-foreground flex items-center justify-center border-none shadow-sm">
-                            <Check className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className={cn("text-sm font-bold", item.manualPrice !== undefined && "text-[#D4AF37]")}>{price.toLocaleString()} Ks</span>
-                          <button onClick={() => handleEditPrice(item.product.id, price)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary bg-transparent active:scale-95 transition-all">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center bg-transparent active:scale-95 transition-all">
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-10 text-center text-sm font-bold">{item.quantity}</span>
-                      <button onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)} className="h-[44px] w-[44px] border border-border rounded-lg flex items-center justify-center bg-transparent active:scale-95 transition-all">
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <PosCartItems
+        items={cart.map((item) => ({
+          id: Number(item.product.id),
+          name: item.product.product_name || 'Unnamed Product',
+          quantity: item.quantity,
+          unitPrice: item.manualPrice ?? item.product.sale_price ?? 0,
+          basePrice: item.product.sale_price ?? 0,
+        }))}
+        onUpdateQuantity={onUpdateQuantity}
+        onUpdatePrice={onUpdatePrice}
+        onRemoveItem={onRemoveItem}
+        emptyText="Cart is empty"
+        className={cn(checkoutMode && 'mx-auto max-w-lg')}
+      />
 
       <div className={cn("border-t border-border bg-card p-4 flex flex-col min-h-0", checkoutMode && "mx-auto w-full max-w-lg")}>
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 max-h-[calc(100vh-200px)] pr-1">

@@ -6,6 +6,7 @@ import { formatDateDDMMYYYY, formatTimeHHMM } from '@/lib/date';
 type BulkSaleItemInput = {
   product_id: number;
   quantity: number;
+  sale_price?: number;
 };
 
 type ProductRow = {
@@ -82,6 +83,10 @@ export async function POST(req: Request) {
         return {
           product_id: Number(value.product_id),
           quantity: Number(value.quantity),
+          sale_price:
+            value.sale_price === null || value.sale_price === undefined
+              ? undefined
+              : Number(value.sale_price),
         };
       })
       .filter(
@@ -90,7 +95,9 @@ export async function POST(req: Request) {
           Number.isFinite(item.product_id) &&
           item.product_id > 0 &&
           Number.isInteger(item.quantity) &&
-          item.quantity > 0
+          item.quantity > 0 &&
+          (item.sale_price === undefined ||
+            (Number.isFinite(item.sale_price) && item.sale_price >= 0))
       );
 
     if (items.length === 0) {
@@ -195,7 +202,7 @@ export async function POST(req: Request) {
 
     const receiptItems = items.map((item) => {
       const product = productMap.get(item.product_id)!;
-      const price = Number(product.sale_price ?? 0);
+      const price = Number(item.sale_price ?? product.sale_price ?? 0);
       return {
         name: product.product_name ?? 'Item',
         qty: item.quantity,
@@ -266,7 +273,7 @@ export async function POST(req: Request) {
 
     const orderItems = items.map((item) => {
       const product = productMap.get(item.product_id)!;
-      const salePrice = Number(product.sale_price ?? 0);
+      const salePrice = Number(item.sale_price ?? product.sale_price ?? 0);
       const costPrice = Number(product.purchase_price ?? 0);
       return {
         order_id: orderRow.id,
