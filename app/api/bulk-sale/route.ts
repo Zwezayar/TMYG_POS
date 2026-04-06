@@ -56,6 +56,10 @@ export async function POST(req: Request) {
       typeof body.delivery_partner_id === 'string'
         ? body.delivery_partner_id.trim()
         : '';
+    const deliveryFeeRaw =
+      body.delivery_fee === null || body.delivery_fee === undefined
+        ? 0
+        : Number(body.delivery_fee);
     const rawItems = Array.isArray(body.items) ? body.items : [];
 
     if (!isValidSaleDate(saleDate)) {
@@ -103,6 +107,13 @@ export async function POST(req: Request) {
     if (items.length === 0) {
       return NextResponse.json(
         { error: 'Please add at least one product.' },
+        { status: 400 }
+      );
+    }
+
+    if (!Number.isFinite(deliveryFeeRaw) || deliveryFeeRaw < 0) {
+      return NextResponse.json(
+        { error: 'Delivery fee must be a valid non-negative number.' },
         { status: 400 }
       );
     }
@@ -212,6 +223,8 @@ export async function POST(req: Request) {
     });
 
     const subtotal = receiptItems.reduce((sum, item) => sum + item.amount, 0);
+    const deliveryFee = saleType === 'Delivery' ? deliveryFeeRaw : 0;
+    const grandTotal = subtotal + deliveryFee;
     const createdAtIso = createdAtDate.toISOString();
     const staffName =
       typeof profile.display_name === 'string' && profile.display_name.trim().length > 0
@@ -232,10 +245,10 @@ export async function POST(req: Request) {
       customerAddress: '',
       items: receiptItems,
       subtotal,
-      deliveryFee: 0,
+      deliveryFee,
       discount: 0,
-      grandTotal: subtotal,
-      amountReceived: subtotal,
+      grandTotal,
+      amountReceived: grandTotal,
       changeAmount: 0,
       amountDue: 0,
     };
@@ -245,7 +258,7 @@ export async function POST(req: Request) {
       sale_type: saleType,
       payment_method: 'Cash',
       payment_status: 'Check',
-      total_amount: subtotal,
+      total_amount: grandTotal,
       cashier_id: user.id,
       created_at: createdAtIso,
       entry_source: 'Bulk Sale',
@@ -255,7 +268,7 @@ export async function POST(req: Request) {
       customer_phone: null,
       customer_address: null,
       courier_name: saleType === 'Delivery' ? deliveryPartnerName : null,
-      delivery_fee: saleType === 'Delivery' ? 0 : null,
+      delivery_fee: saleType === 'Delivery' ? deliveryFee : null,
     };
 
     const { data: orderRow, error: orderError } = await supabase
@@ -299,11 +312,11 @@ export async function POST(req: Request) {
       const { error: deliveryError } = await supabase.from('deliveries').insert({
         order_id: orderRow.id,
         courier_name: deliveryPartnerName,
-        deli_fee: 0,
-        deli_fee_payable: 0,
+        deli_fee: deliveryFee,
+        deli_fee_payable: deliveryFee,
         status: 'Pending',
         is_bago_special: false,
-        total_to_collect: subtotal,
+        total_to_collect: grandTotal,
         created_at: createdAtIso,
       });
 

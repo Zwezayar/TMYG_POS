@@ -23,11 +23,10 @@ import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { MemoProductBrowser } from '@/components/product-browser';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
-
-type DeliveryPartner = {
-  id: string;
-  name: string;
-};
+import {
+  DeliveryPartnerSelect,
+  type DeliveryPartnerOption,
+} from '@/components/delivery-partner-select';
 
 type BulkSaleLine = {
   productId: number;
@@ -60,9 +59,12 @@ export default function BulkSalePage() {
   const { categories: dbCategories } = useCategories();
   const [mode, setMode] = React.useState<'Shop' | 'Delivery'>('Shop');
   const [saleDate, setSaleDate] = React.useState(getTodayInputValue);
-  const [deliveryPartners, setDeliveryPartners] = React.useState<DeliveryPartner[]>([]);
+  const [deliveryPartners, setDeliveryPartners] = React.useState<
+    DeliveryPartnerOption[]
+  >([]);
   const [partnersLoading, setPartnersLoading] = React.useState(true);
   const [selectedPartnerId, setSelectedPartnerId] = React.useState('');
+  const [deliveryFee, setDeliveryFee] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
   const [scanOpen, setScanOpen] = React.useState(false);
@@ -95,7 +97,7 @@ export default function BulkSalePage() {
       if (!res.ok) {
         throw new Error(data?.error || res.statusText);
       }
-      setDeliveryPartners((data ?? []) as DeliveryPartner[]);
+      setDeliveryPartners((data ?? []) as DeliveryPartnerOption[]);
     } catch (err) {
       addToast(
         'error',
@@ -114,6 +116,7 @@ export default function BulkSalePage() {
   React.useEffect(() => {
     if (mode === 'Shop') {
       setSelectedPartnerId('');
+      setDeliveryFee('');
     }
   }, [mode]);
 
@@ -197,15 +200,22 @@ export default function BulkSalePage() {
   }, [lines, productMap]);
 
   const totals = React.useMemo(() => {
-    return lineItems.reduce(
+    const subtotal = lineItems.reduce(
       (sum, entry) => {
         sum.quantity += entry.line.quantity;
-        sum.amount += entry.line.quantity * entry.unitPrice;
+        sum.subtotal += entry.line.quantity * entry.unitPrice;
         return sum;
       },
-      { quantity: 0, amount: 0 }
+      { quantity: 0, subtotal: 0 }
     );
-  }, [lineItems]);
+    const fee = mode === 'Delivery' ? Math.max(0, Number(deliveryFee) || 0) : 0;
+    return {
+      quantity: subtotal.quantity,
+      subtotal: subtotal.subtotal,
+      deliveryFee: fee,
+      grandTotal: subtotal.subtotal + fee,
+    };
+  }, [deliveryFee, lineItems, mode]);
 
   const addProduct = (productId: number) => {
     setSuccessSummary(null);
@@ -369,6 +379,7 @@ export default function BulkSalePage() {
           sale_type: mode,
           sale_date: saleDate,
           delivery_partner_id: mode === 'Delivery' ? selectedPartnerId : null,
+          delivery_fee: totals.deliveryFee,
           items: lineItems.map((entry) => ({
             product_id: Number(entry.product.id),
             quantity: entry.line.quantity,
@@ -388,7 +399,7 @@ export default function BulkSalePage() {
       setSuccessSummary({
         invoiceId: result.invoiceId as string,
         date: formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`),
-        totalAmount: totals.amount,
+        totalAmount: totals.grandTotal,
       });
       addToast('success', `Bulk sale saved successfully. Invoice ${result.invoiceId}.`);
       return true;
@@ -494,30 +505,13 @@ export default function BulkSalePage() {
                 </div>
               </label>
 
-              <label className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Delivery Partner
-                </div>
-                <select
-                  value={selectedPartnerId}
-                  onChange={(e) => setSelectedPartnerId(e.target.value)}
-                  disabled={mode !== 'Delivery' || partnersLoading}
-                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">
-                    {mode === 'Delivery'
-                      ? partnersLoading
-                        ? 'Loading partners...'
-                        : 'Select delivery partner'
-                      : 'Not required in Shop mode'}
-                  </option>
-                  {deliveryPartners.map((partner) => (
-                    <option key={partner.id} value={partner.id}>
-                      {partner.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <DeliveryPartnerSelect
+                value={selectedPartnerId}
+                onChange={setSelectedPartnerId}
+                partners={deliveryPartners}
+                loading={partnersLoading}
+                disabled={mode !== 'Delivery'}
+              />
             </div>
 
             {mode === 'Delivery' && !partnersLoading && deliveryPartners.length === 0 && (
@@ -612,7 +606,7 @@ export default function BulkSalePage() {
               maxQuantityByItem={Object.fromEntries(
                 lineItems.map((entry) => [Number(entry.product.id), entry.stock])
               )}
-              className="max-h-[calc(100vh-360px)]"
+              className="max-h-[calc(100vh-420px)]"
             />
           </div>
 
@@ -649,10 +643,36 @@ export default function BulkSalePage() {
                 <span className="text-muted-foreground">Total Items</span>
                 <span className="font-medium">{totals.quantity}</span>
               </div>
+              <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Delivery Fee</span>
+                  {mode !== 'Delivery' && (
+                    <span className="text-xs text-muted-foreground">Shop mode</span>
+                  )}
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  value={deliveryFee}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  placeholder="0"
+                  disabled={mode !== 'Delivery'}
+                  className="h-11"
+                />
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Products Total</span>
+                <span className="font-medium">Ks {totals.subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Delivery Fee</span>
+                <span className="font-medium">Ks {totals.deliveryFee.toLocaleString()}</span>
+              </div>
               <div className="flex items-center justify-between border-t border-border pt-3">
                 <span className="text-sm font-semibold">Total Amount</span>
                 <span className="text-lg font-semibold">
-                  Ks {totals.amount.toLocaleString()}
+                  Ks {totals.grandTotal.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -704,7 +724,7 @@ export default function BulkSalePage() {
           className="fixed bottom-4 left-4 right-4 z-40 h-12 rounded-xl text-base font-semibold shadow-lg"
         >
           <ShoppingBag className="mr-2 h-4 w-4" />
-          Selected Items ({totals.quantity}) • Ks {totals.amount.toLocaleString()}
+          Selected Items ({totals.quantity}) • Ks {totals.grandTotal.toLocaleString()}
         </Button>
       </div>
 
@@ -761,7 +781,7 @@ export default function BulkSalePage() {
               maxQuantityByItem={Object.fromEntries(
                 lineItems.map((entry) => [Number(entry.product.id), entry.stock])
               )}
-              className="max-h-[42vh]"
+              className="max-h-[38vh]"
             />
 
             <div className="border-t border-border bg-card p-4">
@@ -782,10 +802,36 @@ export default function BulkSalePage() {
                     {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
                   </span>
                 </div>
+                <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Delivery Fee</span>
+                    {mode !== 'Delivery' && (
+                      <span className="text-xs text-muted-foreground">Shop mode</span>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    value={deliveryFee}
+                    onChange={(e) => setDeliveryFee(e.target.value)}
+                    placeholder="0"
+                    disabled={mode !== 'Delivery'}
+                    className="h-11"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Products Total</span>
+                  <span className="font-medium">Ks {totals.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Delivery Fee</span>
+                  <span className="font-medium">Ks {totals.deliveryFee.toLocaleString()}</span>
+                </div>
                 <div className="flex items-center justify-between border-t border-border pt-3">
                   <span className="text-sm font-semibold">Total Amount</span>
                   <span className="text-lg font-semibold">
-                    Ks {totals.amount.toLocaleString()}
+                    Ks {totals.grandTotal.toLocaleString()}
                   </span>
                 </div>
               </div>

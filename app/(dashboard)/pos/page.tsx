@@ -26,6 +26,10 @@ import {
   getValidImageUrl,
 } from '@/components/product-browser';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
+import {
+  DeliveryPartnerSelect,
+  type DeliveryPartnerOption,
+} from '@/components/delivery-partner-select';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -139,6 +143,8 @@ function CartSidebar({
   onPaymentMethodChange,
   courierName,
   onCourierNameChange,
+  deliveryPartners,
+  partnersLoading,
   deliFee,
   onDeliFeeChange,
   amountReceived,
@@ -180,6 +186,8 @@ function CartSidebar({
   onPaymentMethodChange: (v: string) => void;
   courierName: string;
   onCourierNameChange: (v: string) => void;
+  deliveryPartners: DeliveryPartnerOption[];
+  partnersLoading: boolean;
   deliFee: string;
   onDeliFeeChange: (v: string) => void;
   amountReceived: string;
@@ -400,11 +408,13 @@ function CartSidebar({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-2">
-                      <label className="text-xs font-semibold">Courier</label>
-                      <Input
+                      <DeliveryPartnerSelect
                         value={courierName}
-                        onChange={(e) => onCourierNameChange(e.target.value)}
-                        placeholder="Courier"
+                        onChange={onCourierNameChange}
+                        partners={deliveryPartners}
+                        loading={partnersLoading}
+                        label="Delivery Partner"
+                        placeholder="Select delivery partner"
                         className="h-12"
                       />
                     </div>
@@ -825,6 +835,10 @@ export default function PosPage() {
   const [selectedMainCategory, setSelectedMainCategory] = React.useState<string | null>(null);
   const [isOnline, setIsOnline] = React.useState(true);
   const [offlineQueueCount, setOfflineQueueCount] = React.useState(0);
+  const [deliveryPartners, setDeliveryPartners] = React.useState<
+    DeliveryPartnerOption[]
+  >([]);
+  const [partnersLoading, setPartnersLoading] = React.useState(true);
 
   // Delivery & Customer State
   const [customerName, setCustomerName] = React.useState('');
@@ -928,6 +942,52 @@ export default function PosPage() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const fetchPartners = async () => {
+      setPartnersLoading(true);
+      try {
+        const res = await fetch('/api/delivery-partners');
+        const data = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error(data?.error || res.statusText);
+        }
+        if (!mounted) return;
+        setDeliveryPartners((data ?? []) as DeliveryPartnerOption[]);
+      } catch (error) {
+        if (!mounted) return;
+        setDeliveryPartners([]);
+        addToast(
+          'error',
+          error instanceof Error ? error.message : 'Failed to load delivery partners.'
+        );
+      } finally {
+        if (mounted) {
+          setPartnersLoading(false);
+        }
+      }
+    };
+
+    fetchPartners();
+
+    return () => {
+      mounted = false;
+    };
+  }, [addToast]);
+
+  React.useEffect(() => {
+    if (!courierName || deliveryPartners.length === 0) return;
+    const alreadySelected = deliveryPartners.some((partner) => partner.id === courierName);
+    if (alreadySelected) return;
+    const matchedPartner = deliveryPartners.find(
+      (partner) => partner.name.toLowerCase() === courierName.toLowerCase()
+    );
+    if (matchedPartner) {
+      setCourierName(matchedPartner.id);
+    }
+  }, [courierName, deliveryPartners]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1103,6 +1163,8 @@ export default function PosPage() {
   const amountReceivedNum = Number(amountReceived) || 0;
   const amountDue = Math.max(0, grandTotal - amountReceivedNum);
   const changeAmount = Math.max(0, amountReceivedNum - grandTotal);
+  const selectedCourierName =
+    deliveryPartners.find((partner) => partner.id === courierName)?.name ?? '';
 
   const cartQtyByProductId = React.useMemo(() => {
     const m = new Map<number, number>();
@@ -1197,10 +1259,7 @@ export default function PosPage() {
 
     // Mode specific checks
     if (saleType === 'Delivery') {
-      // Make customer fields optional for delivery if needed, but at least allow checkout if user confirms
-      // Assuming 'Confirm Delivery' implies user has filled what's necessary.
-      // If we want to make them optional:
-      return true; 
+      return !!courierName;
     }
     
     // For Shop mode, we allow checkout without customer details
@@ -1280,7 +1339,7 @@ export default function PosPage() {
           remark: remark,
           receipt_payload: receiptSnapshot,
           delivery_info: saleType === 'Delivery' ? {
-            courier_name: courierName,
+            courier_name: selectedCourierName,
             deli_fee: Number(deliFee),
             is_bago_special: isBagoSpecial
           } : null
@@ -1312,7 +1371,7 @@ export default function PosPage() {
           remark: remark,
           receipt_payload: receiptSnapshot,
           delivery_info: saleType === 'Delivery' ? {
-            courier_name: courierName,
+            courier_name: selectedCourierName,
             deli_fee: Number(deliFee),
             is_bago_special: isBagoSpecial
           } : null
@@ -1945,6 +2004,8 @@ export default function PosPage() {
             onPaymentMethodChange={setPaymentMethod}
             courierName={courierName}
             onCourierNameChange={setCourierName}
+            deliveryPartners={deliveryPartners}
+            partnersLoading={partnersLoading}
             deliFee={deliFee}
             onDeliFeeChange={setDeliFee}
             amountReceived={amountReceived}
