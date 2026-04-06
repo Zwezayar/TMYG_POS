@@ -9,17 +9,22 @@ import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { compressImageFile } from '@/lib/image';
 import { ScannerModal } from '@/components/scanner/scanner-modal';
 import {
-  Loader2, Camera, Zap, Search, Pencil, Check,
+  Loader2, Camera, Zap, Pencil, Check,
   Menu, ChevronLeft, ChevronRight, X, Phone, MapPin, Plus,
   ClipboardList, Package, Settings, ShoppingCart, Truck, Trash2, Smartphone,
   Minus, ShoppingBag, Store, Calendar, Hash, Banknote, CreditCard, Waves,
-  ScanLine, Sparkles, Droplets, Wind, Palette, Scissors, ChevronsLeft, ChevronsRight, CheckCircle2,
+  Sparkles, Droplets, Wind, Palette, Scissors, ChevronsLeft, ChevronsRight, CheckCircle2,
   LayoutGrid, User, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
 import { formatDateDDMMYYYY, formatTimeHHMM } from '@/lib/date';
 import { ProductForm } from '@/components/forms/product-form';
+import {
+  MemoProductBrowser,
+  formatPrice,
+  getValidImageUrl,
+} from '@/components/product-browser';
 
 // --- Types & Helpers ---
 type CartLine = {
@@ -92,10 +97,6 @@ const normalizeBarcode = (bc: string | null | undefined) => bc?.trim() || "";
 const POS_STATE_KEY = 'pos-state-v1';
 const PRODUCTS_REFRESH_KEY = 'products-refresh-v1';
 
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("en-US").format(price) + " Ks";
-};
-
 const formatStaffName = (value: string | null) => {
   if (!value) return null;
   const base = value.split('@')[0]?.trim();
@@ -108,18 +109,6 @@ const formatRole = (value: string | null | undefined) => {
   return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
-// Helper function to validate and format image URLs
-const getValidImageUrl = (url: string | null | undefined) => {
-  if (!url) return null;
-  if (url.startsWith('http') || url.startsWith('data:') || url.includes('supabase.co/storage')) {
-    return url;
-  }
-  if (url.startsWith('/')) {
-    return url;
-  }
-  return null;
-};
-
 // --- Icons Map for Categories ---
 const iconMap: Record<string, React.ElementType> = {
   Sparkles,
@@ -129,240 +118,6 @@ const iconMap: Record<string, React.ElementType> = {
   Scissors,
 };
 
-// Redundant NavSidebar removed since navigation is now centrally located in App Sidebar.
-
-function ProductCard({
-  product,
-  onAddToCart,
-  onClick,
-}: {
-  product: Product;
-  onAddToCart: (p: Product) => void;
-  onClick: (p: Product) => void;
-}) {
-  const stock = product.stock_quantity ?? 0;
-  const isOutOfStock = stock <= 0;
-
-  const [imgError, setImgError] = React.useState(false);
-
-  const finalImageUrl = getValidImageUrl(product.image_url);
-
-  return (
-    <div
-      onClick={() => onClick(product)}
-      className={cn(
-        "group flex flex-col rounded-xl border border-border bg-card p-2 text-left transition-all relative overflow-hidden h-auto min-h-[280px] cursor-pointer touch-manipulation",
-        isOutOfStock ? "opacity-60" : "hover:border-primary/30 hover:shadow-lg"
-      )}
-    >
-      <div className="relative h-32 w-full overflow-hidden rounded-md bg-muted flex items-center justify-center shrink-0 flex-none">
-        {finalImageUrl && !imgError ? (
-          <img
-            src={finalImageUrl}
-            alt={product.product_name || ''}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full w-full text-muted-foreground">
-            <Package className="h-8 w-8 opacity-30 mb-1" />
-            <span className="text-[10px] uppercase font-medium">No Image</span>
-          </div>
-        )}
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center">
-            <span className="bg-destructive text-white text-[9px] font-black uppercase px-2 py-1 rounded">Sold Out</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-1 flex-col min-w-0 justify-between pt-2 overflow-hidden">
-        <p className="line-clamp-3 min-h-[3.5rem] text-[12px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
-          {product.product_name || '—'}
-        </p>
-        <div className="flex flex-col gap-1.5 mt-1">
-          <span className="inline-flex max-w-full self-start rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900 truncate">
-            {product.size || (product.default_code ? `SKU: ${product.default_code}` : 'Standard')}
-          </span>
-          <div className="flex items-center justify-between">
-            <span className="text-[14px] font-black text-[#8B5CF6]">
-              {formatPrice(product.sale_price ?? 0)}
-            </span>
-            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-md", stock > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive")}>
-              {stock} left
-            </span>
-          </div>
-        </div>
-        <div className="mt-auto pt-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isOutOfStock) onAddToCart(product);
-            }}
-            disabled={isOutOfStock}
-            className={cn(
-              "flex w-full h-[44px] items-center justify-center gap-2 rounded-lg text-[12px] font-black transition-all border-none touch-manipulation shadow-sm active:scale-95",
-              isOutOfStock
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-          >
-            <Plus className="h-4 w-4" />
-            Add to Cart
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const MemoProductCard = React.memo(ProductCard);
-
-function ProductArea({
-  products,
-  query,
-  onQueryChange,
-  onScanClick,
-  onAddNewProduct,
-  onAddToCart,
-  onProductClick,
-  categories,
-  activeCategory,
-  onCategoryChange,
-  loading,
-  missingBarcode,
-  onQuickAdd,
-}: {
-  products: Product[];
-  query: string;
-  onQueryChange: (q: string) => void;
-  onScanClick: () => void;
-  onAddNewProduct: () => void;
-  onAddToCart: (p: Product) => void;
-  onProductClick: (p: Product) => void;
-  categories: { id: string; name: string }[];
-  activeCategory: string | null;
-  onCategoryChange: (id: string | null) => void;
-  loading: boolean;
-  missingBarcode: string | null;
-  onQuickAdd: () => void;
-}) {
-  return (
-    <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-background/50">
-      <div className="border-b border-border bg-card">
-        <div className="h-[72px] flex items-center px-4 gap-2 shrink-0">
-          <div className="flex flex-1 items-center gap-2 min-w-0">
-          <div className="relative flex-1 min-w-[140px]">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              className="h-[48px] w-full rounded-xl border border-border bg-muted/30 pl-10 pr-8 text-base focus-visible:ring-primary/20 focus-visible:border-primary/50 transition-all font-medium"
-            />
-            {query && (
-              <button
-                onClick={() => onQueryChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-none p-1.5 transition-colors touch-manipulation"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            onClick={onScanClick}
-            className="h-[48px] px-3 sm:px-4 gap-2 rounded-xl border-border hover:bg-muted hover:border-primary/30 text-muted-foreground hover:text-primary transition-all font-bold transition-all active:scale-95 shadow-sm shrink-0"
-          >
-            <ScanLine className="h-5 w-5" />
-            <span className="hidden min-[800px]:inline text-xs">Scan</span>
-          </Button>
-          <Button
-            onClick={onAddNewProduct}
-            className="h-[48px] px-3 sm:px-4 gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold active:scale-95 shadow-sm shrink-0"
-          >
-            <Plus className="h-5 w-5" />
-            <span className="hidden min-[800px]:inline text-xs">Add Product</span>
-          </Button>
-        </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
-          <Button
-            variant="outline"
-            onClick={() => onCategoryChange(null)}
-            className={cn(
-              "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
-              activeCategory === null
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-            )}
-          >
-            All Products
-          </Button>
-          {categories.map((cat) => {
-            const label = cat.name.split('/').pop()?.trim() || cat.name;
-            return (
-              <Button
-                key={cat.id}
-                variant="outline"
-                onClick={() => onCategoryChange(label)}
-                className={cn(
-                  "h-9 px-4 rounded-full text-xs font-bold whitespace-nowrap",
-                  activeCategory === label
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-                )}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-      {missingBarcode && (
-        <div className="px-4 py-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">
-            Barcode not found: <span className="font-bold">{missingBarcode}</span>
-          </div>
-          <Button className="h-[48px] px-5" onClick={onQuickAdd}>
-            Quick Add
-          </Button>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto bg-background p-3 sm:p-4 custom-scrollbar">
-        {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-          </div>
-        ) : products.length > 0 ? (
-          <div className="grid grid-cols-2 min-[800px]:grid-cols-3 gap-3 pb-20">
-            {products.map((product) => (
-              <MemoProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={onAddToCart}
-                onClick={onProductClick}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-8 text-center">
-            <div className="p-4 rounded-full bg-muted mb-4">
-              <Package className="h-8 w-8 opacity-20" />
-            </div>
-            <p className="text-sm font-bold">No products found</p>
-            <p className="text-xs opacity-60">Try adjusting your search or category</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const MemoProductArea = React.memo(ProductArea);
 
 function CartSidebar({
   cart,
@@ -2211,7 +1966,7 @@ export default function PosPage() {
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
             {/* Product area */}
-            <MemoProductArea
+            <MemoProductBrowser
               products={matches}
               query={query}
               onQueryChange={setQuery}

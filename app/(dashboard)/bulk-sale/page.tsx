@@ -7,13 +7,10 @@ import {
   CheckCircle2,
   Loader2,
   Minus,
-  Package,
   Plus,
-  Search,
   Store,
   Trash2,
   Truck,
-  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +19,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { useProducts, type Product } from '@/lib/useProducts';
 import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { MemoProductBrowser } from '@/components/product-browser';
 
 type DeliveryPartner = {
   id: string;
@@ -45,21 +43,6 @@ function getTodayInputValue() {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function getValidImageUrl(url: string | null | undefined) {
-  if (!url) return null;
-  if (
-    url.startsWith('http') ||
-    url.startsWith('data:') ||
-    url.includes('supabase.co/storage')
-  ) {
-    return url;
-  }
-  if (url.startsWith('/')) {
-    return url;
-  }
-  return null;
 }
 
 export default function BulkSalePage() {
@@ -363,8 +346,8 @@ export default function BulkSalePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_420px] xl:items-start">
+        <div className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="grid gap-4 lg:grid-cols-[auto_auto_1fr]">
               <div className="space-y-2">
@@ -459,141 +442,32 @@ export default function BulkSalePage() {
             </div>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/50">
-              <div className="border-b border-border bg-card">
-                <div className="flex items-center gap-2 px-4 py-4">
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
-                    <Input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search by name, barcode, category, or size"
-                      className="h-[48px] w-full rounded-xl border border-border bg-muted/30 pl-10 pr-8 text-base font-medium transition-all focus-visible:border-primary/50 focus-visible:ring-primary/20"
-                    />
-                    {query && (
-                      <button
-                        type="button"
-                        onClick={() => setQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 border-none bg-transparent p-1.5 text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto px-4 pb-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedCategory(null)}
-                    className={`h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap ${selectedCategory === null
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
-                      }`}
-                  >
-                    All Products
-                  </Button>
-                  {categoryOptions.map((category) => (
-                    <Button
-                      key={category}
-                      variant="outline"
-                      onClick={() => setSelectedCategory(category)}
-                      className={`h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap ${selectedCategory === category
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                    >
-                      {category}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="max-h-[68vh] min-h-[420px] overflow-y-auto bg-background p-3 sm:p-4">
-                {productsLoading ? (
-                  <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-                  </div>
-                ) : filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 pb-4 min-[820px]:grid-cols-3 2xl:grid-cols-4">
-                    {filteredProducts.map((product) => {
-                      const stock = Number(product.stock_quantity ?? 0);
-                      const imageUrl = getValidImageUrl(product.image_url);
-                      return (
-                        <button
-                          key={product.id}
-                          type="button"
-                          onClick={() => addProduct(Number(product.id))}
-                          className="group relative flex min-h-[280px] touch-manipulation flex-col overflow-hidden rounded-xl border border-border bg-card p-2 text-left transition-all hover:border-primary/30 hover:shadow-lg"
-                        >
-                          <div className="relative h-32 w-full flex-none shrink-0 overflow-hidden rounded-md bg-muted">
-                            {imageUrl ? (
-                              <img
-                                src={imageUrl}
-                                alt={product.product_name || ''}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
-                                <Package className="mb-1 h-8 w-8 opacity-30" />
-                                <span className="text-[10px] font-medium uppercase">
-                                  No Image
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden pt-2">
-                            <p className="min-h-[3.5rem] line-clamp-3 text-[12px] font-bold leading-tight text-foreground transition-colors group-hover:text-primary">
-                              {product.product_name || '—'}
-                            </p>
-
-                            <div className="mt-1 flex flex-col gap-1.5">
-                              <span className="inline-flex max-w-full self-start truncate rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
-                                {product.size ||
-                                  (product.default_code
-                                    ? `SKU: ${product.default_code}`
-                                    : 'Standard')}
-                              </span>
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[14px] font-black text-[#8B5CF6]">
-                                  Ks {Number(product.sale_price ?? 0).toLocaleString()}
-                                </span>
-                                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                                  {stock} left
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="mt-auto pt-2">
-                              <div className="flex h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-primary text-[12px] font-black text-primary-foreground shadow-sm transition-all group-hover:bg-primary/90">
-                                <Plus className="h-4 w-4" />
-                                Add
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                    <div className="mb-4 rounded-full bg-muted p-4">
-                      <Package className="h-8 w-8 opacity-20" />
-                    </div>
-                    <p className="text-sm font-bold">
-                      {productsError || 'No products found'}
-                    </p>
-                    <p className="text-xs opacity-60">
-                      Try adjusting your search or category
-                    </p>
-                  </div>
-                )}
-              </div>
+              <MemoProductBrowser
+                products={filteredProducts}
+                query={query}
+                onQueryChange={setQuery}
+                onAddToCart={(product) => addProduct(Number(product.id))}
+                onProductClick={(product) => addProduct(Number(product.id))}
+                categories={categoryOptions.map((category) => ({
+                  id: category,
+                  name: category,
+                }))}
+                activeCategory={selectedCategory}
+                onCategoryChange={setSelectedCategory}
+                loading={productsLoading}
+                className="h-[calc(100vh-300px)] min-h-[420px]"
+                contentClassName="h-[calc(100vh-372px)] min-h-[348px]"
+              />
             </div>
+            {productsError && !productsLoading && filteredProducts.length === 0 && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {productsError}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 xl:sticky xl:top-6">
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -607,7 +481,7 @@ export default function BulkSalePage() {
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-3 xl:max-h-[calc(100vh-280px)] xl:overflow-y-auto xl:pr-1">
               {lineItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
                   Add products from the left to start a bulk sale.
