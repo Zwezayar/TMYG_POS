@@ -79,7 +79,7 @@ export default function BulkSalePage() {
   const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
-  const [successSummary, setSuccessSummary] = React.useState<{
+  const [, setSuccessSummary] = React.useState<{
     invoiceId: string;
     date: string;
     totalAmount: number;
@@ -605,51 +605,29 @@ export default function BulkSalePage() {
               maxQuantityByItem={Object.fromEntries(
                 lineItems.map((entry) => [Number(entry.product.id), entry.stock])
               )}
-              className="min-h-0"
+              className="relative z-0 min-h-0 flex-[1_1_70%]"
             />
 
-            <div className="shrink-0 border-t border-border bg-card/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-card/85">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Bulk Sale Summary</div>
-                  <p className="text-xs text-muted-foreground">
-                    Delivery fee, totals, and confirmation always stay visible.
-                  </p>
+            <div className="relative z-10 shrink-0 border-t border-border bg-card px-3 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.18)]">
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+                  <div className="text-[10px] text-muted-foreground">Mode</div>
+                  <div className="mt-0.5 font-medium">{mode}</div>
                 </div>
-                <div className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-secondary-foreground">
-                  {lineItems.length} lines
-                </div>
-              </div>
-              <div className="mt-3 grid gap-2 text-sm">
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl border border-border bg-background/60 px-3 py-2">
-                    <div className="text-[11px] text-muted-foreground">Mode</div>
-                    <div className="mt-1 font-medium">{mode}</div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-background/60 px-3 py-2">
-                    <div className="text-[11px] text-muted-foreground">Total Items</div>
-                    <div className="mt-1 font-medium">{totals.quantity}</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Date</span>
-                  <span className="font-medium">
+                <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+                  <div className="text-[10px] text-muted-foreground">Date</div>
+                  <div className="mt-0.5 font-medium">
                     {formatDateDDMMYYYY(`${saleDate}T12:00:00.000Z`)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Partner</span>
-                  <span className="max-w-[65%] truncate text-right font-medium">
-                    {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
-                  </span>
-                </div>
-                <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Delivery Fee</span>
-                    {mode !== 'Delivery' && (
-                      <span className="text-[11px] text-muted-foreground">Shop mode</span>
-                    )}
                   </div>
+                </div>
+                <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+                  <div className="text-[10px] text-muted-foreground">Partner</div>
+                  <div className="mt-0.5 truncate font-medium">
+                    {mode === 'Delivery' ? selectedPartnerName || 'Not selected' : '—'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-background/60 px-2.5 py-2">
+                  <div className="mb-1 text-[10px] text-muted-foreground">Delivery Fee</div>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -658,40 +636,23 @@ export default function BulkSalePage() {
                     onChange={(e) => setDeliveryFee(e.target.value)}
                     placeholder="0"
                     disabled={mode !== 'Delivery'}
-                    className="h-10"
+                    className="h-8 rounded-md px-2 text-xs"
                   />
                 </div>
-                <div className="space-y-1.5 rounded-xl border border-border bg-background/40 p-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Products Total</span>
-                    <span className="font-medium">Ks {totals.subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Delivery Fee</span>
-                    <span className="font-medium">Ks {totals.deliveryFee.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border pt-2">
-                    <span className="text-sm font-semibold">Total Amount</span>
-                    <span className="text-lg font-semibold">
+                <div className="col-span-2 rounded-lg border border-border bg-background/40 px-2.5 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-muted-foreground">Total Amount</span>
+                    <span className="text-base font-semibold">
                       Ks {totals.grandTotal.toLocaleString()}
                     </span>
                   </div>
                 </div>
-                {successSummary && (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-                    <div className="font-semibold">Bulk sale saved successfully</div>
-                    <div className="mt-1 text-emerald-200">
-                      Invoice {successSummary.invoiceId} • {successSummary.date} • Ks{' '}
-                      {successSummary.totalAmount.toLocaleString()}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <Button
                 onClick={handleConfirm}
                 disabled={!canSave}
-                className="mt-4 h-12 w-full rounded-xl text-base font-semibold"
+                className="mt-3 h-11 w-full rounded-xl text-sm font-semibold"
               >
                 {saving ? (
                   <>
