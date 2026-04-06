@@ -10,6 +10,7 @@ import {
   Truck,
   ClipboardList,
   Rows3,
+  TrendingUp,
   Settings,
   Users,
   LogOut,
@@ -30,10 +31,14 @@ type NavItem = {
 const mainItems: NavItem[] = [
   { key: 'menuDashboard', icon: LayoutDashboard, href: '/' },
   { key: 'menuPos', icon: ShoppingBag, href: '/pos' },
-  { key: 'menuBulkSale', icon: Rows3, href: '/bulk-sale' },
   { key: 'menuInventory', icon: Package, href: '/admin/inventory' },
+];
+
+const salesItems: NavItem[] = [
+  { key: 'menuBulkSale', icon: Rows3, href: '/bulk-sale' },
   { key: 'menuShopSales', icon: ClipboardList, href: '/sales/shop' },
   { key: 'menuDeliverySales', icon: Truck, href: '/sales/delivery' },
+  { key: 'menuProfitDashboard', icon: TrendingUp, href: '/sales/profit' },
 ];
 
 const crmItems: NavItem[] = [
@@ -82,6 +87,35 @@ export function Sidebar({ mobileOpen, onCloseMobile, collapsed, onToggleCollapse
         {mainItems.map((item) => {
           const Icon = item.icon;
           const active = (item.href === '/' && pathname === '/') || (item.href !== '/' && pathname.startsWith(item.href));
+          const label = t(item.key);
+          return (
+            <li key={item.key}>
+              <Link
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-300',
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  collapsed ? "justify-center px-0 w-10 mx-auto" : "w-full"
+                )}
+                title={collapsed ? label : undefined}
+              >
+                <Icon className={cn("h-5 w-5 shrink-0 transition-transform", !active && "opacity-70")} />
+                {!collapsed && <span className="font-bold text-[13px]">{label}</span>}
+              </Link>
+            </li>
+          );
+        })}
+        <li className={cn(
+          "px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 transition-all duration-300 mt-3",
+          collapsed ? "opacity-0 h-0 invisible" : "opacity-100 h-auto visible"
+        )}>
+          {t('menuSalesSection')}
+        </li>
+        {salesItems.map((item) => {
+          const Icon = item.icon;
+          const active = pathname.startsWith(item.href);
           const label = t(item.key);
           return (
             <li key={item.key}>

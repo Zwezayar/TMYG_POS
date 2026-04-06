@@ -206,53 +206,60 @@ export default function ProfitDashboardPage() {
         </p>
       </div>
 
-      {!unlocked ? (
-        <div className="mx-auto max-w-md rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-              <LockKeyhole className="h-6 w-6" />
+      {!unlocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                <LockKeyhole className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-lg font-semibold">Unlock Profit Dashboard</div>
+                <p className="text-sm text-muted-foreground">
+                  Enter the admin passcode before any profit data is shown.
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="text-lg font-semibold">Unlock dashboard</div>
-              <p className="text-sm text-muted-foreground">
-                Enter the admin passcode to load profit data.
+
+            <div className="mt-5 space-y-3">
+              <Input
+                type="password"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Enter passcode"
+                className="h-12"
+              />
+              <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Default passcode: 1234
+              </div>
+              {error && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+              <Button
+                onClick={handleUnlock}
+                disabled={unlocking}
+                className="h-12 w-full rounded-xl text-base font-semibold"
+              >
+                {unlocking ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Unlock Profit Dashboard'
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                After unlock, use From Date and To Date filters to view profit for any period.
               </p>
             </div>
           </div>
-
-          <div className="mt-5 space-y-3">
-            <Input
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Enter passcode"
-              className="h-12"
-            />
-            <div className="text-xs text-muted-foreground">
-              Default passcode: 1234
-            </div>
-            {error && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-            <Button
-              onClick={handleUnlock}
-              disabled={unlocking}
-              className="h-12 w-full rounded-xl text-base font-semibold"
-            >
-              {unlocking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                'Unlock Profit Dashboard'
-              )}
-            </Button>
-          </div>
         </div>
-      ) : (
+      )}
+
+      {unlocked ? (
         <>
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -478,6 +485,16 @@ export default function ProfitDashboardPage() {
             </div>
           </div>
         </>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
+          <div className="mt-4 text-lg font-semibold">Profit Analytics Locked</div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Open the passcode modal to access revenue, cost, net profit, and date filters.
+          </p>
+        </div>
       )}
     </div>
   );

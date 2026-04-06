@@ -7,17 +7,20 @@ import {
   CheckCircle2,
   Loader2,
   Minus,
+  Package,
   Plus,
   Search,
   Store,
   Trash2,
   Truck,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { useProducts, type Product } from '@/lib/useProducts';
+import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
 
 type DeliveryPartner = {
@@ -44,16 +47,33 @@ function getTodayInputValue() {
   return `${year}-${month}-${day}`;
 }
 
+function getValidImageUrl(url: string | null | undefined) {
+  if (!url) return null;
+  if (
+    url.startsWith('http') ||
+    url.startsWith('data:') ||
+    url.includes('supabase.co/storage')
+  ) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return url;
+  }
+  return null;
+}
+
 export default function BulkSalePage() {
   const { role, displayName, username } = useDashboardAuth();
   const { products, loading: productsLoading, error: productsError, refresh } =
     useProducts();
+  const { categories: dbCategories } = useCategories();
   const [mode, setMode] = React.useState<'Shop' | 'Delivery'>('Shop');
   const [saleDate, setSaleDate] = React.useState(getTodayInputValue);
   const [deliveryPartners, setDeliveryPartners] = React.useState<DeliveryPartner[]>([]);
   const [partnersLoading, setPartnersLoading] = React.useState(true);
   const [selectedPartnerId, setSelectedPartnerId] = React.useState('');
   const [query, setQuery] = React.useState('');
+  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
   const [lines, setLines] = React.useState<BulkSaleLine[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
@@ -101,6 +121,25 @@ export default function BulkSalePage() {
     }
   }, [mode]);
 
+  const categoryOptions = React.useMemo(() => {
+    if (dbCategories.length > 0) {
+      return Array.from(
+        new Set(
+          dbCategories
+            .map((category) => category.name.split('/').pop()?.trim() || category.name)
+            .filter(Boolean)
+        )
+      );
+    }
+    return Array.from(
+      new Set(
+        products
+          .map((product) => product.category?.split('/').pop()?.trim() || product.category || '')
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [dbCategories, products]);
+
   const productMap = React.useMemo(
     () => new Map(products.map((product) => [Number(product.id), product])),
     [products]
@@ -110,12 +149,18 @@ export default function BulkSalePage() {
     const search = query.trim().toLowerCase();
     const list = products
       .filter((product) => Number(product.stock_quantity ?? 0) > 0)
+      .filter((product) => {
+        if (!selectedCategory) return true;
+        const category =
+          product.category?.split('/').pop()?.trim() || product.category || '';
+        return category === selectedCategory || product.category === selectedCategory;
+      })
       .sort((a, b) =>
         (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, {
           sensitivity: 'base',
         })
       );
-    if (!search) return list.slice(0, 18);
+    if (!search) return list;
     return list
       .filter((product) => {
         const fields = [
@@ -127,9 +172,8 @@ export default function BulkSalePage() {
           product.variant,
         ];
         return fields.some((field) => field?.toLowerCase().includes(search));
-      })
-      .slice(0, 18);
-  }, [products, query]);
+      });
+  }, [products, query, selectedCategory]);
 
   const lineItems = React.useMemo(() => {
     return lines
@@ -407,68 +451,144 @@ export default function BulkSalePage() {
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-base font-semibold">Quick Item Entry</div>
-                <p className="text-sm text-muted-foreground">
-                  Search products and tap Add to build today&apos;s sale.
-                </p>
-              </div>
-              <div className="relative md:w-80">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, barcode, category, or size"
-                  className="h-11 pl-9"
-                />
-              </div>
+            <div>
+              <div className="text-base font-semibold">Quick Item Entry</div>
+              <p className="text-sm text-muted-foreground">
+                Search products and tap Add to build today&apos;s sale.
+              </p>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {productsLoading ? (
-                <div className="col-span-full rounded-xl border border-border/60 bg-background/80 px-4 py-8 text-center text-sm text-muted-foreground">
-                  Loading products...
+            <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/50">
+              <div className="border-b border-border bg-card">
+                <div className="flex items-center gap-2 px-4 py-4">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search by name, barcode, category, or size"
+                      className="h-[48px] w-full rounded-xl border border-border bg-muted/30 pl-10 pr-8 text-base font-medium transition-all focus-visible:border-primary/50 focus-visible:ring-primary/20"
+                    />
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => setQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 border-none bg-transparent p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="col-span-full rounded-xl border border-border/60 bg-background/80 px-4 py-8 text-center text-sm text-muted-foreground">
-                  {productsError || 'No matching in-stock products found.'}
-                </div>
-              ) : (
-                filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => addProduct(Number(product.id))}
-                    className="rounded-2xl border border-border/60 bg-background p-4 text-left transition hover:border-primary/40 hover:bg-secondary/30"
+
+                <div className="flex gap-2 overflow-x-auto px-4 pb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedCategory(null)}
+                    className={`h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap ${selectedCategory === null
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
+                      }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold">
-                          {product.product_name || 'Unnamed Product'}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {[product.category, product.size || product.variant, product.barcode]
-                            .filter(Boolean)
-                            .join(' • ') || 'No extra details'}
-                        </div>
-                      </div>
-                      <div className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-                        {Number(product.stock_quantity ?? 0)} left
-                      </div>
+                    All Products
+                  </Button>
+                  {categoryOptions.map((category) => (
+                    <Button
+                      key={category}
+                      variant="outline"
+                      onClick={() => setSelectedCategory(category)}
+                      className={`h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap ${selectedCategory === category
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                      {category}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="max-h-[68vh] min-h-[420px] overflow-y-auto bg-background p-3 sm:p-4">
+                {productsLoading ? (
+                  <div className="flex h-full items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+                  </div>
+                ) : filteredProducts.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 pb-4 min-[820px]:grid-cols-3 2xl:grid-cols-4">
+                    {filteredProducts.map((product) => {
+                      const stock = Number(product.stock_quantity ?? 0);
+                      const imageUrl = getValidImageUrl(product.image_url);
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => addProduct(Number(product.id))}
+                          className="group relative flex min-h-[280px] touch-manipulation flex-col overflow-hidden rounded-xl border border-border bg-card p-2 text-left transition-all hover:border-primary/30 hover:shadow-lg"
+                        >
+                          <div className="relative h-32 w-full flex-none shrink-0 overflow-hidden rounded-md bg-muted">
+                            {imageUrl ? (
+                              <img
+                                src={imageUrl}
+                                alt={product.product_name || ''}
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
+                                <Package className="mb-1 h-8 w-8 opacity-30" />
+                                <span className="text-[10px] font-medium uppercase">
+                                  No Image
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden pt-2">
+                            <p className="min-h-[3.5rem] line-clamp-3 text-[12px] font-bold leading-tight text-foreground transition-colors group-hover:text-primary">
+                              {product.product_name || '—'}
+                            </p>
+
+                            <div className="mt-1 flex flex-col gap-1.5">
+                              <span className="inline-flex max-w-full self-start truncate rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+                                {product.size ||
+                                  (product.default_code
+                                    ? `SKU: ${product.default_code}`
+                                    : 'Standard')}
+                              </span>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[14px] font-black text-[#8B5CF6]">
+                                  Ks {Number(product.sale_price ?? 0).toLocaleString()}
+                                </span>
+                                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                  {stock} left
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-auto pt-2">
+                              <div className="flex h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-primary text-[12px] font-black text-primary-foreground shadow-sm transition-all group-hover:bg-primary/90">
+                                <Plus className="h-4 w-4" />
+                                Add
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center p-8 text-center text-muted-foreground">
+                    <div className="mb-4 rounded-full bg-muted p-4">
+                      <Package className="h-8 w-8 opacity-20" />
                     </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="text-sm font-medium">
-                        Ks {Number(product.sale_price ?? 0).toLocaleString()}
-                      </div>
-                      <div className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
-                        <Plus className="h-3.5 w-3.5" />
-                        Add
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
+                    <p className="text-sm font-bold">
+                      {productsError || 'No products found'}
+                    </p>
+                    <p className="text-xs opacity-60">
+                      Try adjusting your search or category
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
