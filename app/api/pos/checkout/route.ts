@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     const productIds = items.map((i) => i.product_id);
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, stock_quantity')
+      .select('id, stock_quantity, purchase_price')
       .in('id', productIds);
 
     if (productsError) {
@@ -94,6 +94,7 @@ export async function POST(req: Request) {
 
     // Fix: Normalize ID to string to ensure Map lookup works correctly regardless of number/string type
     const stockById = new Map((products ?? []).map((p) => [Number(p.id), p.stock_quantity ?? 0]));
+    const costById = new Map((products ?? []).map((p) => [Number(p.id), Number(p.purchase_price ?? 0)]));
 
     for (const item of items) {
       const stock = stockById.get(item.product_id) ?? 0;
@@ -123,6 +124,7 @@ export async function POST(req: Request) {
       cashier_id: cashierId,
       remark: remark.trim() || null,
       receipt_payload: body.receipt_payload ?? null,
+      entry_source: 'POS',
     };
 
     if (saleType === 'Delivery') {
@@ -160,9 +162,10 @@ export async function POST(req: Request) {
     // ၄။ Order Items သွင်းခြင်း
     const orderItems = items.map((i) => ({
       order_id: orderId,
-        product_id: i.product_id,
+      product_id: i.product_id,
       quantity: i.quantity,
       unit_price: i.sale_price,
+      cost_price: costById.get(i.product_id) ?? 0,
       subtotal: i.quantity * i.sale_price
     }));
 

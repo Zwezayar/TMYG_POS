@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   Truck,
   ClipboardList,
+  Rows3,
   Settings,
   Users,
   LogOut,
@@ -29,6 +30,7 @@ type NavItem = {
 const mainItems: NavItem[] = [
   { key: 'menuDashboard', icon: LayoutDashboard, href: '/' },
   { key: 'menuPos', icon: ShoppingBag, href: '/pos' },
+  { key: 'menuBulkSale', icon: Rows3, href: '/bulk-sale' },
   { key: 'menuInventory', icon: Package, href: '/admin/inventory' },
   { key: 'menuShopSales', icon: ClipboardList, href: '/sales/shop' },
   { key: 'menuDeliverySales', icon: Truck, href: '/sales/delivery' },
