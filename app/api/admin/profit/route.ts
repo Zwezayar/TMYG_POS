@@ -72,7 +72,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const expectedPasscode = process.env.PROFIT_DASHBOARD_PASSCODE ?? '1234';
+    const expectedPasscode =
+      process.env.NEXT_PUBLIC_PROFIT_PASSCODE?.trim() || '1234';
     if (passcode !== expectedPasscode) {
       return NextResponse.json({ error: 'Invalid passcode.' }, { status: 403 });
     }
