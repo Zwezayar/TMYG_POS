@@ -21,7 +21,10 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { useProducts, type Product } from '@/lib/useProducts';
 import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
-import { MemoProductBrowser } from '@/components/product-browser';
+import {
+  MemoProductBrowser,
+  productMatchesSearch,
+} from '@/components/product-browser';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
 import {
   DeliveryPartnerSelect,
@@ -53,6 +56,7 @@ function normalizeBarcode(value: string | null | undefined) {
 }
 
 export default function BulkSalePage() {
+  const searchRef = React.useRef<HTMLInputElement>(null);
   const { role, displayName, username } = useDashboardAuth();
   const { products, loading: productsLoading, error: productsError, refresh } =
     useProducts();
@@ -145,7 +149,6 @@ export default function BulkSalePage() {
   );
 
   const filteredProducts = React.useMemo(() => {
-    const search = query.trim().toLowerCase();
     const list = products
       .filter((product) => Number(product.stock_quantity ?? 0) > 0)
       .filter((product) => {
@@ -159,19 +162,7 @@ export default function BulkSalePage() {
           sensitivity: 'base',
         })
       );
-    if (!search) return list;
-    return list
-      .filter((product) => {
-        const fields = [
-          product.product_name,
-          product.category,
-          product.barcode,
-          product.default_code,
-          product.size,
-          product.variant,
-        ];
-        return fields.some((field) => field?.toLowerCase().includes(search));
-      });
+    return list.filter((product) => productMatchesSearch(product, query));
   }, [products, query, selectedCategory]);
 
   const lineItems = React.useMemo(() => {
@@ -235,6 +226,10 @@ export default function BulkSalePage() {
       }
       return [...prev, { productId, quantity: 1 }];
     });
+    setQuery('');
+    requestAnimationFrame(() => {
+      searchRef.current?.focus();
+    });
   };
 
   const handleCloseScanner = React.useCallback(() => {
@@ -262,6 +257,9 @@ export default function BulkSalePage() {
         addProduct(Number(matched.id));
         addToast('success', `${matched.product_name || 'Product'} added.`);
         handleCloseScanner();
+        requestAnimationFrame(() => {
+          searchRef.current?.focus();
+        });
         return;
       }
 
@@ -538,6 +536,7 @@ export default function BulkSalePage() {
                 products={filteredProducts}
                 query={query}
                 onQueryChange={setQuery}
+                searchInputRef={searchRef}
                 onAddToCart={(product) => addProduct(Number(product.id))}
                 onProductClick={(product) => addProduct(Number(product.id))}
                 categories={categoryOptions.map((category) => ({
@@ -561,8 +560,8 @@ export default function BulkSalePage() {
           </div>
         </div>
 
-        <div className="hidden space-y-4 lg:sticky lg:top-6 lg:block">
-          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="hidden lg:sticky lg:top-6 lg:flex lg:h-[calc(100vh-48px)] lg:min-h-0 lg:flex-col lg:gap-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             <div className="flex h-[72px] flex-col justify-center border-b border-border px-4 py-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -606,11 +605,11 @@ export default function BulkSalePage() {
               maxQuantityByItem={Object.fromEntries(
                 lineItems.map((entry) => [Number(entry.product.id), entry.stock])
               )}
-              className="max-h-[calc(100vh-420px)]"
+              className="min-h-0"
             />
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="shrink-0 rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-base font-semibold">Bulk Sale Summary</div>

@@ -31,6 +31,41 @@ export const getValidImageUrl = (url: string | null | undefined) => {
   return null;
 };
 
+const normalizeSearchValue = (value: string | null | undefined) =>
+  (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase()
+    .trim();
+
+export const productMatchesSearch = (product: Product, rawQuery: string) => {
+  const query = normalizeSearchValue(rawQuery);
+  if (!query) return true;
+
+  const compactQuery = query.replace(/\s+/g, '');
+  const fields = [
+    product.product_name,
+    product.category,
+    product.barcode,
+    product.default_code,
+    product.size,
+    product.variant,
+  ]
+    .map((field) => normalizeSearchValue(field))
+    .filter(Boolean);
+
+  return fields.some((field) => {
+    const compactField = field.replace(/\s+/g, '');
+    return (
+      field.includes(query) ||
+      compactField.includes(compactQuery) ||
+      query.split(' ').every((part) => field.includes(part) || compactField.includes(part))
+    );
+  });
+};
+
 function ProductCard({
   product,
   onAddToCart,
@@ -146,6 +181,7 @@ export function ProductBrowser({
   addButtonLabel,
   className,
   contentClassName,
+  searchInputRef,
 }: {
   products: Product[];
   query: string;
@@ -163,6 +199,7 @@ export function ProductBrowser({
   addButtonLabel?: string;
   className?: string;
   contentClassName?: string;
+  searchInputRef?: React.RefObject<HTMLInputElement>;
 }) {
   return (
     <div
@@ -177,6 +214,7 @@ export function ProductBrowser({
             <div className="relative min-w-[140px] flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search..."
                 value={query}
@@ -185,7 +223,12 @@ export function ProductBrowser({
               />
               {query && (
                 <button
-                  onClick={() => onQueryChange('')}
+                  onClick={() => {
+                    onQueryChange('');
+                    requestAnimationFrame(() => {
+                      searchInputRef?.current?.focus();
+                    });
+                  }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 border-none bg-transparent p-1.5 text-muted-foreground transition-colors hover:text-foreground touch-manipulation"
                 >
                   <X className="h-5 w-5" />
@@ -234,7 +277,9 @@ export function ProductBrowser({
               <Button
                 key={cat.id}
                 variant="outline"
-                onClick={() => onCategoryChange(label)}
+                onClick={() =>
+                  onCategoryChange(activeCategory === label ? null : label)
+                }
                 className={cn(
                   'h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap',
                   activeCategory === label

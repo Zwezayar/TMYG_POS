@@ -24,6 +24,7 @@ import {
   MemoProductBrowser,
   formatPrice,
   getValidImageUrl,
+  productMatchesSearch,
 } from '@/components/product-browser';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
 import {
@@ -1103,20 +1104,12 @@ export default function PosPage() {
     };
   }, [releaseScanner]);
 
-  const normalizeString = (str: string) =>
-    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
   const matches = React.useMemo(() => {
-    const q = normalizeString(query.trim());
     const items = products || [];
     return items.filter((p) => {
-      const name = normalizeString(p?.product_name ?? '');
-      const barcode = normalizeBarcode(p?.barcode).toLowerCase();
-      const sku = (p?.default_code ?? '').toLowerCase();
       const categoryStr = (p?.category ?? '');
       const main = categoryStr.split('/').pop()?.trim() ?? '';
-
-      const matchesQuery = name.includes(q) || barcode.includes(q) || sku.includes(q);
+      const matchesQuery = productMatchesSearch(p, query);
 
       let matchesCategory = true;
       if (selectedMainCategory) {
@@ -1212,7 +1205,9 @@ export default function PosPage() {
     });
     setQuery('');
     setSelectedMainCategory(null);
-    searchRef.current?.focus();
+    requestAnimationFrame(() => {
+      searchRef.current?.focus();
+    });
     triggerCartPulse();
   }
 
@@ -1964,6 +1959,7 @@ export default function PosPage() {
               products={matches}
               query={query}
               onQueryChange={setQuery}
+              searchInputRef={searchRef}
               onScanClick={() => setScanOpen(true)}
               onAddNewProduct={() => {
                 openQuickAddForBarcode('', { resumeScanner: false });
