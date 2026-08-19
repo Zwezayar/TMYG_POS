@@ -17,7 +17,7 @@ import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow 
 import { Loader2 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { ProductFilterBar } from '@/components/ProductFilterBar';
-import { sortProducts, SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
+import { applySearchThenSort, SORT_OPTIONS, type SortOption } from '@/lib/productSearch';
 
 type PendingAction = {
   id: string;
@@ -824,30 +824,13 @@ export default function AdminInventoryPage() {
   }, [imageFile, imageUrlInput]);
 
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const afterQuery = q
-      ? products.filter((p) => {
-          const nameValue = (p.product_name ?? '').toLowerCase();
-          const skuValue = (p.default_code ?? '').toLowerCase();
-          const barcodeValue = (p.barcode ?? '').toLowerCase();
-          const categoryValue = (p.category ?? '').toLowerCase();
-          const variantValue = (p.size ?? p.variant ?? '').toLowerCase();
-          return (
-            nameValue.includes(q) ||
-            skuValue.includes(q) ||
-            barcodeValue.includes(q) ||
-            categoryValue.includes(q) ||
-            variantValue.includes(q)
-          );
-        })
-      : products;
     const afterCategory = selectedCategory
-      ? afterQuery.filter((p) => {
+      ? products.filter((p) => {
           const catName = p.category?.split('/').pop()?.trim() || p.category || '';
           return catName === selectedCategory;
         })
-      : afterQuery;
-    return sortProducts(afterCategory, sortOption);
+      : products;
+    return applySearchThenSort(afterCategory, query, sortOption);
   }, [products, query, selectedCategory, sortOption]);
 
   const categoryOptions = React.useMemo(() => {

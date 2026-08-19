@@ -8,6 +8,7 @@ import { type Product } from '@/lib/useProducts';
 import { cn } from '@/lib/utils';
 import { ProductFilterBar } from './ProductFilterBar';
 import { SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
+import { productMatchesQuery } from '@/lib/productSearch';
 
 export type ProductBrowserCategory = {
   id: string;
@@ -33,39 +34,8 @@ export const getValidImageUrl = (url: string | null | undefined) => {
   return null;
 };
 
-const normalizeSearchValue = (value: string | null | undefined) =>
-  (value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/[^a-zA-Z0-9]+/g, ' ')
-    .toLowerCase()
-    .trim();
-
-export const productMatchesSearch = (product: Product, rawQuery: string) => {
-  const query = normalizeSearchValue(rawQuery);
-  if (!query) return true;
-
-  const compactQuery = query.replace(/\s+/g, '');
-  const fields = [
-    product.product_name,
-    product.category,
-    product.barcode,
-    product.default_code,
-    product.size,
-    product.variant,
-  ]
-    .map((field) => normalizeSearchValue(field))
-    .filter(Boolean);
-
-  return fields.some((field) => {
-    const compactField = field.replace(/\s+/g, '');
-    return (
-      field.includes(query) ||
-      compactField.includes(compactQuery) ||
-      query.split(' ').every((part) => field.includes(part) || compactField.includes(part))
-    );
-  });
+export const productMatchesSearch = (product: Product, rawQuery: string): boolean => {
+  return productMatchesQuery(product as unknown as Parameters<typeof productMatchesQuery>[0], rawQuery);
 };
 
 function ProductCard({
@@ -319,7 +289,11 @@ export function ProductBrowser({
             <div className="mb-4 rounded-full bg-muted p-4">
               <Package className="h-8 w-8 opacity-20" />
             </div>
-            <p className="text-sm font-bold">No products found</p>
+            <p className="text-sm font-bold">
+              {query.trim()
+                ? `No products found starting with '${query.trim()}'`
+                : 'No products found'}
+            </p>
             <p className="text-xs opacity-60">
               Try adjusting your search or category
             </p>

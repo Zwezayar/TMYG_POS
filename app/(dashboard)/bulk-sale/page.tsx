@@ -21,11 +21,8 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { useProducts, type Product } from '@/lib/useProducts';
 import { useCategories } from '@/lib/useCategories';
 import { formatDateDDMMYYYY } from '@/lib/date';
-import {
-  MemoProductBrowser,
-  productMatchesSearch,
-} from '@/components/product-browser';
-import { sortProducts, SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
+import { MemoProductBrowser } from '@/components/product-browser';
+import { applySearchThenSort, SORT_OPTIONS, type SortOption } from '@/lib/productSearch';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
 import {
   DeliveryPartnerSelect,
@@ -151,16 +148,16 @@ export default function BulkSalePage() {
   );
 
   const filteredProducts = React.useMemo(() => {
-    const list = products
-      .filter((product) => Number(product.stock_quantity ?? 0) > 0)
-      .filter((product) => {
-        if (!selectedCategory) return true;
-        const category =
-          product.category?.split('/').pop()?.trim() || product.category || '';
-        return category === selectedCategory || product.category === selectedCategory;
-      })
-      .filter((product) => productMatchesSearch(product, query));
-    return sortProducts(list, sortOption);
+    const afterStock = products.filter(
+      (product) => Number(product.stock_quantity ?? 0) > 0
+    );
+    const afterCategory = afterStock.filter((product) => {
+      if (!selectedCategory) return true;
+      const category =
+        product.category?.split('/').pop()?.trim() || product.category || '';
+      return category === selectedCategory || product.category === selectedCategory;
+    });
+    return applySearchThenSort(afterCategory, query, sortOption);
   }, [products, query, selectedCategory, sortOption]);
 
   const lineItems = React.useMemo(() => {

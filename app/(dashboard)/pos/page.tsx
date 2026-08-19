@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useProducts, type Product } from '@/lib/useProducts';
-import { sortProducts, type SortOption } from '@/lib/sortProducts';
+import { applySearchThenSort, type SortOption } from '@/lib/productSearch';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,6 @@ import {
   MemoProductBrowser,
   formatPrice,
   getValidImageUrl,
-  productMatchesSearch,
 } from '@/components/product-browser';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
 import {
@@ -1108,21 +1107,13 @@ export default function PosPage() {
 
   const matches = React.useMemo(() => {
     const items = products || [];
-    const filtered = items.filter((p) => {
+    const afterCategory = items.filter((p) => {
+      if (!selectedMainCategory) return true;
       const categoryStr = (p?.category ?? '');
       const main = categoryStr.split('/').pop()?.trim() ?? '';
-      const matchesQuery = productMatchesSearch(p, query);
-
-      let matchesCategory = true;
-      if (selectedMainCategory) {
-        if (main !== selectedMainCategory && categoryStr !== selectedMainCategory) {
-          matchesCategory = false;
-        }
-      }
-
-      return matchesQuery && matchesCategory;
+      return main === selectedMainCategory || categoryStr === selectedMainCategory;
     });
-    return sortProducts(filtered, sortOption);
+    return applySearchThenSort(afterCategory, query, sortOption);
   }, [products, query, selectedMainCategory, sortOption]);
 
   const { mainCategories, allCategories } = React.useMemo(() => {
