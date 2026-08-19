@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { X } from 'lucide-react';
+import { Plus, Tag, X } from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { compressImageFile } from '@/lib/image';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,8 @@ export function EditProductDialog({
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [altBarcodes, setAltBarcodes] = React.useState<string[]>([]);
+  const [pendingAltBarcode, setPendingAltBarcode] = React.useState('');
 
   React.useEffect(() => {
     if (!open || !product) return;
@@ -62,6 +64,8 @@ export function EditProductDialog({
     setRemark(product.remark ?? '');
     setImageFile(null);
     setError(null);
+    setAltBarcodes([...(Array.isArray(product.barcodes) ? product.barcodes.filter(Boolean) : [])]);
+    setPendingAltBarcode('');
   }, [open, product]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -112,6 +116,8 @@ export function EditProductDialog({
         product_name: productName,
         default_code: defaultCode || null,
         barcode: barcode || null,
+        primary_barcode: barcode.trim() || null,
+        barcodes: altBarcodes.length > 0 ? altBarcodes.map((b) => b.trim()).filter(Boolean) : null,
         category: category || null,
         size: size || null,
         sale_price: salePrice ? Number(salePrice) : null,
@@ -195,6 +201,75 @@ export function EditProductDialog({
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
             />
+          </div>
+          <div className="md:col-span-2 space-y-1.5">
+            <Label>Alternative Barcodes (optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={pendingAltBarcode}
+                onChange={(e) => setPendingAltBarcode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const v = pendingAltBarcode.trim();
+                    if (!v) return;
+                    if (v.toLowerCase() === (barcode || '').toLowerCase()) {
+                      // skip same as primary
+                    } else if (altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+                      return;
+                    } else {
+                      setAltBarcodes([...altBarcodes, v]);
+                    }
+                    setPendingAltBarcode('');
+                  }
+                }}
+                placeholder="Scan or type an alternative barcode..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const v = pendingAltBarcode.trim();
+                  if (!v) return;
+                  if (v.toLowerCase() !== (barcode || '').toLowerCase() &&
+                      !altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+                    setAltBarcodes([...altBarcodes, v]);
+                  }
+                  setPendingAltBarcode('');
+                }}
+                className="gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+            {altBarcodes.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {altBarcodes.map((code, idx) => (
+                  <span
+                    key={`${code}-${idx}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 font-mono text-[11px] text-foreground shadow-sm"
+                  >
+                    <Tag className="h-3 w-3 text-primary/70" />
+                    {code}
+                    <button
+                      type="button"
+                      onClick={() => setAltBarcodes(altBarcodes.filter((_, i) => i !== idx))}
+                      className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Remove barcode ${code}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              Press Enter or click Add. Same as the primary barcode is skipped automatically.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit_category">Category</Label>

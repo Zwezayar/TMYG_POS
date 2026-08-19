@@ -244,9 +244,15 @@ export default function BulkSalePage() {
     (rawValue: string) => {
       const value = rawValue.trim();
       if (!value) return;
-      const matched = products.find(
-        (product) => normalizeBarcode(product.barcode) === normalizeBarcode(value)
-      );
+      const nVal = normalizeBarcode(value);
+      const matched = products.find((product) => {
+        if (normalizeBarcode(product.barcode) === nVal) return true;
+        if (product.primary_barcode && normalizeBarcode(product.primary_barcode) === nVal) return true;
+        if (Array.isArray(product.barcodes)) {
+          return product.barcodes.some((bc) => bc && normalizeBarcode(bc) === nVal);
+        }
+        return false;
+      });
 
       if (matched) {
         addProduct(Number(matched.id));

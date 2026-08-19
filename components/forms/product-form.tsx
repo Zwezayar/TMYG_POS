@@ -1,6 +1,8 @@
 import * as React from 'react';
+import { Plus, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type CategoryOption = { value: string; label: string };
 
@@ -36,6 +38,13 @@ type ProductFormProps = {
   imagePreviewUrl: string | null;
   remark: string;
   onRemarkChange: (value: string) => void;
+  altBarcodes?: string[];
+  pendingAltBarcode?: string;
+  onPendingAltBarcodeChange?: (value: string) => void;
+  onAddAltBarcode?: () => void;
+  onRemoveAltBarcode?: (index: number) => void;
+  primaryBarcodeCurrent?: string;
+  altBarcodeWarning?: string | null;
   error?: string | null;
   onClose: () => void;
   onSave: () => void;
@@ -75,6 +84,13 @@ export function ProductForm({
   imagePreviewUrl,
   remark,
   onRemarkChange,
+  altBarcodes = [],
+  pendingAltBarcode = '',
+  onPendingAltBarcodeChange = () => {},
+  onAddAltBarcode = () => {},
+  onRemoveAltBarcode = () => {},
+  primaryBarcodeCurrent = '',
+  altBarcodeWarning = null,
   error,
   onClose,
   onSave,
@@ -296,6 +312,82 @@ export function ProductForm({
             placeholder="Notes / Batch number"
             className="h-[44px] rounded-xl"
           />
+        </div>
+
+        <div className="md:col-span-2 space-y-1.5">
+          <Label>Alternative Barcodes (optional)</Label>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={pendingAltBarcode}
+              onChange={(e) => onPendingAltBarcodeChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const v = pendingAltBarcode.trim();
+                  if (!v) return;
+                  if (v.toLowerCase() === (primaryBarcodeCurrent || '').toLowerCase()) {
+                    // skip same as primary
+                  } else if (altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+                    onPendingAltBarcodeChange('');
+                    return;
+                  } else {
+                    onAddAltBarcode();
+                  }
+                  onPendingAltBarcodeChange('');
+                }
+              }}
+              placeholder="Scan or type an alternative barcode..."
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const v = pendingAltBarcode.trim();
+                if (!v) return;
+                if (v.toLowerCase() !== (primaryBarcodeCurrent || '').toLowerCase() &&
+                    !altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+                  onAddAltBarcode();
+                }
+                onPendingAltBarcodeChange('');
+              }}
+              className="gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
+          {altBarcodes.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {altBarcodes.map((code, idx) => (
+                <span
+                  key={`${code}-${idx}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 font-mono text-[11px] text-foreground shadow-sm"
+                >
+                  <Tag className="h-3 w-3 text-primary/70" />
+                  {code}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAltBarcode(idx)}
+                    className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Remove barcode ${code}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {altBarcodeWarning && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              {altBarcodeWarning}
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            Press Enter or click Add. Same as the primary barcode is skipped automatically.
+          </p>
         </div>
 
         {error && (
