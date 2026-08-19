@@ -11,6 +11,8 @@ import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
 import { formatDateDDMMYYYY, formatDateRangeDDMMYYYY } from '@/lib/date';
 import { useT } from '@/components/language-provider';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Code128Svg } from '@/components/ui/code128-svg';
+import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 
 type Order = {
   id: string;
@@ -28,6 +30,115 @@ type Order = {
   receipt_payload: ReceiptPayload | null;
 };
 
+function WaybillModal({
+  open,
+  order,
+  onClose,
+}: {
+  open: boolean;
+  order: Order | null;
+  onClose: () => void;
+}) {
+  const { settings } = useHWPrintSettings();
+  const { label } = settings;
+  const { widthMm, heightMm } = getLabelSizeMm(label);
+  if (!open || !order) return null;
+
+  const date = new Date(order.created_at);
+  const dateText = formatDateDDMMYYYY(date);
+  const total = (order.total_amount || 0) + Number(order.delivery_fee || 0);
+
+  return (
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-xl rounded-2xl border border-border bg-card p-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold">Print Waybill / Shipping Label</div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              Print
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+        <div className="mb-3 text-xs text-muted-foreground">
+          Label size: {widthMm}mm × {heightMm}mm. For 4×6 (100×150mm) or A6, choose the preset in Settings → Hardware &amp; Printers → Label / Sticker Printer.
+        </div>
+        <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60">
+          <div
+            id="print-label"
+            className="bg-white border border-black shadow-inner overflow-hidden box-border flex flex-col"
+            style={{
+              width: `${widthMm}mm`,
+              height: `${heightMm}mm`,
+              padding: '1.5mm',
+              fontFamily: label.fontFamily,
+              fontSize: `${label.fontSizePx}px`,
+              lineHeight: 1.2,
+              page: 'label-sheet' as any,
+            }}
+          >
+            <div className="w-full h-full flex flex-col gap-[1mm]">
+              <div className="border-b border-black pb-[1mm] flex items-start justify-between">
+                <div>
+                  <div className="font-extrabold uppercase tracking-wider">Delivery Waybill</div>
+                  <div className="text-[0.85em] text-muted-foreground">{dateText}</div>
+                </div>
+                {label.showCourier && (
+                  <div className="px-[1.2mm] py-[0.6mm] border-2 border-black font-extrabold uppercase text-center max-w-[45%] break-words leading-tight">
+                    {order.courier_name || '—'}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-center py-[1mm]">
+                {label.showBarcode && (
+                  <Code128Svg
+                    value={order.invoice_id}
+                    heightPx={Math.max(14, label.barcodeHeightPx)}
+                    barWidthPx={1}
+                    showText={true}
+                    fontSizePx={Math.max(7, Math.round(label.fontSizePx * 0.85))}
+                  />
+                )}
+              </div>
+              {label.showCustomerAddress && (
+                <div className="border-2 border-dashed border-black/60 p-[1.2mm] flex-1 min-h-0">
+                  <div className="text-[0.85em] uppercase font-bold tracking-wider mb-[0.6mm]">Ship To:</div>
+                  <div className="font-semibold break-words leading-tight">{order.customer_name || '—'}</div>
+                  {order.customer_phone && (
+                    <div className="font-mono break-words leading-tight">{order.customer_phone}</div>
+                  )}
+                  {order.customer_address && (
+                    <div className="break-words whitespace-pre-wrap leading-snug mt-[0.4mm]">{order.customer_address}</div>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-[1mm] text-[0.9em]">
+                <div className="border border-black/40 p-[0.8mm] break-words">
+                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Invoice</div>
+                  <div className="font-mono font-semibold">{order.invoice_id}</div>
+                </div>
+                <div className="border border-black/40 p-[0.8mm] break-words">
+                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Total</div>
+                  <div className="font-bold">{total.toLocaleString()} Ks</div>
+                </div>
+                <div className="border border-black/40 p-[0.8mm] break-words col-span-2">
+                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Payment</div>
+                  <div className="font-semibold">{order.payment_method || '—'} • {order.payment_status}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DeliverySalesLogPage() {
   const t = useT();
   const { role } = useDashboardAuth();
@@ -38,6 +149,8 @@ export default function DeliverySalesLogPage() {
   const [selectedCourier, setSelectedCourier] = React.useState<string>('all');
   const [receiptOpen, setReceiptOpen] = React.useState(false);
   const [selectedReceipt, setSelectedReceipt] = React.useState<ReceiptPayload | null>(null);
+  const [waybillOpen, setWaybillOpen] = React.useState(false);
+  const [selectedWaybill, setSelectedWaybill] = React.useState<Order | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [editCustomerName, setEditCustomerName] = React.useState('');
@@ -569,6 +682,19 @@ export default function DeliverySalesLogPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-indigo-500/70 text-indigo-600 hover:bg-indigo-500/10 dark:border-indigo-400/70 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedWaybill(order);
+                                        setWaybillOpen(true);
+                                      }}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                    >
+                                      Waybill
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       className="h-7 px-2 text-xs md:h-8 md:px-3 md:text-sm border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
                                       disabled={deletingId === order.id}
                                       onClick={() => setDeleteTarget(order)}
@@ -597,6 +723,7 @@ export default function DeliverySalesLogPage() {
         </div>
       )}
       <ReceiptModal open={receiptOpen} receipt={selectedReceipt} onClose={() => setReceiptOpen(false)} />
+      <WaybillModal open={waybillOpen} order={selectedWaybill} onClose={() => setWaybillOpen(false)} />
       <ConfirmDialog
         open={!!deleteTarget}
         title={t('deleteSaleRecordTitle')}

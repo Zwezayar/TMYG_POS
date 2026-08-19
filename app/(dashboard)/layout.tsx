@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { DashboardAuthProvider, type Role } from '@/lib/dashboard-auth-context';
+import { HWPrintSettingsProvider } from '@/components/hw-print-settings-provider';
 import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({
@@ -88,6 +89,7 @@ export default function DashboardLayout({
 
   return (
     <DashboardAuthProvider value={{ role, username, displayName }}>
+      <HWPrintSettingsProvider>
       <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
         <Sidebar
           mobileOpen={mobileOpen}
@@ -120,6 +122,7 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      </HWPrintSettingsProvider>
     </DashboardAuthProvider>
   );
 }

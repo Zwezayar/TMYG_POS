@@ -18,6 +18,8 @@ import { Loader2 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { ProductFilterBar } from '@/components/ProductFilterBar';
 import { applySearchThenSort, SORT_OPTIONS, type SortOption } from '@/lib/productSearch';
+import { Code128Svg } from '@/components/ui/code128-svg';
+import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 
 type PendingAction = {
   id: string;
@@ -129,11 +131,13 @@ const InventoryRow = React.memo(function InventoryRow({
   product,
   onEdit,
   onDelete,
+  onPrintLabel,
   deleting,
 }: {
   product: AdminProduct;
   onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
+  onPrintLabel: (p: Product) => void;
   deleting: boolean;
 }) {
   return (
@@ -173,6 +177,14 @@ const InventoryRow = React.memo(function InventoryRow({
           <Button
             size="sm"
             variant="outline"
+            className="h-9 px-3 border-emerald-500/70 text-emerald-600 hover:bg-emerald-500/10 dark:border-emerald-400/70 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+            onClick={() => onPrintLabel(product)}
+          >
+            Label
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className="h-9 px-3 border-rose-400/70 text-rose-400 hover:bg-rose-500/10"
             onClick={() => onDelete(product)}
             disabled={deleting}
@@ -185,9 +197,92 @@ const InventoryRow = React.memo(function InventoryRow({
   );
 });
 
+function PrintProductLabelModal({
+  open,
+  product,
+  onClose,
+}: {
+  open: boolean;
+  product: AdminProduct | null;
+  onClose: () => void;
+}) {
+  const { settings } = useHWPrintSettings();
+  const { label } = settings;
+  const { widthMm, heightMm } = getLabelSizeMm(label);
+  if (!open || !product) return null;
+
+  const primary = product.primary_barcode || product.barcode || product.default_code || String(product.id);
+  const price = formatPrice(product.sale_price);
+
+  return (
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-2xl border border-border bg-card p-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold">Print Barcode Label</div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              Print
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+        <div className="mb-3 text-xs text-muted-foreground">
+          Label size: {widthMm}mm × {heightMm}mm. Font: {label.fontFamily} {label.fontSizePx}px. Adjust in Settings → Hardware &amp; Printers.
+        </div>
+        <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60">
+          <div
+            id="print-label"
+            className="bg-white border border-black/60 shadow-inner overflow-hidden box-border flex flex-col"
+            style={{
+              width: `${widthMm}mm`,
+              height: `${heightMm}mm`,
+              padding: '1mm',
+              fontFamily: label.fontFamily,
+              fontSize: `${label.fontSizePx}px`,
+              lineHeight: 1.15,
+              page: 'label-sheet' as any,
+            }}
+          >
+            <div className="flex flex-col h-full w-full justify-between gap-[1mm]">
+              <div className="flex flex-col gap-[0.5mm]">
+                {label.showProductName && (
+                  <div className="font-semibold truncate leading-tight">{product.product_name || '—'}</div>
+                )}
+                {label.showPrice && (
+                  <div className="font-bold tabular-nums">{price}</div>
+                )}
+                {label.showSku && product.default_code && (
+                  <div className="text-[0.8em] text-muted-foreground truncate">SKU: {product.default_code}</div>
+                )}
+              </div>
+              {label.showBarcode && (
+                <div className="flex items-center justify-center">
+                  <Code128Svg
+                    value={primary}
+                    heightPx={label.barcodeHeightPx}
+                    barWidthPx={1}
+                    showText={true}
+                    fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminInventoryPage() {
   const t = useT();
   const { role } = useDashboardAuth();
+  const { settings: hwSettings } = useHWPrintSettings();
   const isAdmin = role === 'admin';
   const [products, setProducts] = React.useState<AdminProduct[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -234,6 +329,7 @@ export default function AdminInventoryPage() {
   const [uploading, setUploading] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Product | null>(null);
+  const [printLabelTarget, setPrintLabelTarget] = React.useState<AdminProduct | null>(null);
   const [scanFlash, setScanFlash] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
   const [scanManualInput, setScanManualInput] = React.useState('');
@@ -317,21 +413,23 @@ export default function AdminInventoryPage() {
     setQuery(decodedText);
     setScanFlash(true);
     setTimeout(() => setScanFlash(false), 150);
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 880;
-      gain.gain.value = 0.05;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      setTimeout(() => {
-        osc.stop();
-        ctx.close();
-      }, 120);
-    } catch { }
+    if (hwSettings.scanner.scanAudioBeep) {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.value = 0.05;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 120);
+      } catch { }
+    }
     const match = lookupProductByBarcode(decodedText);
     if (!match) {
       setScanStatus('missing');
@@ -1261,6 +1359,7 @@ export default function AdminInventoryPage() {
                     product={product}
                     onEdit={openEdit}
                     onDelete={setDeleteTarget}
+                    onPrintLabel={setPrintLabelTarget}
                     deleting={deletingId === product.id}
                   />
                 ))}
@@ -1335,6 +1434,11 @@ export default function AdminInventoryPage() {
         onCancel={() => setDeleteTarget(null)}
         confirmVariant="destructive"
         loading={deleteTarget ? deletingId === deleteTarget.id : false}
+      />
+      <PrintProductLabelModal
+        open={!!printLabelTarget}
+        product={printLabelTarget}
+        onClose={() => setPrintLabelTarget(null)}
       />
 
       {bulkReportOpen && bulkReport && (

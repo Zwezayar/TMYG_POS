@@ -3,8 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
-import { supabaseClient } from '@/lib/supabaseClient';
-import { Tags, Truck, Users } from 'lucide-react';
+import { Tags, Truck, Users, Printer } from 'lucide-react';
 
 export default function SettingsPage() {
   const { role } = useDashboardAuth();
@@ -12,6 +11,7 @@ export default function SettingsPage() {
 
   React.useEffect(() => {
     const load = async () => {
+      const { supabaseClient } = await import('@/lib/supabaseClient');
       const { count } = await supabaseClient
         .from('profiles')
         .select('id', { count: 'exact', head: true });
@@ -22,6 +22,7 @@ export default function SettingsPage() {
   const canManageUsers = role === 'admin' || isSingleUser;
   const canManageCategories = role === 'admin' || role === 'staff';
   const canManageDeliveryPartners = role === 'admin' || role === 'staff';
+  const canManageHardware = role === 'admin' || role === 'staff';
 
   return (
     <div className="space-y-6">
@@ -29,10 +30,24 @@ export default function SettingsPage() {
         Settings
       </h1>
       <p className="text-sm text-muted-foreground">
-        Configure users, roles, and app behavior.
+        Configure users, roles, hardware, printing, and app behavior.
       </p>
-      {(canManageUsers || canManageCategories || canManageDeliveryPartners) ? (
+      {(canManageUsers || canManageCategories || canManageDeliveryPartners || canManageHardware) ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {canManageHardware && (
+            <Link
+              href="/settings/hardware"
+              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-secondary/40"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Printer className="h-4 w-4 text-primary" />
+                Hardware & Printers
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Receipt paper, label sticker dimensions, fonts, margins, barcode scanner priority, audio, and defaults.
+              </p>
+            </Link>
+          )}
           {canManageUsers && (
             <Link
               href="/settings/users"

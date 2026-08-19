@@ -21,6 +21,8 @@ import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
 import { formatDateDDMMYYYY, formatTimeHHMM } from '@/lib/date';
 import { ProductForm } from '@/components/forms/product-form';
+import { PrintReceiptTemplate } from '@/components/print-receipt-template';
+import { useHWPrintSettings } from '@/components/hw-print-settings-provider';
 import {
   MemoProductBrowser,
   formatPrice,
@@ -627,6 +629,7 @@ function ScannerComponent() {
 
 export default function PosPage() {
   const { username, role, displayName } = useDashboardAuth();
+  const { settings: hwSettings } = useHWPrintSettings();
   const { products: hookProducts, loading: productsLoading, refresh: refreshProducts } = useProducts({
     includePurchasePrice: role === 'admin',
   });
@@ -1511,21 +1514,23 @@ export default function PosPage() {
       addToCart(existing, 1);
       lastScanByCodeRef.current[code] = Date.now();
       addToast('success', 'Product Added!');
-      try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = 880;
-        gain.gain.value = 0.05;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        setTimeout(() => {
-          osc.stop();
-          ctx.close();
-        }, 120);
-      } catch {}
+      if (hwSettings.scanner.scanAudioBeep) {
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          gain.gain.value = 0.05;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          setTimeout(() => {
+            osc.stop();
+            ctx.close();
+          }, 120);
+        } catch {}
+      }
       if (scanUnlockTimeoutRef.current) {
         clearTimeout(scanUnlockTimeoutRef.current);
       }
@@ -1789,168 +1794,15 @@ export default function PosPage() {
         .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.1);
         }
-        .print-only {
-          display: none;
-        }
         @media print {
           body {
             background: #fff;
             color: #000;
           }
-          body * {
-            visibility: hidden;
-          }
-          #print-receipt,
-          #print-receipt * {
-            visibility: visible;
-          }
-          .print-only {
-            display: block !important;
-          }
-          #print-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm;
-            padding: 4mm;
-            font-size: 11px;
-            font-family: "Pyidaungsu", system-ui, sans-serif;
-            line-height: 1.4;
-          }
-          #print-receipt .receipt-title {
-            font-size: 13px;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 6px;
-          }
-          #print-receipt .receipt-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-          }
-          #print-receipt table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
-          #print-receipt th,
-          #print-receipt td {
-            padding: 2px 4px;
-            vertical-align: top;
-          }
-          #print-receipt th {
-            font-size: 10px;
-            text-transform: uppercase;
-          }
-          #print-receipt .receipt-item {
-            word-wrap: break-word;
-            white-space: normal;
-          }
-          #print-receipt .receipt-amount {
-            font-weight: 700;
-          }
-          #print-receipt .divider {
-            border-top: 1px dashed #444;
-            margin: 6px 0;
-          }
         }
       `}</style>
       {lastReceipt && (
-        <div id="print-receipt" className="print-only">
-          <div className="receipt-title">THE MORE YOU GLOW BY INGYIN</div>
-          <div className="receipt-row">
-            <span>Invoice</span>
-            <span>{lastReceipt.invoiceId || '—'}</span>
-          </div>
-          <div className="receipt-row">
-            <span>Date</span>
-            <span>{lastReceipt.date}</span>
-          </div>
-          <div className="receipt-row">
-            <span>Time</span>
-            <span>{lastReceipt.time}</span>
-          </div>
-          <div className="receipt-row">
-            <span>Cashier</span>
-            <span>{lastReceipt.cashierRole || 'Staff'}</span>
-          </div>
-          <div className="receipt-row">
-            <span>Cashier Name</span>
-            <span>{lastReceipt.staffName || '—'}</span>
-          </div>
-          {lastReceipt.saleType === 'Delivery' && (
-            <>
-              <div className="divider" />
-              <div className="receipt-row">
-                <span>Customer Name</span>
-                <span>{lastReceipt.customerName || '—'}</span>
-              </div>
-              <div className="receipt-row">
-                <span>Phone</span>
-                <span>{lastReceipt.customerPhone || '—'}</span>
-              </div>
-              <div className="receipt-row">
-                <span>Address</span>
-                <span>{lastReceipt.customerAddress || '—'}</span>
-              </div>
-            </>
-          )}
-          <div className="divider" />
-          <table>
-            <thead>
-              <tr>
-                <th align="left" style={{ width: '44mm' }}>Item</th>
-                <th align="right" style={{ width: '8mm' }}>Qty</th>
-                <th align="right" style={{ width: '14mm' }}>Price</th>
-                <th align="right" style={{ width: '14mm' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lastReceipt.items.map((item, index) => (
-                <tr key={`${item.name}-${index}`}>
-                  <td className="receipt-item">{item.name}</td>
-                  <td align="right">{item.qty}</td>
-                  <td align="right">{item.price.toLocaleString()}</td>
-                  <td align="right" className="receipt-amount">{item.amount.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="divider" />
-          <div className="receipt-row">
-            <span>Subtotal</span>
-            <span>{lastReceipt.subtotal.toLocaleString()} Ks</span>
-          </div>
-          {lastReceipt.saleType === 'Delivery' && (
-            <div className="receipt-row">
-              <span>Delivery Fee (+)</span>
-              <span>{lastReceipt.deliveryFee.toLocaleString()} Ks</span>
-            </div>
-          )}
-          <div className="receipt-row">
-            <span>Discount (-)</span>
-            <span>{lastReceipt.discount.toLocaleString()} Ks</span>
-          </div>
-          <div className="receipt-row">
-            <strong>Grand Total</strong>
-            <strong>{lastReceipt.grandTotal.toLocaleString()} Ks</strong>
-          </div>
-          <div className="receipt-row">
-            <span>Cash Received</span>
-            <span>{lastReceipt.amountReceived.toLocaleString()} Ks</span>
-          </div>
-          {lastReceipt.amountDue > 0 ? (
-            <div className="receipt-row">
-              <span>Amount Due</span>
-              <span>{lastReceipt.amountDue.toLocaleString()} Ks</span>
-            </div>
-          ) : (
-            <div className="receipt-row">
-              <span>Change</span>
-              <span>{lastReceipt.changeAmount.toLocaleString()} Ks</span>
-            </div>
-          )}
-        </div>
+        <PrintReceiptTemplate receipt={lastReceipt as any} />
       )}
       {/* Main content area */}
       <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
