@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useProducts, type Product } from '@/lib/useProducts';
+import { sortProducts, type SortOption } from '@/lib/sortProducts';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -834,6 +835,7 @@ export default function PosPage() {
 
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [selectedMainCategory, setSelectedMainCategory] = React.useState<string | null>(null);
+  const [sortOption, setSortOption] = React.useState<SortOption>('name-asc');
   const [isOnline, setIsOnline] = React.useState(true);
   const [offlineQueueCount, setOfflineQueueCount] = React.useState(0);
   const [deliveryPartners, setDeliveryPartners] = React.useState<
@@ -1106,7 +1108,7 @@ export default function PosPage() {
 
   const matches = React.useMemo(() => {
     const items = products || [];
-    return items.filter((p) => {
+    const filtered = items.filter((p) => {
       const categoryStr = (p?.category ?? '');
       const main = categoryStr.split('/').pop()?.trim() ?? '';
       const matchesQuery = productMatchesSearch(p, query);
@@ -1120,7 +1122,8 @@ export default function PosPage() {
 
       return matchesQuery && matchesCategory;
     });
-  }, [products, query, selectedMainCategory]);
+    return sortProducts(filtered, sortOption);
+  }, [products, query, selectedMainCategory, sortOption]);
 
   const { mainCategories, allCategories } = React.useMemo(() => {
     if (dbCategories.length > 0) {
@@ -1976,6 +1979,8 @@ export default function PosPage() {
                 openQuickAddForBarcode(missingBarcode, { resumeScanner: true });
                 setMissingBarcode(null);
               }}
+              sortOption={sortOption}
+              onSortChange={setSortOption}
             />
           </div>
 

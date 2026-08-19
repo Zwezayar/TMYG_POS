@@ -25,55 +25,66 @@ export default function DashboardLayout({
   
   const isPosRoute = pathname === '/pos';
 
+  const loadProfile = React.useCallback(
+    async (accessToken: string) => {
+      const res = await fetch('/api/auth/bootstrap-profile', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(result?.error || 'Failed to load account profile.');
+      }
+      return result as {
+        role: Role | null;
+        username: string | null;
+        display_name: string | null;
+      };
+    },
+    []
+  );
+
   React.useEffect(() => {
     setMounted(true);
     const load = async () => {
-      const {
-        data: { session },
-      } = await supabaseClient.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
 
-      if (!session) {
+        if (!session?.access_token) {
+          router.replace('/login');
+          return;
+        }
+
+        const profile = await loadProfile(session.access_token);
+        const roleValue = profile.role;
+        const usernameValue = profile.username;
+        const displayNameValue = profile.display_name;
+
+        setRole(roleValue);
+        setUsername(usernameValue);
+        setDisplayName(displayNameValue);
+
+        if (typeof window !== 'undefined') {
+          if (roleValue) window.localStorage.setItem('tmyg-role', roleValue);
+          if (usernameValue != null) window.localStorage.setItem('tmyg-username', usernameValue);
+          if (displayNameValue != null) {
+            window.localStorage.setItem('tmyg-display-name', displayNameValue);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard auth state:', error);
+        await supabaseClient.auth.signOut();
         router.replace('/login');
         return;
       }
-
-      const userId = session.user.id;
-
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('role, username, display_name')
-        .eq('id', userId)
-        .maybeSingle();
-
-      let roleValue = (profile?.role as Role | null) ?? null;
-      const usernameValue = (profile?.username as string | null) ?? null;
-      const displayNameValue = (profile?.display_name as string | null) ?? null;
-
-      if (!roleValue) {
-        const { count } = await supabaseClient
-          .from('profiles')
-          .select('id', { count: 'exact', head: true });
-        if ((count ?? 0) <= 1) {
-          await supabaseClient.from('profiles').update({ role: 'admin' }).eq('id', userId);
-          roleValue = 'admin';
-        }
-      }
-
-      setRole(roleValue);
-      setUsername(usernameValue);
-      setDisplayName(displayNameValue);
-
-      if (typeof window !== 'undefined') {
-        if (roleValue) window.localStorage.setItem('tmyg-role', roleValue);
-        if (usernameValue != null) window.localStorage.setItem('tmyg-username', usernameValue);
-        if (displayNameValue != null) window.localStorage.setItem('tmyg-display-name', displayNameValue);
-      }
-
       setCheckingAuth(false);
     };
 
     load();
-  }, [router]);
+  }, [loadProfile, router]);
 
   return (
     <DashboardAuthProvider value={{ role, username, displayName }}>

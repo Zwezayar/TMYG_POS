@@ -19,6 +19,23 @@ export default function LoginPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const loadProfile = React.useCallback(async (accessToken: string) => {
+    const res = await fetch('/api/auth/bootstrap-profile', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(result?.error || 'Failed to load your account profile.');
+    }
+    return result as {
+      role: string | null;
+      username: string | null;
+      display_name: string | null;
+    };
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -42,46 +59,14 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-
-      // Fetch existing profile so we don't overwrite admin role.
-      const { data: existingProfile } = await supabaseClient
-        .from('profiles')
-        .select('role, username, display_name')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      let profile = existingProfile;
-
-      if (!existingProfile) {
-        // New user: create profile with default role staff.
-        await supabaseClient.from('profiles').insert({
-          id: user.id,
-          username: user.email ?? '',
-          role: 'staff',
-          display_name: null,
-        });
-        const { data: newProfile } = await supabaseClient
-          .from('profiles')
-          .select('role, username, display_name')
-          .eq('id', user.id)
-          .maybeSingle();
-        profile = newProfile;
+      const accessToken = data.session?.access_token;
+      if (!accessToken) {
+        setError('Unable to retrieve your session token.');
+        setLoading(false);
+        return;
       }
 
-      if (!profile?.role) {
-        const { count } = await supabaseClient
-          .from('profiles')
-          .select('id', { count: 'exact', head: true });
-        if ((count ?? 0) <= 1) {
-          await supabaseClient.from('profiles').update({ role: 'admin' }).eq('id', user.id);
-          profile = await supabaseClient
-            .from('profiles')
-            .select('role, username, display_name')
-            .eq('id', user.id)
-            .maybeSingle()
-            .then((res) => res.data ?? profile);
-        }
-      }
+      const profile = await loadProfile(accessToken);
 
       if (profile?.role) {
         window.localStorage.setItem('tmyg-role', profile.role);

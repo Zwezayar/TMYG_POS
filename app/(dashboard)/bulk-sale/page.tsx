@@ -25,6 +25,7 @@ import {
   MemoProductBrowser,
   productMatchesSearch,
 } from '@/components/product-browser';
+import { sortProducts, SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
 import { PosCartItems } from '@/components/cart/pos-cart-items';
 import {
   DeliveryPartnerSelect,
@@ -71,6 +72,7 @@ export default function BulkSalePage() {
   const [deliveryFee, setDeliveryFee] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+  const [sortOption, setSortOption] = React.useState<SortOption>('name-asc');
   const [scanOpen, setScanOpen] = React.useState(false);
   const [manualBarcodeInput, setManualBarcodeInput] = React.useState('');
   const [addProductOpen, setAddProductOpen] = React.useState(false);
@@ -157,13 +159,9 @@ export default function BulkSalePage() {
           product.category?.split('/').pop()?.trim() || product.category || '';
         return category === selectedCategory || product.category === selectedCategory;
       })
-      .sort((a, b) =>
-        (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, {
-          sensitivity: 'base',
-        })
-      );
-    return list.filter((product) => productMatchesSearch(product, query));
-  }, [products, query, selectedCategory]);
+      .filter((product) => productMatchesSearch(product, query));
+    return sortProducts(list, sortOption);
+  }, [products, query, selectedCategory, sortOption]);
 
   const lineItems = React.useMemo(() => {
     return lines
@@ -455,53 +453,43 @@ export default function BulkSalePage() {
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)]">
         <div className="min-w-0 space-y-4 lg:flex lg:min-h-0 lg:flex-col">
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-[auto_auto_1fr]">
-              <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Mode
-                </div>
-                <div className="flex rounded-xl border border-border bg-background p-1">
-                  <button
-                    type="button"
-                    onClick={() => setMode('Shop')}
-                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${mode === 'Shop'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                  >
-                    <Store className="h-4 w-4" />
-                    Shop
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('Delivery')}
-                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${mode === 'Delivery'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                  >
-                    <Truck className="h-4 w-4" />
-                    Delivery
-                  </button>
-                </div>
+          <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
+              <div className="flex rounded-xl border border-border bg-background p-1">
+                <button
+                  type="button"
+                  onClick={() => setMode('Shop')}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${mode === 'Shop'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <Store className="h-4 w-4" />
+                  Shop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('Delivery')}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${mode === 'Delivery'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <Truck className="h-4 w-4" />
+                  Delivery
+                </button>
               </div>
 
-              <label className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Sale Date
-                </div>
-                <div className="relative">
-                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="date"
-                    value={saleDate}
-                    max={getTodayInputValue()}
-                    onChange={(e) => setSaleDate(e.target.value)}
-                    className="h-11 pl-9"
-                  />
-                </div>
-              </label>
+              <div className="relative">
+                <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={saleDate}
+                  max={getTodayInputValue()}
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  className="h-9 pl-9"
+                />
+              </div>
 
               <DeliveryPartnerSelect
                 value={selectedPartnerId}
@@ -509,11 +497,13 @@ export default function BulkSalePage() {
                 partners={deliveryPartners}
                 loading={partnersLoading}
                 disabled={mode !== 'Delivery'}
+                label=""
+                className="h-9"
               />
             </div>
 
             {mode === 'Delivery' && !partnersLoading && deliveryPartners.length === 0 && (
-              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
                 No delivery partners found. Add them in{' '}
                 <Link href="/settings/delivery-partners" className="font-semibold underline underline-offset-2">
                   Settings
@@ -548,6 +538,8 @@ export default function BulkSalePage() {
                 loading={productsLoading}
                 onScanClick={() => setScanOpen(true)}
                 onAddNewProduct={() => handleOpenCreateProduct()}
+                sortOption={sortOption}
+                onSortChange={setSortOption}
                 className="min-h-[420px] lg:h-full lg:min-h-0"
                 contentClassName="min-h-[348px] lg:min-h-0"
               />

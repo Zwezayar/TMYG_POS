@@ -16,6 +16,8 @@ import { parseCsv } from '@/lib/csv';
 import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
 import { Loader2 } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
+import { ProductFilterBar } from '@/components/ProductFilterBar';
+import { sortProducts, SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
 
 type PendingAction = {
   id: string;
@@ -187,8 +189,8 @@ export default function AdminInventoryPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
-  const [activeLetter, setActiveLetter] = React.useState<string | null>(null);
-  const [sortRecent, setSortRecent] = React.useState(false);
+  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+  const [sortOption, setSortOption] = React.useState<SortOption>('name-asc');
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
@@ -821,14 +823,9 @@ export default function AdminInventoryPage() {
     setImagePreviewUrl(null);
   }, [imageFile, imageUrlInput]);
 
-  const alphabet = React.useMemo(
-    () => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),
-    []
-  );
-
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q
+    const afterQuery = q
       ? products.filter((p) => {
           const nameValue = (p.product_name ?? '').toLowerCase();
           const skuValue = (p.default_code ?? '').toLowerCase();
@@ -844,25 +841,14 @@ export default function AdminInventoryPage() {
           );
         })
       : products;
-    const letterFiltered = activeLetter
-      ? list.filter((p) =>
-          (p.product_name ?? '').trim().toUpperCase().startsWith(activeLetter)
-        )
-      : list;
-    const sorted = [...letterFiltered];
-    if (sortRecent) {
-      sorted.sort((a, b) => {
-        const timeA = a.created_at ? Date.parse(a.created_at) : 0;
-        const timeB = b.created_at ? Date.parse(b.created_at) : 0;
-        return timeB - timeA;
-      });
-    } else {
-      sorted.sort((a, b) =>
-        (a.product_name ?? '').localeCompare(b.product_name ?? '', undefined, { sensitivity: 'base' })
-      );
-    }
-    return sorted;
-  }, [products, query, activeLetter, sortRecent]);
+    const afterCategory = selectedCategory
+      ? afterQuery.filter((p) => {
+          const catName = p.category?.split('/').pop()?.trim() || p.category || '';
+          return catName === selectedCategory;
+        })
+      : afterQuery;
+    return sortProducts(afterCategory, sortOption);
+  }, [products, query, selectedCategory, sortOption]);
 
   const categoryOptions = React.useMemo(() => {
     if (dbCategories.length > 0) {
@@ -876,6 +862,20 @@ export default function AdminInventoryPage() {
       }
     });
     return Array.from(all).sort().map((name) => ({ value: name, label: name }));
+  }, [dbCategories, products]);
+
+  const categoryFilterOptions = React.useMemo(() => {
+    if (dbCategories.length > 0) {
+      return dbCategories.map((cat) => ({ id: cat.name, name: cat.name }));
+    }
+    const all = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) {
+        const flat = p.category.split('/').pop()?.trim();
+        if (flat) all.add(flat);
+      }
+    });
+    return Array.from(all).sort().map((name) => ({ id: name, name }));
   }, [dbCategories, products]);
 
   const openCreate = () => {
@@ -1104,55 +1104,25 @@ export default function AdminInventoryPage() {
           </div>
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('searchInventoryPlaceholder')}
-                className="h-12 rounded-xl text-base"
-              />
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setSortRecent((prev) => !prev)}
-              className={sortRecent
-                ? "h-10 px-4 rounded-xl text-xs font-bold bg-primary text-primary-foreground border-primary"
-                : "h-10 px-4 rounded-xl text-xs font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-              }
-            >
-              {t('recentlyAdded')}
-            </Button>
+          <div className="relative flex-1">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('searchInventoryPlaceholder')}
+              className="h-12 rounded-xl text-base"
+            />
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
             {syncing ? t('syncing') : `${filtered.length} ${t('itemCount')}`}
           </div>
         </div>
-        <div className="flex flex-nowrap items-center gap-1 overflow-x-auto">
-          <Button
-            variant="outline"
-            onClick={() => setActiveLetter(null)}
-            className={activeLetter === null
-              ? "h-6 px-2 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
-              : "h-6 px-2 rounded-full text-[9px] font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-            }
-          >
-            {t('all')}
-          </Button>
-          {alphabet.map((letter) => (
-            <Button
-              key={letter}
-              variant="outline"
-              onClick={() => setActiveLetter(letter)}
-              className={activeLetter === letter
-                ? "h-6 w-6 rounded-full text-[9px] font-bold bg-primary text-primary-foreground border-primary"
-                : "h-6 w-6 rounded-full text-[9px] font-bold border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800"
-              }
-            >
-              {letter}
-            </Button>
-          ))}
-        </div>
+        <ProductFilterBar
+          categories={categoryFilterOptions}
+          activeCategory={selectedCategory}
+          onCategoryChange={setSelectedCategory}
+          sortOption={sortOption}
+          onSortChange={setSortOption}
+        />
         {bulkStatus && (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             {bulkStatus}

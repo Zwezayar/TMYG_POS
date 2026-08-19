@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { type Product } from '@/lib/useProducts';
 import { cn } from '@/lib/utils';
+import { ProductFilterBar } from './ProductFilterBar';
+import { SORT_OPTIONS, type SortOption } from '@/lib/sortProducts';
 
 export type ProductBrowserCategory = {
   id: string;
@@ -173,6 +175,8 @@ export function ProductBrowser({
   categories,
   activeCategory,
   onCategoryChange,
+  sortOption,
+  onSortChange,
   loading,
   missingBarcode,
   onQuickAdd,
@@ -191,6 +195,8 @@ export function ProductBrowser({
   categories: ProductBrowserCategory[];
   activeCategory: string | null;
   onCategoryChange: (id: string | null) => void;
+  sortOption: SortOption;
+  onSortChange: (opt: SortOption) => void;
   loading: boolean;
   missingBarcode?: string | null;
   onQuickAdd?: () => void;
@@ -258,41 +264,16 @@ export function ProductBrowser({
             )}
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
-          <Button
-            variant="outline"
-            onClick={() => onCategoryChange(null)}
-            className={cn(
-              'h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap',
-              activeCategory === null
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
-            )}
-          >
-            All Products
-          </Button>
-          {categories.map((cat) => {
-            const label = cat.name.split('/').pop()?.trim() || cat.name;
-            return (
-              <Button
-                key={cat.id}
-                variant="outline"
-                onClick={() =>
-                  onCategoryChange(activeCategory === label ? null : label)
-                }
-                className={cn(
-                  'h-9 rounded-full px-4 text-xs font-bold whitespace-nowrap',
-                  activeCategory === label
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-slate-800 text-slate-900 hover:bg-slate-100 dark:border-slate-400 dark:text-slate-100 dark:hover:bg-slate-800'
-                )}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
       </div>
+
+      <ProductFilterBar
+        categories={categories}
+        activeCategory={activeCategory}
+        onCategoryChange={onCategoryChange}
+        sortOption={sortOption}
+        onSortChange={onSortChange}
+        className="border-b border-border bg-card px-4 py-3"
+      />
 
       {missingBarcode && onQuickAdd && (
         <div className="flex items-center justify-between gap-3 border-b border-border bg-card/80 px-4 py-3">
@@ -307,9 +288,15 @@ export function ProductBrowser({
 
       <div
         className={cn(
-          'flex-1 overflow-y-auto bg-background p-3 custom-scrollbar sm:p-4',
+          'flex-1 overflow-y-auto overscroll-contain bg-background p-3 custom-scrollbar sm:p-4',
           contentClassName
         )}
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          WebkitTransform: 'translateZ(0)',
+          touchAction: 'pan-y',
+          WebkitTouchCallout: 'none',
+        }}
       >
         {loading ? (
           <div className="flex h-full items-center justify-center">
