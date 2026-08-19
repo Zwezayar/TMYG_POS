@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { Plus, Tag, X } from 'lucide-react';
+import { Camera, Plus, Tag, X } from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { compressImageFile } from '@/lib/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScannerModal } from '@/components/scanner/scanner-modal';
 import type { Product } from '@/lib/useProducts';
 
 type Role = 'admin' | 'staff' | null;
@@ -41,6 +42,11 @@ export function EditProductDialog({
   const [error, setError] = React.useState<string | null>(null);
   const [altBarcodes, setAltBarcodes] = React.useState<string[]>([]);
   const [pendingAltBarcode, setPendingAltBarcode] = React.useState('');
+  const [altScanOpen, setAltScanOpen] = React.useState(false);
+  const [altScanManual, setAltScanManual] = React.useState('');
+  const [toasts, setToasts] = React.useState<
+    Array<{ id: number; type: 'success' | 'error' | 'info'; message: string }>
+  >([]);
 
   React.useEffect(() => {
     if (!open || !product) return;
@@ -67,6 +73,38 @@ export function EditProductDialog({
     setAltBarcodes([...(Array.isArray(product.barcodes) ? product.barcodes.filter(Boolean) : [])]);
     setPendingAltBarcode('');
   }, [open, product]);
+
+  const pushToast = React.useCallback(
+    (type: 'success' | 'error' | 'info', message: string) => {
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, type, message }]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 3500);
+    },
+    []
+  );
+
+  const addAltBarcode = React.useCallback(
+    (raw: string): { ok: boolean; reason?: string; value?: string } => {
+      const v = raw.trim();
+      if (!v) return { ok: false, reason: 'empty' };
+      const normalized = v.toLowerCase();
+      const primaryNormalized = (barcode || '').trim().toLowerCase();
+      if (normalized === primaryNormalized) {
+        pushToast('info', `Barcode "${v}" matches the primary barcode — skipped.`);
+        return { ok: false, reason: 'primary' };
+      }
+      if (altBarcodes.some((b) => b.trim().toLowerCase() === normalized)) {
+        pushToast('info', `Barcode "${v}" is already in alternative barcodes — skipped.`);
+        return { ok: false, reason: 'duplicate' };
+      }
+      setAltBarcodes((prev) => [...prev, v]);
+      pushToast('success', `Alternative barcode "${v}" added.`);
+      return { ok: true, value: v };
+    },
+    [altBarcodes, barcode, pushToast]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -155,24 +193,43 @@ export function EditProductDialog({
   if (!open || !product) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-2xl rounded-lg border border-border bg-card p-4 shadow-xl">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">Edit product</h2>
-            <p className="text-xs text-muted-foreground">
-              Update fields and save changes.
-            </p>
+    <>
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
+        <div className="relative w-full max-w-2xl rounded-lg border border-border bg-card p-4 shadow-xl">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex flex-col items-center gap-2 p-4 sm:items-end">
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                role="status"
+                className={[
+                  'pointer-events-auto max-w-sm rounded-xl border px-3 py-2 text-[11px] shadow-lg backdrop-blur',
+                  t.type === 'success'
+                    ? 'border-emerald-500/40 bg-emerald-50/95 text-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-100'
+                    : t.type === 'error'
+                      ? 'border-destructive/50 bg-destructive/10 text-destructive'
+                      : 'border-slate-300 bg-slate-50/95 text-slate-700 dark:bg-slate-900/90 dark:text-slate-200',
+                ].join(' ')}
+              >
+                {t.message}
+              </div>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-md p-1 text-muted-foreground hover:bg-secondary"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Edit product</h2>
+              <p className="text-xs text-muted-foreground">
+                Update fields and save changes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="rounded-md p-1 text-muted-foreground hover:bg-secondary"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
 
         <form className="grid gap-3 text-xs md:grid-cols-2" onSubmit={handleSubmit}>
           <div className="space-y-1.5">
@@ -213,15 +270,7 @@ export function EditProductDialog({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    const v = pendingAltBarcode.trim();
-                    if (!v) return;
-                    if (v.toLowerCase() === (barcode || '').toLowerCase()) {
-                      // skip same as primary
-                    } else if (altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
-                      return;
-                    } else {
-                      setAltBarcodes([...altBarcodes, v]);
-                    }
+                    addAltBarcode(pendingAltBarcode);
                     setPendingAltBarcode('');
                   }
                 }}
@@ -232,18 +281,26 @@ export function EditProductDialog({
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  const v = pendingAltBarcode.trim();
-                  if (!v) return;
-                  if (v.toLowerCase() !== (barcode || '').toLowerCase() &&
-                      !altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
-                    setAltBarcodes([...altBarcodes, v]);
-                  }
+                  addAltBarcode(pendingAltBarcode);
                   setPendingAltBarcode('');
                 }}
                 className="gap-1.5"
               >
                 <Plus className="h-4 w-4" />
                 Add
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setAltScanManual('');
+                  setAltScanOpen(true);
+                }}
+                className="gap-1.5"
+                aria-label="Scan alternative barcode via camera"
+              >
+                <Camera className="h-4 w-4" />
+                Scan Barcode
               </Button>
             </div>
             {altBarcodes.length > 0 && (
@@ -268,7 +325,7 @@ export function EditProductDialog({
               </div>
             )}
             <p className="text-[10px] text-muted-foreground">
-              Press Enter or click Add. Same as the primary barcode is skipped automatically.
+              Press Enter, click Add, or tap Scan Barcode. Same as the primary barcode or an existing alt is skipped automatically.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -390,7 +447,36 @@ export function EditProductDialog({
             </Button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+      <ScannerModal
+        open={altScanOpen}
+        elementId="edit-product-alt-barcode-scanner"
+        onClose={() => {
+          setAltScanOpen(false);
+          setAltScanManual('');
+        }}
+        onScanSuccess={(decodedText) => {
+          addAltBarcode(decodedText);
+        }}
+        onScanError={(message) => {
+          pushToast('error', `Scan failed: ${message}`);
+        }}
+        manualValue={altScanManual}
+        onManualChange={setAltScanManual}
+        onManualSubmit={() => {
+          const result = addAltBarcode(altScanManual);
+          if (result.ok) {
+            setAltScanOpen(false);
+            setAltScanManual('');
+          }
+        }}
+        secondaryActionLabel="Close"
+        onSecondaryAction={() => {
+          setAltScanOpen(false);
+          setAltScanManual('');
+        }}
+      />
+    </>
   );
 }
