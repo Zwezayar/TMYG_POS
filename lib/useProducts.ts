@@ -8,6 +8,8 @@ export interface Product {
   product_name: string | null;
   default_code: string | null;
   barcode: string | null;
+  primary_barcode?: string | null;
+  barcodes?: string[] | null;
   image_url: string | null;
   category: string | null;
   size?: string | null;
@@ -37,6 +39,8 @@ export function useProducts(options?: { includePurchasePrice?: boolean }) {
       'product_name',
       'default_code',
       'barcode',
+      'primary_barcode',
+      'barcodes',
       'image_url',
       'category',
       'size',

@@ -61,14 +61,15 @@ function getNormalizedFields<T extends SearchProductLike>(product: T): {
   };
 }
 
-type MatchRank = 0 | 1 | 2;
+type MatchRank = 0 | 1 | 2 | 3;
 const RANK_NO_MATCH: MatchRank = 0;
-const RANK_NAME_STARTS_WITH: MatchRank = 1;
-const RANK_ANY_INCLUDES: MatchRank = 2;
+const RANK_BARCODE_EXACT: MatchRank = 1;
+const RANK_NAME_STARTS_WITH: MatchRank = 2;
+const RANK_ANY_INCLUDES: MatchRank = 3;
 
 /**
  * Returns how well a product matches a search query (rank).
- * 0 = no match, 1 = product_name starts with query, 2 = any field includes.
+ * 0 = no match, 1 = exact normalized barcode match, 2 = product_name starts with query, 3 = any field includes.
  *
  * All comparisons use normalized values (accent/case/punctuation insensitive).
  * If query is empty every product matches at rank 0 — but callers should use
@@ -83,8 +84,28 @@ export function rankSearchMatch<T extends SearchProductLike>(
   const q = normalizeSearchValue(query);
   if (!q) return RANK_NO_MATCH;
 
-  const { nameNorm, fieldsNorm, fieldsCompact } = getNormalizedFields(product);
   const compactQ = q.replace(/\s+/g, '');
+
+  const primaryBarcodeRaw =
+    (product as unknown as { primary_barcode?: string | null }).primary_barcode ??
+    product.barcode;
+  const primaryNorm = normalizeSearchValue(primaryBarcodeRaw);
+  if (primaryNorm && (primaryNorm === q || primaryNorm.replace(/\s+/g, '') === compactQ)) {
+    return RANK_BARCODE_EXACT;
+  }
+
+  const barcodesArr = (product as unknown as { barcodes?: unknown }).barcodes;
+  if (Array.isArray(barcodesArr)) {
+    for (const code of barcodesArr) {
+      if (typeof code !== 'string' && typeof code !== 'number') continue;
+      const altNorm = normalizeSearchValue(String(code));
+      if (altNorm && (altNorm === q || altNorm.replace(/\s+/g, '') === compactQ)) {
+        return RANK_BARCODE_EXACT;
+      }
+    }
+  }
+
+  const { nameNorm, fieldsNorm, fieldsCompact } = getNormalizedFields(product);
 
   if (nameNorm && (nameNorm.startsWith(q) || nameNorm.replace(/\s+/g, '').startsWith(compactQ))) {
     return RANK_NAME_STARTS_WITH;
@@ -121,11 +142,12 @@ export function productMatchesQuery<T extends SearchProductLike>(
 
 /**
  * Filter list to only matching products, sorted by rank priority:
- *   1. product_name STARTS WITH the query (prefix match)
- *   2. any searchable field INCLUDES the query (substring match)
+ *   1. exact normalized barcode match
+ *   2. product_name STARTS WITH the query (prefix match)
+ *   3. any searchable field INCLUDES the query (substring match)
  *
  * When `query` is blank/empty: returns the list unchanged (no filter, no reorder).
- * When `query` is set, the result list is ranked (startsWith always come first).
+ * When `query` is set, the result list is ranked (exact barcode matches always come first, then startsWith).
  * Ties within a rank bucket are resolved by preserving original input order
  * (stable via the `ranked.sort` and a captured index).
  */
@@ -154,13 +176,13 @@ export function filterAndPrioritizeByQuery<T extends SearchProductLike>(
 
 /**
  * Combined pipeline helper:
- *   1. Filter + rank by prefix/includes priority
+ *   1. Filter + rank by barcode-exact / prefix / includes priority
  *   2. Within each rank bucket, apply user's requested sort option (A-Z / price etc.)
  *
  * This is the recommended entry point for all product list useMemos. The search
  * query filter happens BEFORE the user-facing sort, so the chosen sort still
- * controls ordering — but prefix matches (startsWith) always surface to the very
- * top of the list regardless of the user sort choice.
+ * controls ordering — but exact barcode matches always surface to the very top,
+ * followed by prefix matches (startsWith), regardless of the user sort choice.
  */
 export function applySearchThenSort<T extends SearchProductLike>(
   list: T[],

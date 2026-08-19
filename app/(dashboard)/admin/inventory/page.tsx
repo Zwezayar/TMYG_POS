@@ -36,6 +36,7 @@ type PendingAction = {
     description_mm: string | null;
     category: string | null;
     barcode: string | null;
+    primary_barcode: string | null;
     remark: string | null;
   };
   imageDataUrl?: string;
@@ -47,7 +48,10 @@ const CACHE_KEY = 'admin-inventory-cache-v1';
 const QUEUE_KEY = 'admin-inventory-queue-v1';
 const PRODUCTS_REFRESH_KEY = 'products-refresh-v1';
 
-type AdminProduct = Product;
+type AdminProduct = Product & {
+  primary_barcode?: string | null;
+  barcodes?: string[] | null;
+};
 
 function loadQueue(): PendingAction[] {
   if (typeof window === 'undefined') return [];
@@ -219,6 +223,9 @@ export default function AdminInventoryPage() {
   const [descriptionMm, setDescriptionMm] = React.useState('');
   const [category, setCategory] = React.useState('');
   const [barcode, setBarcode] = React.useState('');
+  const [altBarcodes, setAltBarcodes] = React.useState<string[]>([]);
+  const [pendingAltBarcode, setPendingAltBarcode] = React.useState('');
+  const [altBarcodeWarning, setAltBarcodeWarning] = React.useState<string | null>(null);
   const [remark, setRemark] = React.useState('');
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
@@ -292,9 +299,15 @@ export default function AdminInventoryPage() {
         ctx.close();
       }, 120);
     } catch { }
-    const match = products.find(
-      (p) => (p.barcode ?? '').toLowerCase() === decodedText.toLowerCase()
-    );
+    const normalizedScan = decodedText.toLowerCase();
+    const match = products.find((p) => {
+      if ((p.barcode ?? '').toLowerCase() === normalizedScan) return true;
+      if ((p.primary_barcode ?? '').toLowerCase() === normalizedScan) return true;
+      if (Array.isArray(p.barcodes)) {
+        return p.barcodes.some((bc) => bc && (bc ?? '').toLowerCase() === normalizedScan);
+      }
+      return false;
+    });
     if (!match) {
       setScanStatus('missing');
       setEditing(null);
@@ -307,6 +320,9 @@ export default function AdminInventoryPage() {
       setDescriptionMm('');
       setCategory('');
       setBarcode(decodedText);
+      setAltBarcodes([]);
+      setPendingAltBarcode('');
+      setAltBarcodeWarning(null);
       setImageFile(null);
       setImagePreviewUrl(null);
       setDialogOpen(true);
@@ -342,6 +358,8 @@ export default function AdminInventoryPage() {
       'product_name',
       'default_code',
       'barcode',
+      'primary_barcode',
+      'barcodes',
       'image_url',
       'category',
       'size',
@@ -389,6 +407,9 @@ export default function AdminInventoryPage() {
     setDescriptionMm('');
     setCategory('');
     setBarcode('');
+    setAltBarcodes([]);
+    setPendingAltBarcode('');
+    setAltBarcodeWarning(null);
     setImageUrlInput('');
     setRemark('');
     setImageFile(null);
@@ -402,7 +423,7 @@ export default function AdminInventoryPage() {
   const queueAction = React.useCallback(async (mode: 'create' | 'update', productId?: number) => {
     const parsedCost = costPrice.trim() ? Number(costPrice) : null;
     const parsedStock = stockQuantity.trim() ? Number(stockQuantity) : null;
-    const payload: PendingAction['payload'] = {
+    const payload: PendingAction['payload'] & { primary_barcode?: string | null; barcodes?: string[] | null } = {
       product_name: name.trim(),
       sale_price: Number(price),
       stock_quantity: Number.isFinite(parsedStock as number) ? parsedStock : null,
@@ -412,6 +433,8 @@ export default function AdminInventoryPage() {
       description_mm: descriptionMm.trim() || null,
       category: category.trim() || null,
       barcode: barcode.trim() || null,
+      primary_barcode: barcode.trim() || null,
+      barcodes: altBarcodes.length > 0 ? altBarcodes.map((b) => b.trim()).filter(Boolean) : null,
       image_url: imageUrlInput.trim() || null,
       remark: remark.trim() || null,
     };
@@ -440,6 +463,7 @@ export default function AdminInventoryPage() {
       product_name: payload.product_name,
       default_code: payload.default_code,
       barcode: payload.barcode,
+      primary_barcode: payload.primary_barcode,
       image_url: item.imageDataUrl ?? payload.image_url ?? null,
       category: payload.category,
       size: payload.size,
@@ -458,7 +482,7 @@ export default function AdminInventoryPage() {
     } else {
       applyOptimistic(products.map((p) => (p.id === productId ? { ...p, ...optimistic, id: productId! } : p)));
     }
-  }, [applyOptimistic, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, isAdmin, name, price, products, remark, size, stockQuantity, imageUrlInput]);
+  }, [applyOptimistic, altBarcodes, barcode, category, costPrice, defaultCode, descriptionEn, descriptionMm, imageFile, isAdmin, name, price, products, remark, size, stockQuantity, imageUrlInput]);
 
   const syncQueue = React.useCallback(async () => {
     if (!isOnline) return;
@@ -718,9 +742,13 @@ export default function AdminInventoryPage() {
           setBulkLoading(false);
           return;
         }
-        const byBarcode = new Map<string, Product>();
+        const byBarcode = new Map<string, AdminProduct>();
         products.forEach((p) => {
-          if (p.barcode) byBarcode.set(p.barcode, p);
+          if (p.barcode) byBarcode.set(p.barcode.trim(), p);
+          if (p.primary_barcode) byBarcode.set(p.primary_barcode.trim(), p);
+          if (Array.isArray(p.barcodes)) {
+            p.barcodes.forEach((bc) => { if (bc) byBarcode.set(bc.trim(), p); });
+          }
         });
         const inserted: string[] = [];
         const updated: string[] = [];
@@ -879,11 +907,56 @@ export default function AdminInventoryPage() {
     const flatCategory = product.category?.split('/').pop()?.trim() ?? '';
     setCategory(flatCategory);
     setBarcode(product.barcode ?? '');
+    setAltBarcodes([...(Array.isArray(product.barcodes) ? product.barcodes.filter(Boolean) : [])]);
+    setPendingAltBarcode('');
+    setAltBarcodeWarning(null);
     setRemark(product.remark ?? '');
     setImageFile(null);
     setImageUrlInput(product.image_url ?? '');
     setImagePreviewUrl(product.image_url ?? null);
     setDialogOpen(true);
+  };
+
+  const handlePendingAltBarcodeChange = (v: string) => {
+    setPendingAltBarcode(v);
+    setAltBarcodeWarning(null);
+  };
+
+  const handleAddAltBarcode = () => {
+    const v = pendingAltBarcode.trim();
+    if (!v) return;
+    if (v.toLowerCase() === (barcode || '').toLowerCase()) {
+      return;
+    }
+    if (altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+      return;
+    }
+    const flat: Array<{ code: string; name: string; id: number }> = [];
+    for (const p of products) {
+      if (p.barcode) flat.push({ code: p.barcode.trim(), name: p.product_name ?? 'Unknown', id: p.id });
+      if ((p as any).primary_barcode) flat.push({ code: String((p as any).primary_barcode).trim(), name: p.product_name ?? 'Unknown', id: p.id });
+      if (Array.isArray((p as any).barcodes)) {
+        (p as any).barcodes.forEach((bc: any) => {
+          if (bc) flat.push({ code: String(bc).trim(), name: p.product_name ?? 'Unknown', id: p.id });
+        });
+      }
+    }
+    const currentProductId = editing?.id ?? -1;
+    const dup = flat.find(
+      (f) => f.code.toLowerCase() === v.toLowerCase() && f.id !== currentProductId
+    );
+    if (dup) {
+      setAltBarcodeWarning(
+        `⚠️ Warning: Barcode already used by '${dup.name}'. Duplicates may break scanner lookup.`
+      );
+    } else {
+      setAltBarcodeWarning(null);
+    }
+    setAltBarcodes([...altBarcodes, v]);
+  };
+
+  const handleRemoveAltBarcode = (idx: number) => {
+    setAltBarcodes(altBarcodes.filter((_, i) => i !== idx));
   };
 
   const handleSave = async () => {
@@ -933,6 +1006,8 @@ export default function AdminInventoryPage() {
       description_mm: descriptionMm.trim() || null,
       category: category.trim() || null,
       barcode: barcode.trim() || null,
+      primary_barcode: barcode.trim() || null,
+      barcodes: altBarcodes.length > 0 ? altBarcodes.map((b) => b.trim()).filter(Boolean) : null,
       image_url: imageUrlInput.trim() || null,
       remark: remark.trim() || null,
     };
@@ -1202,6 +1277,13 @@ export default function AdminInventoryPage() {
               imagePreviewUrl={imagePreviewUrl}
               remark={remark}
               onRemarkChange={setRemark}
+              altBarcodes={altBarcodes}
+              pendingAltBarcode={pendingAltBarcode}
+              onPendingAltBarcodeChange={handlePendingAltBarcodeChange}
+              onAddAltBarcode={handleAddAltBarcode}
+              onRemoveAltBarcode={handleRemoveAltBarcode}
+              primaryBarcodeCurrent={barcode}
+              altBarcodeWarning={altBarcodeWarning}
               error={error}
               onClose={resetForm}
               onSave={handleSave}

@@ -1495,9 +1495,15 @@ export default function PosPage() {
       return false;
     }
 
-    const existing = products.find(
-      (p) => normalizeBarcode(p.barcode).toLowerCase() === code.toLowerCase()
-    );
+    const normalizedScan = code.toLowerCase();
+    const existing = (productsOverride || products).find((p) => {
+      if (normalizeBarcode(p.barcode).toLowerCase() === normalizedScan) return true;
+      if (p.primary_barcode && normalizeBarcode(p.primary_barcode).toLowerCase() === normalizedScan) return true;
+      if (Array.isArray(p.barcodes)) {
+        return p.barcodes.some((bc) => bc && normalizeBarcode(bc).toLowerCase() === normalizedScan);
+      }
+      return false;
+    });
     
     if (existing) {
       setMissingBarcode(null);
@@ -1679,6 +1685,8 @@ export default function PosPage() {
       const payload = {
         product_name: name || null,
         barcode: quickBarcode || null,
+        primary_barcode: quickBarcode.trim() || null,
+        barcodes: quickBarcode.trim() ? [] : null,
         category: quickCategory || null,
         default_code: quickDefaultCode || null,
         size: quickSize || null,
