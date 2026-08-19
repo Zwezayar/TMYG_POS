@@ -199,7 +199,7 @@ export default function AdminInventoryPage() {
   const [syncing, setSyncing] = React.useState(false);
   const [scannerOpen, setScannerOpen] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
-  const [toasts, setToasts] = React.useState<{ id: number; type: 'success' | 'error'; message: string }[]>([]);
+  const [toasts, setToasts] = React.useState<{ id: number; type: 'success' | 'error' | 'info'; message: string }[]>([]);
   const { categories: dbCategories, refresh: refreshCategories } = useCategories();
   const bulkInputRef = React.useRef<HTMLInputElement | null>(null);
   const [bulkStatus, setBulkStatus] = React.useState<string | null>(null);
@@ -237,10 +237,10 @@ export default function AdminInventoryPage() {
   const [scanFlash, setScanFlash] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<'scanning' | 'found' | 'missing'>('scanning');
   const [scanManualInput, setScanManualInput] = React.useState('');
-  const [scanningForForm, setScanningForForm] = React.useState(false);
+  const [scanningTarget, setScanningTarget] = React.useState<'search' | 'primary' | 'alt'>('search');
   const isBusy = saving || uploading;
 
-  const addToast = React.useCallback((type: 'success' | 'error', message: string) => {
+  const addToast = React.useCallback((type: 'success' | 'error' | 'info', message: string) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
@@ -274,10 +274,17 @@ export default function AdminInventoryPage() {
   );
 
   const onScanSuccess = React.useCallback((decodedText: string) => {
-    if (dialogOpen && scanningForForm) {
+    if (dialogOpen && scanningTarget === 'primary') {
       setBarcode(decodedText);
       setScanStatus('found');
-      setScanningForForm(false);
+      setScanningTarget('search');
+      setScannerOpen(false);
+      return;
+    }
+    if (dialogOpen && scanningTarget === 'alt') {
+      handleAddAltBarcode(decodedText);
+      setScanStatus('found');
+      setScanningTarget('search');
       setScannerOpen(false);
       return;
     }
@@ -313,7 +320,7 @@ export default function AdminInventoryPage() {
       setEditing(null);
       setName('');
       setDefaultCode('');
-    setSize('');
+      setSize('');
       setPrice('');
       setCostPrice('');
       setDescriptionEn('');
@@ -330,20 +337,23 @@ export default function AdminInventoryPage() {
       setScanStatus('found');
     }
     setScannerOpen(false);
-  }, [dialogOpen, products, scanningForForm]);
+  }, [dialogOpen, products, scanningTarget]);
 
   const handleManualBarcode = React.useCallback(() => {
     const value = scanManualInput.trim();
     if (!value) return;
-    if (dialogOpen && scanningForForm) {
+    if (dialogOpen && scanningTarget === 'primary') {
       setBarcode(value);
-      setScanningForForm(false);
+      setScanningTarget('search');
+    } else if (dialogOpen && scanningTarget === 'alt') {
+      handleAddAltBarcode(value);
+      setScanningTarget('search');
     } else {
       setQuery(value);
     }
     setScanManualInput('');
     setScannerOpen(false);
-  }, [dialogOpen, scanManualInput, scanningForForm]);
+  }, [dialogOpen, scanManualInput, scanningTarget]);
 
   const handleCloseScanner = React.useCallback(() => {
     setScanManualInput('');
@@ -416,7 +426,7 @@ export default function AdminInventoryPage() {
     setImagePreviewUrl(null);
     setEditing(null);
     setUploading(false);
-    setScanningForForm(false);
+    setScanningTarget('search');
     setDialogOpen(false);
   }, []);
 
@@ -922,13 +932,16 @@ export default function AdminInventoryPage() {
     setAltBarcodeWarning(null);
   };
 
-  const handleAddAltBarcode = () => {
-    const v = pendingAltBarcode.trim();
+  const handleAddAltBarcode = (raw?: string) => {
+    const input = typeof raw === 'string' ? raw : pendingAltBarcode;
+    const v = input.trim();
     if (!v) return;
     if (v.toLowerCase() === (barcode || '').toLowerCase()) {
+      if (typeof raw === 'string') addToast('info', `Barcode "${v}" matches the primary barcode — skipped.`);
       return;
     }
     if (altBarcodes.some((b) => b.toLowerCase() === v.toLowerCase())) {
+      if (typeof raw === 'string') addToast('info', `Barcode "${v}" is already in alternative barcodes — skipped.`);
       return;
     }
     const flat: Array<{ code: string; name: string; id: number }> = [];
@@ -953,6 +966,8 @@ export default function AdminInventoryPage() {
       setAltBarcodeWarning(null);
     }
     setAltBarcodes([...altBarcodes, v]);
+    setPendingAltBarcode('');
+    if (typeof raw === 'string') addToast('success', `Alternative barcode "${v}" added.`);
   };
 
   const handleRemoveAltBarcode = (idx: number) => {
@@ -1248,7 +1263,7 @@ export default function AdminInventoryPage() {
               barcode={barcode}
               onBarcodeChange={setBarcode}
               onBarcodeAction={() => {
-                setScanningForForm(true);
+                setScanningTarget('primary');
                 setScannerOpen(true);
               }}
               name={name}
@@ -1284,6 +1299,10 @@ export default function AdminInventoryPage() {
               onRemoveAltBarcode={handleRemoveAltBarcode}
               primaryBarcodeCurrent={barcode}
               altBarcodeWarning={altBarcodeWarning}
+              onOpenAltBarcodeScanner={() => {
+                setScanningTarget('alt');
+                setScannerOpen(true);
+              }}
               error={error}
               onClose={resetForm}
               onSave={handleSave}
@@ -1378,6 +1397,8 @@ export default function AdminInventoryPage() {
               key={toast.id}
               className={`rounded-md border px-4 py-3 text-base font-semibold shadow-md ${toast.type === 'success'
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                : toast.type === 'info'
+                ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
                 : 'border-destructive/60 bg-destructive/10 text-destructive'
                 }`}
             >

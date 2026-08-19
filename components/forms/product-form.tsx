@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Plus, Tag, X } from 'lucide-react';
+import { Camera, Plus, Tag, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,6 +45,7 @@ type ProductFormProps = {
   onRemoveAltBarcode?: (index: number) => void;
   primaryBarcodeCurrent?: string;
   altBarcodeWarning?: string | null;
+  onOpenAltBarcodeScanner?: () => void;
   error?: string | null;
   onClose: () => void;
   onSave: () => void;
@@ -91,6 +92,7 @@ export function ProductForm({
   onRemoveAltBarcode = () => {},
   primaryBarcodeCurrent = '',
   altBarcodeWarning = null,
+  onOpenAltBarcodeScanner,
   error,
   onClose,
   onSave,
@@ -358,6 +360,18 @@ export function ProductForm({
               <Plus className="h-4 w-4" />
               Add
             </Button>
+            {onOpenAltBarcodeScanner && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => onOpenAltBarcodeScanner()}
+                className="gap-1.5 whitespace-nowrap"
+                aria-label="Scan alternative barcode via camera"
+              >
+                <Camera className="h-4 w-4" />
+                Scan Barcode
+              </Button>
+            )}
           </div>
           {altBarcodes.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
@@ -386,7 +400,7 @@ export function ProductForm({
             </div>
           )}
           <p className="text-[10px] text-muted-foreground">
-            Press Enter or click Add. Same as the primary barcode is skipped automatically.
+            Press Enter, click Add, or tap Scan Barcode. Same as the primary barcode or an existing alt is skipped automatically.
           </p>
         </div>
 
