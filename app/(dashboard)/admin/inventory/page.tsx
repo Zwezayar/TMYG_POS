@@ -273,9 +273,35 @@ export default function AdminInventoryPage() {
     []
   );
 
-  const onScanSuccess = React.useCallback((decodedText: string) => {
+  const lookupProductByBarcode = React.useCallback((code: string): Product | null => {
+    const needle = code.trim().toLowerCase();
+    if (!needle) return null;
+    for (const p of products) {
+      if ((p.barcode ?? '').trim().toLowerCase() === needle) return p;
+      if ((p.primary_barcode ?? '').trim().toLowerCase() === needle) return p;
+      if (Array.isArray(p.barcodes)) {
+        for (const bc of p.barcodes) {
+          if (bc && String(bc).trim().toLowerCase() === needle) return p;
+        }
+      }
+    }
+    return null;
+  }, [products]);
+
+  const handlePrimaryBarcodeChange = (value: string) => {
+    setBarcode(value);
+    if (!value.trim()) return;
+    if (!dialogOpen || editing) return;
+    const match = lookupProductByBarcode(value);
+    if (match) {
+      addToast('info', 'Product already exists in inventory. Switched to edit mode.');
+      openEdit(match);
+    }
+  };
+
+  const onScanSuccess = (decodedText: string) => {
     if (dialogOpen && scanningTarget === 'primary') {
-      setBarcode(decodedText);
+      handlePrimaryBarcodeChange(decodedText);
       setScanStatus('found');
       setScanningTarget('search');
       setScannerOpen(false);
@@ -306,15 +332,7 @@ export default function AdminInventoryPage() {
         ctx.close();
       }, 120);
     } catch { }
-    const normalizedScan = decodedText.toLowerCase();
-    const match = products.find((p) => {
-      if ((p.barcode ?? '').toLowerCase() === normalizedScan) return true;
-      if ((p.primary_barcode ?? '').toLowerCase() === normalizedScan) return true;
-      if (Array.isArray(p.barcodes)) {
-        return p.barcodes.some((bc) => bc && (bc ?? '').toLowerCase() === normalizedScan);
-      }
-      return false;
-    });
+    const match = lookupProductByBarcode(decodedText);
     if (!match) {
       setScanStatus('missing');
       setEditing(null);
@@ -337,13 +355,13 @@ export default function AdminInventoryPage() {
       setScanStatus('found');
     }
     setScannerOpen(false);
-  }, [dialogOpen, products, scanningTarget]);
+  };
 
-  const handleManualBarcode = React.useCallback(() => {
+  const handleManualBarcode = () => {
     const value = scanManualInput.trim();
     if (!value) return;
     if (dialogOpen && scanningTarget === 'primary') {
-      setBarcode(value);
+      handlePrimaryBarcodeChange(value);
       setScanningTarget('search');
     } else if (dialogOpen && scanningTarget === 'alt') {
       handleAddAltBarcode(value);
@@ -353,7 +371,7 @@ export default function AdminInventoryPage() {
     }
     setScanManualInput('');
     setScannerOpen(false);
-  }, [dialogOpen, scanManualInput, scanningTarget]);
+  };
 
   const handleCloseScanner = React.useCallback(() => {
     setScanManualInput('');
@@ -944,20 +962,16 @@ export default function AdminInventoryPage() {
       if (typeof raw === 'string') addToast('info', `Barcode "${v}" is already in alternative barcodes — skipped.`);
       return;
     }
-    const flat: Array<{ code: string; name: string; id: number }> = [];
-    for (const p of products) {
-      if (p.barcode) flat.push({ code: p.barcode.trim(), name: p.product_name ?? 'Unknown', id: p.id });
-      if ((p as any).primary_barcode) flat.push({ code: String((p as any).primary_barcode).trim(), name: p.product_name ?? 'Unknown', id: p.id });
-      if (Array.isArray((p as any).barcodes)) {
-        (p as any).barcodes.forEach((bc: any) => {
-          if (bc) flat.push({ code: String(bc).trim(), name: p.product_name ?? 'Unknown', id: p.id });
-        });
-      }
-    }
     const currentProductId = editing?.id ?? -1;
-    const dup = flat.find(
-      (f) => f.code.toLowerCase() === v.toLowerCase() && f.id !== currentProductId
-    );
+    const otherMatch = lookupProductByBarcode(v);
+    const dup = otherMatch && otherMatch.id !== currentProductId
+      ? { code: v, name: otherMatch.product_name ?? 'Unknown', id: otherMatch.id }
+      : undefined;
+    if (dup && !editing) {
+      addToast('info', 'Product already exists in inventory. Switched to edit mode.');
+      openEdit(otherMatch as Product);
+      return;
+    }
     if (dup) {
       setAltBarcodeWarning(
         `⚠️ Warning: Barcode already used by '${dup.name}'. Duplicates may break scanner lookup.`
@@ -1261,7 +1275,7 @@ export default function AdminInventoryPage() {
             <ProductForm
               title={editing ? 'Edit Product' : 'Add Product'}
               barcode={barcode}
-              onBarcodeChange={setBarcode}
+              onBarcodeChange={handlePrimaryBarcodeChange}
               onBarcodeAction={() => {
                 setScanningTarget('primary');
                 setScannerOpen(true);
