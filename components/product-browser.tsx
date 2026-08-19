@@ -288,7 +288,7 @@ export function ProductBrowser({
 
       <div
         className={cn(
-          'flex-1 overflow-y-auto overscroll-contain bg-background p-3 custom-scrollbar sm:p-4',
+          'h-full min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background p-3 custom-scrollbar sm:p-4',
           contentClassName
         )}
         style={{

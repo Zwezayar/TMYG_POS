@@ -451,8 +451,8 @@ export default function BulkSalePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)]">
-        <div className="min-w-0 space-y-4 lg:flex lg:min-h-0 lg:flex-col">
+      <div className="grid gap-4 h-full min-h-0 lg:min-h-0 lg:flex-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,8fr)_minmax(360px,4fr)] lg:grid-rows-none">
+        <div className="min-w-0 min-h-0 h-full flex flex-col gap-4">
           <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
               <div className="flex rounded-xl border border-border bg-background p-1">
@@ -513,15 +513,15 @@ export default function BulkSalePage() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-            <div>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
+            <div className="shrink-0">
               <div className="text-base font-semibold">Quick Item Entry</div>
               <p className="text-sm text-muted-foreground">
                 Search products and tap Add to build today&apos;s sale.
               </p>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-background/50 lg:min-h-0 lg:flex-1">
+            <div className="mt-4 flex flex-col min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-background/50">
               <MemoProductBrowser
                 products={filteredProducts}
                 query={query}
@@ -540,8 +540,8 @@ export default function BulkSalePage() {
                 onAddNewProduct={() => handleOpenCreateProduct()}
                 sortOption={sortOption}
                 onSortChange={setSortOption}
-                className="min-h-[420px] lg:h-full lg:min-h-0"
-                contentClassName="min-h-[348px] lg:min-h-0"
+                className="min-h-[420px] md:flex md:flex-col md:min-h-0 md:flex-1 md:h-full"
+                contentClassName="min-h-[348px]"
               />
             </div>
             {productsError && !productsLoading && filteredProducts.length === 0 && (
