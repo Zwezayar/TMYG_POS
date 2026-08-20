@@ -22,23 +22,34 @@ export function PrintReceiptTemplate({ receipt, logoUrl }: PrintReceiptTemplateP
   const changeAmount = (receipt as any).changeAmount ?? amountReceived - grandTotal;
   const amountDue = (receipt as any).amountDue ?? 0;
 
-  const headerTitle = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
-  const hasAddr = !!settings.receipt.storeAddress?.trim();
-  const hasPhone = !!settings.receipt.storePhone?.trim();
-  const hasSocial = !!settings.receipt.storeSocial?.trim();
-  const hasFooter = !!settings.receipt.footerText?.trim();
+  const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
+  const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
+  const storeAddress = settings.receipt.storeAddress?.trim() || 'No.23 Thun Phayar Street, Near Kyakhat Wine Monastery, Bago City';
+  const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
+  const storeSocial = settings.receipt.storeSocial?.trim();
+  const footerText = settings.receipt.footerText?.trim();
+
+  const hasStoreTagline = !!storeTagline;
+  const hasStoreAddress = !!storeAddress;
+  const hasStorePhone = !!storePhone;
+  const hasStoreSocial = !!storeSocial;
+  const hasFooterText = !!footerText;
+  const { showLogo, showBarcode, showQrCode } = settings.receipt;
 
   return (
     <div id="print-receipt">
-      {settings.receipt.showLogo && logoUrl ? (
+      {showLogo && logoUrl ? (
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
           <img src={logoUrl} alt="logo" style={{ maxHeight: 24, maxWidth: '100%', objectFit: 'contain' }} />
         </div>
       ) : null}
-      <div className="receipt-title">{headerTitle}</div>
-      {hasAddr && <div className="receipt-center">{settings.receipt.storeAddress.trim()}</div>}
-      {hasPhone && <div className="receipt-center">Tel: {settings.receipt.storePhone.trim()}</div>}
-      {hasSocial && <div className="receipt-center">{settings.receipt.storeSocial.trim()}</div>}
+      <div className="receipt-title">{storeName}</div>
+      {hasStoreTagline && (
+        <div className="receipt-center" style={{ fontSize: '0.85em', marginBottom: 2 }}>{storeTagline}</div>
+      )}
+      {hasStoreAddress && <div className="receipt-center">{storeAddress}</div>}
+      {hasStorePhone && <div className="receipt-center">Tel: {storePhone}</div>}
+      {hasStoreSocial && <div className="receipt-center">{storeSocial}</div>}
       <div className="divider" />
       <div className="receipt-row">
         <span>Invoice</span>
@@ -138,12 +149,12 @@ export function PrintReceiptTemplate({ receipt, logoUrl }: PrintReceiptTemplateP
           <span>{changeAmount.toLocaleString()} Ks</span>
         </div>
       )}
-      {settings.receipt.showBarcode && receipt.invoiceId ? (
+      {showBarcode && receipt.invoiceId ? (
         <div className="receipt-barcode">
           <Code128Svg value={receipt.invoiceId} heightPx={26} barWidthPx={1} showText fontSizePx={9} />
         </div>
       ) : null}
-      {hasFooter && <div className="receipt-footer">{settings.receipt.footerText.trim()}</div>}
+      {hasFooterText && <div className="receipt-footer">{footerText}</div>}
     </div>
   );
 }

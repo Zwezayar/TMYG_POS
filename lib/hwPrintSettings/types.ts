@@ -14,6 +14,7 @@ export interface ReceiptSettings {
   marginLeftMm: number;
   marginRightMm: number;
   storeName: string;
+  storeTagline: string;
   storeAddress: string;
   storePhone: string;
   storeSocial: string;
@@ -71,8 +72,9 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
   marginLeftMm: 4,
   marginRightMm: 4,
   storeName: 'THE MORE YOU GLOW BY INGYIN',
-  storeAddress: '',
-  storePhone: '',
+  storeTagline: 'USA Skincare and Cosmetics',
+  storeAddress: 'No.23 Thun Phayar Street, Near Kyakhat Wine Monastery, Bago City',
+  storePhone: '09-777848379',
   storeSocial: '',
   footerText: 'Thank you for your purchase!',
   showLogo: false,

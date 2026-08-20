@@ -14,7 +14,7 @@ import { useT } from '@/components/language-provider';
 import { ProductForm } from '@/components/forms/product-form';
 import { parseCsv } from '@/lib/csv';
 import { downloadExcel, downloadInventoryXlsxWithImages, type InventoryImageRow } from '@/lib/excel';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { formatDateDDMMYYYY } from '@/lib/date';
 import { ProductFilterBar } from '@/components/ProductFilterBar';
 import { applySearchThenSort, SORT_OPTIONS, type SortOption } from '@/lib/productSearch';
@@ -214,6 +214,13 @@ function PrintProductLabelModal({
   const primary = product.primary_barcode || product.barcode || product.default_code || String(product.id);
   const price = formatPrice(product.sale_price);
 
+  const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
+  const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
+  const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
+
+  const hasLeftContent = label.showProductName || label.showPrice || label.showSku;
+  const landscapeLayout = widthMm >= heightMm;
+
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
       <div
@@ -221,7 +228,7 @@ function PrintProductLabelModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold">Print Barcode Label</div>
+          <div className="text-sm font-semibold">Print Product Label / Sticker</div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               Print
@@ -248,29 +255,48 @@ function PrintProductLabelModal({
               page: 'label-sheet' as any,
             }}
           >
-            <div className="flex flex-col h-full w-full justify-between gap-[1mm]">
-              <div className="flex flex-col gap-[0.5mm]">
-                {label.showProductName && (
-                  <div className="font-semibold truncate leading-tight">{product.product_name || '—'}</div>
-                )}
-                {label.showPrice && (
-                  <div className="font-bold tabular-nums">{price}</div>
-                )}
-                {label.showSku && product.default_code && (
-                  <div className="text-[0.8em] text-muted-foreground truncate">SKU: {product.default_code}</div>
+            <div className="flex flex-col h-full w-full justify-between gap-[0.5mm] min-h-0">
+              <div className="flex items-start gap-[0.8mm] border-b border-black/30 pb-[0.4mm]">
+                <div className="flex-shrink-0 w-[5mm] h-[5mm] rounded-sm border border-black bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center overflow-hidden">
+                  <Sparkles className="w-[3mm] h-[3mm] text-pink-600" strokeWidth={2} />
+                </div>
+                <div className="flex-1 min-w-0 leading-tight">
+                  <div className="font-bold truncate text-[0.95em]">{storeName}</div>
+                  <div className="text-[0.75em] text-black/70 truncate">{storeTagline}</div>
+                  <div className="text-[0.7em] font-mono truncate">Tel: {storePhone}</div>
+                </div>
+              </div>
+
+              <div className={`flex-1 min-h-0 gap-[0.8mm] ${landscapeLayout ? 'flex flex-row' : 'flex flex-col'}`}>
+                {hasLeftContent ? (
+                  <div className={`flex flex-col gap-[0.3mm] min-h-0 ${landscapeLayout ? 'flex-1 min-w-0 justify-center' : 'justify-center'}`}>
+                    {label.showProductName && (
+                      <div className="font-semibold break-words leading-tight">{product.product_name || '—'}</div>
+                    )}
+                    {label.showSku && product.default_code && (
+                      <div className="text-[0.8em] text-black/60 break-words leading-tight">SKU: {product.default_code}</div>
+                    )}
+                    {label.showPrice && (
+                      <div className="font-extrabold tabular-nums text-[1.1em] pt-[0.2mm]">{price}</div>
+                    )}
+                  </div>
+                ) : null}
+                {label.showBarcode && (
+                  <div className={`flex items-center justify-center min-h-0 ${hasLeftContent ? (landscapeLayout ? 'flex-1 min-w-0' : '') : 'flex-1'}`}>
+                    <Code128Svg
+                      value={primary}
+                      heightPx={landscapeLayout ? Math.max(label.barcodeHeightPx, heightMm - 14) : label.barcodeHeightPx}
+                      barWidthPx={1}
+                      showText={true}
+                      fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
+                    />
+                  </div>
                 )}
               </div>
-              {label.showBarcode && (
-                <div className="flex items-center justify-center">
-                  <Code128Svg
-                    value={primary}
-                    heightPx={label.barcodeHeightPx}
-                    barWidthPx={1}
-                    showText={true}
-                    fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
-                  />
-                </div>
-              )}
+
+              <div className="text-center text-[0.75em] font-semibold border-t border-black/30 pt-[0.4mm] truncate">
+                Thanks for choosing us. See you again!
+              </div>
             </div>
           </div>
         </div>

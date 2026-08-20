@@ -10,7 +10,7 @@ import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
 import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
 import { formatDateDDMMYYYY, formatDateRangeDDMMYYYY } from '@/lib/date';
 import { useT } from '@/components/language-provider';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { Code128Svg } from '@/components/ui/code128-svg';
 import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 
@@ -46,12 +46,36 @@ function WaybillModal({
 
   const date = new Date(order.created_at);
   const dateText = formatDateDDMMYYYY(date);
-  const total = (order.total_amount || 0) + Number(order.delivery_fee || 0);
+
+  const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
+  const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
+  const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
+
+  const items = order.receipt_payload?.items ?? [];
+  const hasItems = items.length > 0;
+
+  const subtotalVal = order.total_amount || 0;
+  const deliveryFeeVal = Number(order.delivery_fee || 0);
+  const grandTotalVal = subtotalVal + deliveryFeeVal;
+  const receivedVal = 0;
+  const balanceVal = Math.max(0, grandTotalVal - receivedVal);
+
+  const showProductName = label.showProductName;
+  const showPrice = label.showPrice;
+  const showSku = label.showSku;
+  const showSizeCol = hasItems;
+
+  const tableColCount =
+    1 +
+    (showProductName ? 1 : 0) +
+    (showSku ? 1 : 0) +
+    (showPrice ? 1 : 0) +
+    (showPrice ? 1 : 0);
 
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-border bg-card p-4 shadow-2xl"
+        className="w-full max-w-2xl rounded-2xl border border-border bg-card p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -68,68 +92,150 @@ function WaybillModal({
         <div className="mb-3 text-xs text-muted-foreground">
           Label size: {widthMm}mm × {heightMm}mm. For 4×6 (100×150mm) or A6, choose the preset in Settings → Hardware &amp; Printers → Label / Sticker Printer.
         </div>
-        <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60">
+        <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60 overflow-auto">
           <div
             id="print-label"
             className="bg-white border border-black shadow-inner overflow-hidden box-border flex flex-col"
             style={{
               width: `${widthMm}mm`,
               height: `${heightMm}mm`,
-              padding: '1.5mm',
+              padding: '2mm',
               fontFamily: label.fontFamily,
               fontSize: `${label.fontSizePx}px`,
               lineHeight: 1.2,
               page: 'label-sheet' as any,
             }}
           >
-            <div className="w-full h-full flex flex-col gap-[1mm]">
-              <div className="border-b border-black pb-[1mm] flex items-start justify-between">
-                <div>
-                  <div className="font-extrabold uppercase tracking-wider">Delivery Waybill</div>
-                  <div className="text-[0.85em] text-muted-foreground">{dateText}</div>
-                </div>
-                {label.showCourier && (
-                  <div className="px-[1.2mm] py-[0.6mm] border-2 border-black font-extrabold uppercase text-center max-w-[45%] break-words leading-tight">
-                    {order.courier_name || '—'}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-center py-[1mm]">
-                {label.showBarcode && (
-                  <Code128Svg
-                    value={order.invoice_id}
-                    heightPx={Math.max(14, label.barcodeHeightPx)}
-                    barWidthPx={1}
-                    showText={true}
-                    fontSizePx={Math.max(7, Math.round(label.fontSizePx * 0.85))}
-                  />
-                )}
-              </div>
-              {label.showCustomerAddress && (
-                <div className="border-2 border-dashed border-black/60 p-[1.2mm] flex-1 min-h-0">
-                  <div className="text-[0.85em] uppercase font-bold tracking-wider mb-[0.6mm]">Ship To:</div>
-                  <div className="font-semibold break-words leading-tight">{order.customer_name || '—'}</div>
-                  {order.customer_phone && (
-                    <div className="font-mono break-words leading-tight">{order.customer_phone}</div>
-                  )}
-                  {order.customer_address && (
-                    <div className="break-words whitespace-pre-wrap leading-snug mt-[0.4mm]">{order.customer_address}</div>
-                  )}
+            <div className="w-full h-full flex flex-col gap-[1.5mm]">
+              {label.showCourier && (
+                <div className="w-full border-2 border-black font-extrabold uppercase text-center py-[1mm] px-[1mm] break-words leading-tight tracking-wider">
+                  {order.courier_name || 'COURIER'}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-[1mm] text-[0.9em]">
-                <div className="border border-black/40 p-[0.8mm] break-words">
-                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Invoice</div>
-                  <div className="font-mono font-semibold">{order.invoice_id}</div>
+
+              <div className="flex items-start justify-between gap-[2mm] pb-[1mm] border-b-2 border-black">
+                <div className="flex-shrink-0 w-[10mm] h-[10mm] rounded-md border-2 border-black bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center overflow-hidden">
+                  <Sparkles className="w-[6mm] h-[6mm] text-pink-600" strokeWidth={2} />
                 </div>
-                <div className="border border-black/40 p-[0.8mm] break-words">
-                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Total</div>
-                  <div className="font-bold">{total.toLocaleString()} Ks</div>
+                <div className="flex-1 text-right min-w-0">
+                  <div className="font-extrabold leading-tight break-words text-[1.1em]">{storeName}</div>
+                  <div className="text-[0.85em] text-black/70 break-words leading-tight">{storeTagline}</div>
+                  <div className="text-[0.8em] font-mono break-words">Tel: {storePhone}</div>
                 </div>
-                <div className="border border-black/40 p-[0.8mm] break-words col-span-2">
-                  <div className="text-[0.8em] uppercase tracking-wider text-muted-foreground">Payment</div>
-                  <div className="font-semibold">{order.payment_method || '—'} • {order.payment_status}</div>
+              </div>
+
+              {label.showBarcode && (
+                <div className="flex items-center justify-center py-[0.5mm]">
+                  <Code128Svg
+                    value={order.invoice_id}
+                    heightPx={Math.max(16, label.barcodeHeightPx)}
+                    barWidthPx={1}
+                    showText={true}
+                    fontSizePx={Math.max(8, Math.round(label.fontSizePx * 0.85))}
+                  />
                 </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-[1mm]">
+                <div className="break-words">
+                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Name</div>
+                  <div className="font-semibold leading-tight">{order.customer_name || '—'}</div>
+                </div>
+                <div className="break-words">
+                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Phone No</div>
+                  <div className="font-mono leading-tight">{order.customer_phone || '—'}</div>
+                </div>
+                {label.showCustomerAddress && (
+                  <div className="col-span-2 break-words">
+                    <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Address</div>
+                    <div className="leading-snug whitespace-pre-wrap">{order.customer_address || '—'}</div>
+                  </div>
+                )}
+                <div className={label.showCustomerAddress ? 'col-span-2' : 'col-span-2'}>
+                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Date</div>
+                  <div className="font-semibold leading-tight">{dateText}</div>
+                </div>
+              </div>
+
+              {hasItems && (showProductName || showPrice || showSku) && (
+                <div className="w-full border border-black overflow-hidden">
+                  <table className="w-full border-collapse text-[0.9em]">
+                    <thead>
+                      <tr className="bg-black text-white">
+                        <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">No</th>
+                        {showProductName && (
+                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Description</th>
+                        )}
+                        {showSku && (
+                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Size</th>
+                        )}
+                        {showPrice && (
+                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Price</th>
+                        )}
+                        {showPrice && (
+                          <th className="px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Amount</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, idx) => (
+                        <tr key={`${item.name}-${idx}`} className="border-t border-black/30">
+                          <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top">{idx + 1}</td>
+                          {showProductName && (
+                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top break-words leading-tight">
+                              {item.name}
+                              {item.qty > 1 && <span className="text-[0.85em]"> × {item.qty}</span>}
+                            </td>
+                          )}
+                          {showSku && (
+                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top leading-tight">—</td>
+                          )}
+                          {showPrice && (
+                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums">
+                              {item.price.toLocaleString()}
+                            </td>
+                          )}
+                          {showPrice && (
+                            <td className="px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums font-semibold">
+                              {item.amount.toLocaleString()}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex gap-[1.5mm] flex-1 min-h-0">
+                <div className="flex-1 border-2 border-dashed border-black/70 p-[1.2mm] min-w-0 flex flex-col">
+                  <div className="text-[0.75em] uppercase font-bold tracking-wider text-black/70 mb-[0.3mm]">Remark</div>
+                  <div className="flex-1 text-[0.9em] break-words whitespace-pre-wrap leading-snug">
+                    {order.receipt_payload?.saleType === 'Delivery' ? 'Please deliver with care.' : ''}
+                  </div>
+                </div>
+                <div className="w-[40%] min-w-[30mm] flex flex-col gap-[0.6mm] text-[0.9em]">
+                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
+                    <span className="text-black/70 font-semibold">Total</span>
+                    <span className="tabular-nums font-bold">{subtotalVal.toLocaleString()} Ks</span>
+                  </div>
+                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
+                    <span className="text-black/70 font-semibold">Deli Fees</span>
+                    <span className="tabular-nums font-semibold">{deliveryFeeVal.toLocaleString()} Ks</span>
+                  </div>
+                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
+                    <span className="text-black/70 font-semibold">Advance</span>
+                    <span className="tabular-nums">{receivedVal.toLocaleString()} Ks</span>
+                  </div>
+                  <div className="flex justify-between gap-[1mm] pt-[0.3mm] border-t-2 border-black">
+                    <span className="font-extrabold uppercase">Balance</span>
+                    <span className="tabular-nums font-extrabold">{balanceVal.toLocaleString()} Ks</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-[0.5mm] text-center text-[0.9em] font-semibold border-t border-dashed border-black/40">
+                ❤ Thank you for shopping with us ❤
               </div>
             </div>
           </div>
