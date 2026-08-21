@@ -2,31 +2,51 @@
 
 import * as React from 'react';
 import { useDashboardAuth } from '@/lib/dashboard-auth-context';
-import { useHWPrintSettings } from '@/components/hw-print-settings-provider';
 import {
-  RECEIPT_PAPER_OPTIONS,
   LABEL_SIZE_OPTIONS,
-  getLabelSizeMm,
-  getReceiptWidthMm,
+  RECEIPT_PAPER_OPTIONS,
   DEFAULT_HW_PRINT_SETTINGS,
+  ReceiptPaperSize,
+  LabelSizePreset,
+  ScannerPriority,
 } from '@/lib/hwPrintSettings/types';
+import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Code128Svg } from '@/components/ui/code128-svg';
-import { RotateCcw, Printer as PrinterIcon, Save, Heart } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { RotateCcw, Printer as PrinterIcon, Save } from 'lucide-react';
 
 type TabKey = 'receipt' | 'label' | 'scanner';
 
 const SAMPLE_ITEMS = [
-  { no: 1, description: 'Aura Glow Serum 30ml', size: '30ml', price: 18000, qty: 2, amount: 36000 },
-  { no: 2, description: 'Hydrating Mist Toner', size: '100ml', price: 12000, qty: 1, amount: 12000 },
-  { no: 3, description: 'UV Shield Sunscreen SPF50', size: '50ml', price: 22000, qty: 1, amount: 22000 },
+  { no: 1, description: 'Aura Glow Serum 30ml', size: '30ml', sku: 'AGS-030', price: 18000, qty: 2, amount: 36000 },
+  { no: 2, description: 'Hydrating Mist Toner', size: '100ml', sku: 'HMT-100', price: 12000, qty: 1, amount: 12000 },
+  { no: 3, description: 'UV Shield Sunscreen SPF50', size: '50ml', sku: 'UVS-050', price: 22000, qty: 1, amount: 22000 },
 ];
 
 function formatKs(n: number) {
   return n.toLocaleString('en-US') + ' Ks';
 }
+
+const ShopLogo: React.FC<{ sizeMm?: number }> = ({ sizeMm = 14 }) => {
+  const sizePx = Math.round(sizeMm * 3.78);
+  const roundPx = Math.max(2, Math.round(sizeMm * 0.5));
+  return (
+    <img
+      src="/logo.jpg"
+      alt="Logo"
+      width={sizePx}
+      height={sizePx}
+      style={{ objectFit: 'cover', borderRadius: `${roundPx}px`, flexShrink: 0 }}
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).onerror = null;
+        (e.currentTarget as HTMLImageElement).src = '/icon-192.png';
+      }}
+    />
+  );
+};
 
 export default function HardwareSettingsPage() {
   const { role } = useDashboardAuth();
@@ -40,16 +60,25 @@ export default function HardwareSettingsPage() {
   } = useHWPrintSettings();
   const [tab, setTab] = React.useState<TabKey>('receipt');
   const [savedFlash, setSavedFlash] = React.useState(false);
+  const [showResetConfirm, setShowResetConfirm] = React.useState(false);
 
-  const rw = getReceiptWidthMm(settings.receipt);
+  const rw = (() => {
+    const opt = RECEIPT_PAPER_OPTIONS.find((o) => o.value === settings.receipt.paperSize);
+    return settings.receipt.paperSize === 'custom'
+      ? Math.max(20, Math.min(500, settings.receipt.customWidthMm || 80))
+      : opt?.widthMm ?? 80;
+  })();
   const { widthMm: lw, heightMm: lh } = getLabelSizeMm(settings.label);
 
   const onReset = () => {
-    if (confirm('Reset all hardware & printing settings to defaults?')) {
-      resetSettings();
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 2000);
-    }
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = () => {
+    resetSettings();
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 2000);
+    setShowResetConfirm(false);
   };
 
   const triggerSaved = () => {
@@ -71,6 +100,13 @@ export default function HardwareSettingsPage() {
   const storePhone = settings.receipt.storePhone?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storePhone;
   const storeAddress = settings.receipt.storeAddress?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storeAddress;
 
+  const labelPreset = settings.label.sizePreset;
+  const is3colBarcode = labelPreset === '3col-barcode';
+  const isShort50 = labelPreset === 'short-50x30';
+  const isShort40 = labelPreset === 'short-40x30';
+  const isLongWaybill = labelPreset === 'long-100x150' || labelPreset === 'A6';
+  const isCustom = labelPreset === 'custom';
+
   return (
     <div className="flex h-full flex-col gap-6 overflow-hidden">
       <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 pb-4 backdrop-blur md:flex-row md:items-center md:justify-between md:border-b-0 md:pb-0">
@@ -86,6 +122,15 @@ export default function HardwareSettingsPage() {
               Saved
             </span>
           )}
+          <ConfirmDialog
+            open={showResetConfirm}
+            title="Reset to Defaults"
+            description="Reset all hardware & printing settings to their default values? This cannot be undone."
+            confirmLabel="Reset"
+            cancelLabel="Cancel"
+            onConfirm={confirmReset}
+            onCancel={() => setShowResetConfirm(false)}
+          />
           <Button variant="outline" onClick={onReset} className="gap-1.5">
             <RotateCcw className="h-4 w-4" /> Reset to Defaults
           </Button>
@@ -123,7 +168,7 @@ export default function HardwareSettingsPage() {
                       <Label>Paper Size</Label>
                       <select
                         value={settings.receipt.paperSize}
-                        onChange={(e) => patchReceipt({ paperSize: e.target.value as any })}
+                        onChange={(e) => patchReceipt({ paperSize: e.target.value as ReceiptPaperSize })}
                         className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary appearance-none"
                       >
                         {RECEIPT_PAPER_OPTIONS.map((o) => (
@@ -361,7 +406,7 @@ export default function HardwareSettingsPage() {
           )}
 
           {tab === 'label' && (
-            <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+            <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
               <div className="space-y-5">
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Label Size</h2>
@@ -370,7 +415,7 @@ export default function HardwareSettingsPage() {
                       <Label>Preset</Label>
                       <select
                         value={settings.label.sizePreset}
-                        onChange={(e) => patchLabel({ sizePreset: e.target.value as any })}
+                        onChange={(e) => patchLabel({ sizePreset: e.target.value as LabelSizePreset })}
                         className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary appearance-none"
                       >
                         {LABEL_SIZE_OPTIONS.map((o) => (
@@ -381,6 +426,13 @@ export default function HardwareSettingsPage() {
                         Current: <strong>{lw}mm × {lh}mm</strong>
                       </p>
                     </div>
+                    {is3colBarcode && (
+                      <div className="md:col-span-2 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-3">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                          3-Column Barcode Roll preset only prints SKU / Price / Barcode. Product Name, Courier, Customer Address, and Compact Items options are disabled for this template.
+                        </p>
+                      </div>
+                    )}
                     {settings.label.sizePreset === 'custom' && (
                       <>
                         <div className="space-y-1.5">
@@ -397,6 +449,38 @@ export default function HardwareSettingsPage() {
                         </div>
                       </>
                     )}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <div className={`flex items-center justify-between rounded-xl border border-border p-3 ${is3colBarcode ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div>
+                          <div className="font-semibold text-sm">Show Compact Items (1-3 Products)</div>
+                          <div className="text-xs text-muted-foreground">
+                            Renders up to 3 line items with No / Description / Amount columns on short stickers.
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={settings.label.showCompactItems}
+                          aria-disabled={is3colBarcode}
+                          onClick={() => {
+                            if (!is3colBarcode) {
+                              const v = !settings.label.showCompactItems;
+                              patchLabel({ showCompactItems: v });
+                            }
+                          }}
+                          className={`inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+                            settings.label.showCompactItems ? 'bg-primary' : 'bg-muted'
+                          }`}
+                          disabled={is3colBarcode}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                              settings.label.showCompactItems ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
                     <div className="space-y-1.5">
                       <Label>Font Family</Label>
                       <select
@@ -430,21 +514,32 @@ export default function HardwareSettingsPage() {
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Printable Elements</h2>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {[
+                    {([
                       ['showProductName', 'Product Name'],
                       ['showPrice', 'Sale Price'],
                       ['showBarcode', 'Barcode Image (SVG)'],
                       ['showSku', 'SKU'],
                       ['showCustomerAddress', 'Customer Shipping Address'],
                       ['showCourier', 'Courier / Delivery Partner'],
-                    ].map(([k, label]) => (
-                      <label key={k} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
-                        <input type="checkbox" className="h-4 w-4"
-                          checked={(settings.label as any)[k] as boolean}
-                          onChange={(e) => patchLabel({ [k]: e.target.checked } as any)} />
-                        <span className="font-medium">{label}</span>
-                      </label>
-                    ))}
+                    ] as Array<[keyof typeof settings.label, string]>).map(([k, label]) => {
+                      const disabled = is3colBarcode && (k === 'showProductName' || k === 'showCourier' || k === 'showCustomerAddress');
+                      const checked = (settings.label as unknown as Record<string, boolean>)[k] as boolean;
+                      return (
+                        <label key={k} className={`flex items-center gap-2 rounded-xl border border-border p-3 text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-border text-primary accent-emerald-500"
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={(e) => {
+                              const v: boolean = e.target.checked;
+                              patchLabel({ [k]: v } as Partial<typeof settings.label>);
+                            }}
+                          />
+                          <span className="font-medium">{label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                   <div className="flex gap-3 pt-2">
                     <Button onClick={triggerSaved} className="gap-1.5"><Save className="h-4 w-4" /> Save &amp; Apply</Button>
@@ -455,17 +550,246 @@ export default function HardwareSettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Live Preview</h3>
 
-                <div className="space-y-2">
-                  <p className="text-[10px] text-muted-foreground text-center font-semibold">PREVIEW 1: Long Sticker (Waybill 100 × 150 mm)</p>
+                {(isShort50 || (isCustom && lw <= 55)) && (
                   <div className="rounded-2xl border border-border bg-white p-3 shadow-sm mx-auto flex items-start justify-center overflow-auto"
-                       style={{ minHeight: '160mm' }}>
+                       style={{ minHeight: `${lh + 20}mm` }}>
                     <div
                       style={{
-                        width: '100mm',
-                        height: '150mm',
+                        width: `${isCustom ? lw : 50}mm`,
+                        height: `${isCustom ? lh : 30}mm`,
+                        padding: '1.5mm',
+                        boxSizing: 'border-box',
+                        border: '1px solid #9ca3af',
+                        fontFamily: settings.label.fontFamily,
+                        fontSize: settings.label.fontSizePx,
+                        lineHeight: 1.1,
+                        overflow: 'hidden',
+                        color: '#000',
+                        background: '#fff',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6mm' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1mm' }}>
+                          <ShopLogo sizeMm={10} />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3mm', minWidth: 0 }}>
+                            {storeName && (
+                              <div style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {storeName}
+                              </div>
+                            )}
+                            {storeTagline && (
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {storeTagline}
+                              </div>
+                            )}
+                            {(storeAddress || storePhone) && (
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {[storeAddress, storePhone].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {settings.label.showCustomerAddress && (
+                          <div style={{ border: '0.6px solid #6b7280', padding: '0.6mm', display: 'flex', flexDirection: 'column', gap: '0.3mm' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Invoice No:
+                              </div>
+                              <div style={{ fontWeight: 800 }}>INV-SAMPLE-0001</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Name:
+                              </div>
+                              <div style={{ fontWeight: 700 }}>Ma Khin Cho</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Phone:
+                              </div>
+                              <div>09-123-456-789</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', alignItems: 'flex-start' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', flexShrink: 0 }}>
+                                Address:
+                              </div>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), textAlign: 'right' }}>{storeAddress}</div>
+                            </div>
+                          </div>
+                        )}
+
+                        {settings.label.showCompactItems && (
+                          <div style={{ flex: settings.label.showCustomerAddress ? '0 0 auto' : '1 1 auto', minHeight: 0 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <thead>
+                                <tr style={{ borderBottom: '0.4px solid #d1d5db' }}>
+                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm', width: '4mm' }}>No</th>
+                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm' }}>Description</th>
+                                  <th style={{ textAlign: 'right', padding: '0.3mm 0.5mm', width: '10mm' }}>Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {SAMPLE_ITEMS.slice(0, 3).map((it) => (
+                                  <tr key={it.no}>
+                                    <td style={{ padding: '0.2mm 0.5mm' }}>{it.no}</td>
+                                    <td style={{ padding: '0.2mm 0.5mm', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.description}</td>
+                                    <td style={{ padding: '0.2mm 0.5mm', textAlign: 'right', fontWeight: 700 }}>{it.amount.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {settings.label.showPrice && (
+                          <div style={{ background: '#f3f4f6', padding: '0.5mm', display: 'flex', flexDirection: 'column', gap: '0.2mm' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <span>Amount</span><span style={{ textAlign: 'right' }}>{formatKs(70000)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <span>Deli Fees</span><span style={{ textAlign: 'right' }}>{formatKs(2000)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.4px solid #9ca3af', paddingTop: '0.2mm' }}>
+                              <span>Total</span><span style={{ textAlign: 'right' }}>{formatKs(72000)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ textAlign: 'center', fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#6b7280', marginTop: 'auto' }}>
+                          Thanks for choosing us. See you again!
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isShort40 && (
+                  <div className="rounded-2xl border border-border bg-white p-3 shadow-sm mx-auto flex items-start justify-center overflow-auto"
+                       style={{ minHeight: `${lh + 20}mm` }}>
+                    <div
+                      style={{
+                        width: '40mm',
+                        height: '30mm',
+                        padding: '1mm',
+                        boxSizing: 'border-box',
+                        border: '1px solid #9ca3af',
+                        fontFamily: settings.label.fontFamily,
+                        fontSize: settings.label.fontSizePx,
+                        lineHeight: 1.05,
+                        overflow: 'hidden',
+                        color: '#000',
+                        background: '#fff',
+                      }}
+                    >
+                      <div style={{ transform: 'scale(0.82)', transformOrigin: 'top left', width: `${100 / 0.82}%`, height: `${100 / 0.82}%` }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.5mm' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.8mm' }}>
+                            <ShopLogo sizeMm={8} />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2mm', minWidth: 0 }}>
+                              {storeName && (
+                                <div style={{ fontWeight: 800, fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {storeName}
+                                </div>
+                              )}
+                              {storeTagline && (
+                                <div style={{ fontSize: 8, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {storeTagline}
+                                </div>
+                              )}
+                              {(storeAddress || storePhone) && (
+                                <div style={{ fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {[storeAddress, storePhone].filter(Boolean).join(' · ')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {settings.label.showCustomerAddress && (
+                            <div style={{ border: '0.5px solid #6b7280', padding: '0.5mm', display: 'flex', flexDirection: 'column', gap: '0.2mm' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
+                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                  Invoice No:
+                                </div>
+                                <div style={{ fontWeight: 800, fontSize: 9 }}>INV-SAMPLE-0001</div>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
+                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                  Name:
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: 9 }}>Ma Khin Cho</div>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
+                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                  Phone:
+                                </div>
+                                <div style={{ fontSize: 9 }}>09-123-456-789</div>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm', alignItems: 'flex-start' }}>
+                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', flexShrink: 0 }}>
+                                  Address:
+                                </div>
+                                <div style={{ fontSize: 8, textAlign: 'right' }}>{storeAddress}</div>
+                              </div>
+                            </div>
+                          )}
+
+                          {settings.label.showCompactItems && (
+                            <div style={{ flex: settings.label.showCustomerAddress ? '0 0 auto' : '1 1 auto', minHeight: 0 }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 8 }}>
+                                <thead>
+                                  <tr style={{ borderBottom: '0.3px solid #d1d5db' }}>
+                                    <th style={{ textAlign: 'left', padding: '0.2mm 0.4mm', width: '3.5mm' }}>No</th>
+                                    <th style={{ textAlign: 'left', padding: '0.2mm 0.4mm' }}>Description</th>
+                                    <th style={{ textAlign: 'right', padding: '0.2mm 0.4mm', width: '9mm' }}>Amount</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {SAMPLE_ITEMS.slice(0, 3).map((it) => (
+                                    <tr key={it.no}>
+                                      <td style={{ padding: '0.15mm 0.4mm', fontSize: 8 }}>{it.no}</td>
+                                      <td style={{ padding: '0.15mm 0.4mm', fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.description}</td>
+                                      <td style={{ padding: '0.15mm 0.4mm', textAlign: 'right', fontWeight: 700, fontSize: 8 }}>{it.amount.toLocaleString()}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {settings.label.showPrice && (
+                            <div style={{ background: '#f3f4f6', padding: '0.4mm', display: 'flex', flexDirection: 'column', gap: '0.15mm' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
+                                <span>Amount</span><span style={{ textAlign: 'right' }}>{formatKs(70000)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
+                                <span>Deli Fees</span><span style={{ textAlign: 'right' }}>{formatKs(2000)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.3px solid #9ca3af', paddingTop: '0.15mm', fontSize: 9 }}>
+                                <span>Total</span><span style={{ textAlign: 'right' }}>{formatKs(72000)}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ textAlign: 'center', fontSize: 8, color: '#6b7280', marginTop: 'auto' }}>
+                            Thanks for choosing us. See you again!
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isLongWaybill && (
+                  <div className="rounded-2xl border border-border bg-white p-3 shadow-sm mx-auto flex items-start justify-center overflow-auto"
+                       style={{ minHeight: `${lh + 20}mm` }}>
+                    <div
+                      style={{
+                        width: labelPreset === 'A6' ? '105mm' : '100mm',
+                        height: labelPreset === 'A6' ? '148mm' : '150mm',
                         padding: '2mm',
                         boxSizing: 'border-box',
                         border: '1px solid #9ca3af',
@@ -485,19 +809,7 @@ export default function HardwareSettingsPage() {
                         )}
 
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2mm' }}>
-                          <div style={{
-                            width: '12mm',
-                            height: '12mm',
-                            border: '1.5px solid #000',
-                            borderRadius: '2mm',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            background: 'linear-gradient(135deg, #fce7f3, #fbcfe8)',
-                          }}>
-                            <Heart size={20} color="#be185d" fill="#be185d" />
-                          </div>
+                          <ShopLogo sizeMm={12} />
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5mm' }}>
                             <div style={{ fontWeight: 800, fontSize: settings.label.fontSizePx + 1 }}>{storeName}</div>
                             <div style={{ fontSize: Math.max(7, settings.label.fontSizePx - 1), color: '#374151' }}>{storeTagline}</div>
@@ -506,6 +818,14 @@ export default function HardwareSettingsPage() {
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1mm', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '1.2mm 0' }}>
+                          <div>
+                            <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Invoice No</div>
+                            <div style={{ fontWeight: 800 }}>SMPL-0001</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Date</div>
+                            <div>19/08/2026</div>
+                          </div>
                           <div>
                             <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Name</div>
                             <div style={{ fontWeight: 700 }}>Ma Khin Cho</div>
@@ -520,12 +840,8 @@ export default function HardwareSettingsPage() {
                               <div style={{ fontSize: Math.max(7, settings.label.fontSizePx - 1) }}>{storeAddress}</div>
                             </div>
                           )}
-                          <div>
-                            <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Date</div>
-                            <div>19/08/2026</div>
-                          </div>
                           {settings.label.showCourier && (
-                            <div>
+                            <div style={{ gridColumn: '1 / -1' }}>
                               <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>Courier</div>
                               <div style={{ fontWeight: 800 }}>EXPRESS / CT-X</div>
                             </div>
@@ -539,6 +855,7 @@ export default function HardwareSettingsPage() {
                                 <th style={{ textAlign: 'left', padding: '0.5mm', width: '6mm' }}>No</th>
                                 <th style={{ textAlign: 'left', padding: '0.5mm' }}>Description</th>
                                 <th style={{ textAlign: 'left', padding: '0.5mm', width: '10mm' }}>Size</th>
+                                <th style={{ textAlign: 'left', padding: '0.5mm', width: '14mm' }}>SKU</th>
                                 {settings.label.showPrice && (
                                   <>
                                     <th style={{ textAlign: 'right', padding: '0.5mm', width: '14mm' }}>Price</th>
@@ -553,6 +870,10 @@ export default function HardwareSettingsPage() {
                                   <td style={{ padding: '0.5mm', verticalAlign: 'top' }}>{it.no}</td>
                                   <td style={{ padding: '0.5mm', verticalAlign: 'top' }}>{it.description}</td>
                                   <td style={{ padding: '0.5mm', verticalAlign: 'top' }}>{it.size}</td>
+                                  {settings.label.showSku && (
+                                    <td style={{ padding: '0.5mm', verticalAlign: 'top', fontFamily: 'monospace', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>{it.sku}</td>
+                                  )}
+                                  {!settings.label.showSku && <td style={{ padding: '0.5mm', verticalAlign: 'top' }}></td>}
                                   {settings.label.showPrice && (
                                     <>
                                       <td style={{ padding: '0.5mm', verticalAlign: 'top', textAlign: 'right' }}>{it.price.toLocaleString()}</td>
@@ -566,33 +887,35 @@ export default function HardwareSettingsPage() {
                         )}
 
                         <div style={{ display: 'flex', gap: '2mm', flex: 1, minHeight: 0 }}>
-                          <div style={{ flex: 1, border: '1px solid #000', padding: '1mm', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ flex: 1, border: '1px dashed #000', padding: '1mm', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', marginBottom: '0.5mm' }}>Remark</div>
                             <div style={{ flex: 1, fontSize: Math.max(7, settings.label.fontSizePx - 1), color: '#4b5563' }}>—</div>
                           </div>
                           {settings.label.showPrice && (
-                            <div style={{ width: '30mm', display: 'flex', flexDirection: 'column', gap: '0.8mm', justifyContent: 'flex-start' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', fontWeight: 700, fontSize: Math.max(7, settings.label.fontSizePx - 1) }}>
-                                <span>Total</span>
-                                <span>{formatKs(70000)}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', fontSize: Math.max(7, settings.label.fontSizePx - 1) }}>
-                                <span>Deli Fees</span>
-                                <span>{formatKs(2000)}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', fontSize: Math.max(7, settings.label.fontSizePx - 1) }}>
-                                <span>Advance</span>
-                                <span>{formatKs(0)}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', borderTop: '1px solid #000', paddingTop: '0.5mm', fontWeight: 800 }}>
-                                <span>Balance</span>
-                                <span>{formatKs(72000)}</span>
-                              </div>
-                            </div>
+                            <table style={{ width: '30mm', borderCollapse: 'collapse', fontSize: Math.max(7, settings.label.fontSizePx - 1) }}>
+                              <tbody>
+                                <tr>
+                                  <td style={{ padding: '0.5mm 0', fontWeight: 700 }}>Total</td>
+                                  <td style={{ padding: '0.5mm 0', textAlign: 'right', fontWeight: 700 }}>{formatKs(70000)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ padding: '0.5mm 0' }}>Deli Fees</td>
+                                  <td style={{ padding: '0.5mm 0', textAlign: 'right' }}>{formatKs(2000)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ padding: '0.5mm 0' }}>Advance</td>
+                                  <td style={{ padding: '0.5mm 0', textAlign: 'right' }}>{formatKs(0)}</td>
+                                </tr>
+                                <tr style={{ borderTop: '1px solid #000' }}>
+                                  <td style={{ padding: '0.5mm 0', fontWeight: 800 }}>Balance</td>
+                                  <td style={{ padding: '0.5mm 0', textAlign: 'right', fontWeight: 800 }}>{formatKs(72000)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
                           )}
                         </div>
 
-                        {settings.label.showSku && (
+                        {settings.label.showSku && !settings.label.showProductName && (
                           <div style={{
                             fontFamily: 'monospace',
                             fontSize: Math.max(6, settings.label.fontSizePx - 2),
@@ -610,21 +933,67 @@ export default function HardwareSettingsPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                <div className="space-y-2">
-                  <p className="text-[10px] text-muted-foreground text-center font-semibold">PREVIEW 2: Short Sticker (Product / Compact Shipping)</p>
+                {is3colBarcode && (
                   <div className="rounded-2xl border border-border bg-white p-3 shadow-sm mx-auto flex items-start justify-center overflow-auto"
-                       style={{ minHeight: '60mm' }}>
+                       style={{ minHeight: `${lh + 20}mm` }}>
                     <div
                       style={{
-                        width: '50mm',
+                        width: '90mm',
                         height: '30mm',
                         padding: '1mm',
                         boxSizing: 'border-box',
                         border: '1px solid #9ca3af',
                         fontFamily: settings.label.fontFamily,
-                        fontSize: Math.max(6, settings.label.fontSizePx - 1),
+                        fontSize: settings.label.fontSizePx,
+                        lineHeight: 1.1,
+                        overflow: 'hidden',
+                        color: '#000',
+                        background: '#fff',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1mm', width: '100%', height: '100%' }}>
+                        {SAMPLE_ITEMS.slice(0, 3).map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%', padding: '0.3mm' }}>
+                            <div style={{ fontFamily: 'monospace', fontSize: Math.max(7, settings.label.fontSizePx - 2), fontWeight: 700 }}>
+                              {it.sku}
+                            </div>
+                            {settings.label.showPrice && (
+                              <div style={{ fontWeight: 800, fontSize: settings.label.fontSizePx + 1, fontVariantNumeric: 'tabular-nums' }}>
+                                {formatKs(it.price)}
+                              </div>
+                            )}
+                            {settings.label.showBarcode && (
+                              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                <Code128Svg
+                                  value={it.sku.replace(/-/g, '') + String(it.price)}
+                                  heightPx={settings.label.barcodeHeightPx}
+                                  barWidthPx={0.8}
+                                  showText={false}
+                                  fontSizePx={5}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isCustom && lw > 55 && (
+                  <div className="rounded-2xl border border-border bg-white p-3 shadow-sm mx-auto flex items-start justify-center overflow-auto"
+                       style={{ minHeight: `${lh + 20}mm` }}>
+                    <div
+                      style={{
+                        width: `${lw}mm`,
+                        height: `${lh}mm`,
+                        padding: '1.5mm',
+                        boxSizing: 'border-box',
+                        border: '1px solid #9ca3af',
+                        fontFamily: settings.label.fontFamily,
+                        fontSize: settings.label.fontSizePx,
                         lineHeight: 1.1,
                         overflow: 'hidden',
                         color: '#000',
@@ -632,133 +1001,102 @@ export default function HardwareSettingsPage() {
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6mm' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1mm' }}>
-                          <div style={{
-                            width: '4mm',
-                            height: '4mm',
-                            border: '0.8px solid #000',
-                            borderRadius: '0.8mm',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            background: 'linear-gradient(135deg, #fce7f3, #fbcfe8)',
-                          }}>
-                            <Heart size={8} color="#be185d" fill="#be185d" />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 800, fontSize: Math.max(6, settings.label.fontSizePx - 1), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {storeName}
-                            </div>
-                            <div style={{ fontSize: Math.max(5, settings.label.fontSizePx - 3), color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {storeTagline} · {storePhone}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '1mm', flex: 1, minHeight: 0 }}>
-                          {settings.label.showCustomerAddress && (
-                            <div style={{
-                              flex: 1,
-                              border: '0.5px dashed #6b7280',
-                              padding: '0.5mm',
-                              minWidth: 0,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.2mm',
-                              overflow: 'hidden',
-                            }}>
-                              <div style={{ fontWeight: 700, fontSize: Math.max(5, settings.label.fontSizePx - 2) }}>Ma Khin Cho</div>
-                              <div style={{ fontSize: Math.max(5, settings.label.fontSizePx - 3) }}>09-123-456-789</div>
-                              <div style={{ fontSize: Math.max(5, settings.label.fontSizePx - 3), color: '#374151', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                {storeAddress}
-                              </div>
-                            </div>
-                          )}
-
-                          {settings.label.showPrice && (
-                            <div style={{
-                              width: settings.label.showCustomerAddress ? '18mm' : '100%',
-                              border: '0.5px solid #000',
-                              padding: '0.5mm',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.3mm',
-                              justifyContent: 'center',
-                            }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(5, settings.label.fontSizePx - 3) }}>
-                                <span>Sub</span><span>70,000</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(5, settings.label.fontSizePx - 3) }}>
-                                <span>Deli</span><span>2,000</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.5px solid #000', paddingTop: '0.3mm' }}>
-                                <span>Total</span><span>72,000</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {settings.label.showProductName && (
-                          <div style={{
-                            fontWeight: 700,
-                            fontSize: Math.max(5, settings.label.fontSizePx - 2),
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            borderTop: settings.label.showSku || settings.label.showBarcode ? '0.5px solid #e5e7eb' : undefined,
-                            paddingTop: settings.label.showSku || settings.label.showBarcode ? '0.3mm' : undefined,
-                          }}>
-                            Aura Glow Serum 30ml
-                          </div>
-                        )}
-
-                        {(settings.label.showSku || settings.label.showBarcode) && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1mm' }}>
-                            {settings.label.showSku && (
-                              <div style={{
-                                fontFamily: 'monospace',
-                                fontSize: Math.max(5, settings.label.fontSizePx - 3),
-                                flexShrink: 0,
-                              }}>
-                                SKU:AGS-030
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1mm' }}>
+                          <ShopLogo sizeMm={10} />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3mm', minWidth: 0 }}>
+                            {storeName && (
+                              <div style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {storeName}
                               </div>
                             )}
-                            {settings.label.showBarcode && (
-                              <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
-                                <Code128Svg
-                                  value="AGS03088812"
-                                  heightPx={Math.max(10, settings.label.barcodeHeightPx - 10)}
-                                  barWidthPx={0.6}
-                                  showText={false}
-                                  fontSizePx={5}
-                                />
+                            {storeTagline && (
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {storeTagline}
+                              </div>
+                            )}
+                            {(storeAddress || storePhone) && (
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {[storeAddress, storePhone].filter(Boolean).join(' · ')}
                               </div>
                             )}
                           </div>
-                        )}
+                        </div>
 
-                        {settings.label.showCourier && (
-                          <div style={{
-                            textAlign: 'center',
-                            fontWeight: 800,
-                            fontSize: Math.max(5, settings.label.fontSizePx - 2),
-                            border: '1px solid #000',
-                            padding: '0.2mm',
-                          }}>
-                            EXPRESS / CT-X
+                        {settings.label.showCustomerAddress && (
+                          <div style={{ border: '0.6px solid #6b7280', padding: '0.6mm', display: 'flex', flexDirection: 'column', gap: '0.3mm' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Invoice No:
+                              </div>
+                              <div style={{ fontWeight: 800 }}>INV-SAMPLE-0001</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Name:
+                              </div>
+                              <div style={{ fontWeight: 700 }}>Ma Khin Cho</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
+                                Phone:
+                              </div>
+                              <div>09-123-456-789</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', alignItems: 'flex-start' }}>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', flexShrink: 0 }}>
+                                Address:
+                              </div>
+                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), textAlign: 'right' }}>{storeAddress}</div>
+                            </div>
                           </div>
                         )}
 
-                        <div style={{ textAlign: 'center', fontSize: Math.max(5, settings.label.fontSizePx - 3), color: '#6b7280' }}>
+                        {settings.label.showCompactItems && (
+                          <div style={{ flex: settings.label.showCustomerAddress ? '0 0 auto' : '1 1 auto', minHeight: 0 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <thead>
+                                <tr style={{ borderBottom: '0.4px solid #d1d5db' }}>
+                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm', width: '4mm' }}>No</th>
+                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm' }}>Description</th>
+                                  <th style={{ textAlign: 'right', padding: '0.3mm 0.5mm', width: '10mm' }}>Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {SAMPLE_ITEMS.slice(0, 3).map((it) => (
+                                  <tr key={it.no}>
+                                    <td style={{ padding: '0.2mm 0.5mm' }}>{it.no}</td>
+                                    <td style={{ padding: '0.2mm 0.5mm', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.description}</td>
+                                    <td style={{ padding: '0.2mm 0.5mm', textAlign: 'right', fontWeight: 700 }}>{it.amount.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {settings.label.showPrice && (
+                          <div style={{ background: '#f3f4f6', padding: '0.5mm', display: 'flex', flexDirection: 'column', gap: '0.2mm' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <span>Amount</span><span style={{ textAlign: 'right' }}>{formatKs(70000)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
+                              <span>Deli Fees</span><span style={{ textAlign: 'right' }}>{formatKs(2000)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.4px solid #9ca3af', paddingTop: '0.2mm' }}>
+                              <span>Total</span><span style={{ textAlign: 'right' }}>{formatKs(72000)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ textAlign: 'center', fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#6b7280', marginTop: 'auto' }}>
                           Thanks for choosing us. See you again!
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                <p className="text-[10px] text-muted-foreground text-center">Previews use actual mm sizing. Toggle switches reflow layout — no blank spaces.</p>
+                <p className="text-[10px] text-muted-foreground text-center">Preview uses actual mm sizing. Toggles reflow layout — no blank spaces.</p>
               </div>
             </div>
           )}
@@ -794,13 +1132,13 @@ export default function HardwareSettingsPage() {
                     <div className="font-semibold text-sm">Scanner Priority</div>
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { v: 'hardware', label: 'Hardware (HID Keyboard Wedge)', hint: 'Focus auto-search inputs first' },
-                        { v: 'camera', label: 'Camera Scanner (html5-qrcode)', hint: 'Prefer camera scan button in UI' },
+                        { v: 'hardware' as ScannerPriority, label: 'Hardware (HID Keyboard Wedge)', hint: 'Focus auto-search inputs first' },
+                        { v: 'camera' as ScannerPriority, label: 'Camera Scanner (html5-qrcode)', hint: 'Prefer camera scan button in UI' },
                       ].map((o) => (
                         <label key={o.v} className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${settings.scanner.scannerPriority === o.v ? 'border-primary bg-primary/10' : ''}`}>
                           <input type="radio" className="h-4 w-4" name="scannerPri"
                             checked={settings.scanner.scannerPriority === o.v}
-                            onChange={() => patchScanner({ scannerPriority: o.v as any })} />
+                            onChange={() => patchScanner({ scannerPriority: o.v })} />
                           <div>
                             <div className="font-medium">{o.label}</div>
                             <div className="text-[10px] text-muted-foreground">{o.hint}</div>

@@ -10,7 +10,7 @@ import { ReceiptModal, type ReceiptPayload } from '@/components/receipt-modal';
 import { downloadSalesXlsx, type SalesExportRow } from '@/lib/excel';
 import { formatDateDDMMYYYY, formatDateRangeDDMMYYYY } from '@/lib/date';
 import { useT } from '@/components/language-provider';
-import { Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Code128Svg } from '@/components/ui/code128-svg';
 import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 
@@ -54,23 +54,31 @@ function WaybillModal({
   const items = order.receipt_payload?.items ?? [];
   const hasItems = items.length > 0;
 
-  const subtotalVal = order.total_amount || 0;
-  const deliveryFeeVal = Number(order.delivery_fee || 0);
-  const grandTotalVal = subtotalVal + deliveryFeeVal;
-  const receivedVal = 0;
-  const balanceVal = Math.max(0, grandTotalVal - receivedVal);
+  const totalVal = order.total_amount || 0;
+  const deliFeesVal = Number(order.delivery_fee) || 0;
+  const advanceVal = Number((order.receipt_payload as any)?.amountReceived ?? 0);
+  const grandVal = totalVal + deliFeesVal;
+  const balanceVal = Math.max(0, grandVal - advanceVal);
 
+  const showCustomerAddress = label.showCustomerAddress;
   const showProductName = label.showProductName;
   const showPrice = label.showPrice;
   const showSku = label.showSku;
-  const showSizeCol = hasItems;
+  const showBarcode = label.showBarcode;
 
-  const tableColCount =
-    1 +
-    (showProductName ? 1 : 0) +
-    (showSku ? 1 : 0) +
-    (showPrice ? 1 : 0) +
-    (showPrice ? 1 : 0);
+  const getItemVariant = (item: any): string => {
+    if (!item) return '—';
+    if (item.variant && typeof item.variant === 'string' && item.variant.trim()) return item.variant;
+    if (item.size && typeof item.size === 'string' && item.size.trim()) return item.size;
+    if (item.sku && typeof item.sku === 'string' && item.sku.trim()) return item.sku;
+    if (item.options && Array.isArray(item.options) && item.options.length > 0) {
+      const opt = item.options.find((o: any) => o && (o.value || o.name));
+      if (opt) return String(opt.value ?? opt.name);
+    }
+    return '—';
+  };
+
+  const showItemsTable = hasItems && (showProductName || showPrice || showSku);
 
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
@@ -114,8 +122,17 @@ function WaybillModal({
               )}
 
               <div className="flex items-start justify-between gap-[2mm] pb-[1mm] border-b-2 border-black">
-                <div className="flex-shrink-0 w-[10mm] h-[10mm] rounded-md border-2 border-black bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center overflow-hidden">
-                  <Sparkles className="w-[6mm] h-[6mm] text-pink-600" strokeWidth={2} />
+                <div className="flex-shrink-0 w-[10mm] h-[10mm] rounded-md border-2 border-black bg-white flex items-center justify-center overflow-hidden">
+                  <img
+                    src="/logo.jpg"
+                    alt="logo"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.onerror = null;
+                      target.src = '/icon-192.png';
+                    }}
+                  />
                 </div>
                 <div className="flex-1 text-right min-w-0">
                   <div className="font-extrabold leading-tight break-words text-[1.1em]">{storeName}</div>
@@ -124,17 +141,10 @@ function WaybillModal({
                 </div>
               </div>
 
-              {label.showBarcode && (
-                <div className="flex items-center justify-center py-[0.5mm]">
-                  <Code128Svg
-                    value={order.invoice_id}
-                    heightPx={Math.max(16, label.barcodeHeightPx)}
-                    barWidthPx={1}
-                    showText={true}
-                    fontSizePx={Math.max(8, Math.round(label.fontSizePx * 0.85))}
-                  />
-                </div>
-              )}
+              <div className="w-full border border-black px-[1.5mm] py-[1mm] flex items-center justify-between gap-[1mm]">
+                <span style={{ fontSize: '0.75em', textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{order.invoice_id}</span>
+              </div>
 
               <div className="grid grid-cols-2 gap-[1mm]">
                 <div className="break-words">
@@ -145,19 +155,19 @@ function WaybillModal({
                   <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Phone No</div>
                   <div className="font-mono leading-tight">{order.customer_phone || '—'}</div>
                 </div>
-                {label.showCustomerAddress && (
+                {showCustomerAddress && (
                   <div className="col-span-2 break-words">
                     <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Address</div>
                     <div className="leading-snug whitespace-pre-wrap">{order.customer_address || '—'}</div>
                   </div>
                 )}
-                <div className={label.showCustomerAddress ? 'col-span-2' : 'col-span-2'}>
+                <div className="col-span-2 break-words">
                   <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Date</div>
                   <div className="font-semibold leading-tight">{dateText}</div>
                 </div>
               </div>
 
-              {hasItems && (showProductName || showPrice || showSku) && (
+              {showItemsTable && (
                 <div className="w-full border border-black overflow-hidden">
                   <table className="w-full border-collapse text-[0.9em]">
                     <thead>
@@ -188,7 +198,9 @@ function WaybillModal({
                             </td>
                           )}
                           {showSku && (
-                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top leading-tight">—</td>
+                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top leading-tight">
+                              {getItemVariant(item)}
+                            </td>
                           )}
                           {showPrice && (
                             <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums">
@@ -210,29 +222,43 @@ function WaybillModal({
               <div className="flex gap-[1.5mm] flex-1 min-h-0">
                 <div className="flex-1 border-2 border-dashed border-black/70 p-[1.2mm] min-w-0 flex flex-col">
                   <div className="text-[0.75em] uppercase font-bold tracking-wider text-black/70 mb-[0.3mm]">Remark</div>
-                  <div className="flex-1 text-[0.9em] break-words whitespace-pre-wrap leading-snug">
-                    {order.receipt_payload?.saleType === 'Delivery' ? 'Please deliver with care.' : ''}
-                  </div>
+                  <div className="flex-1 text-[0.9em] break-words whitespace-pre-wrap leading-snug"></div>
                 </div>
-                <div className="w-[40%] min-w-[30mm] flex flex-col gap-[0.6mm] text-[0.9em]">
-                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
-                    <span className="text-black/70 font-semibold">Total</span>
-                    <span className="tabular-nums font-bold">{subtotalVal.toLocaleString()} Ks</span>
-                  </div>
-                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
-                    <span className="text-black/70 font-semibold">Deli Fees</span>
-                    <span className="tabular-nums font-semibold">{deliveryFeeVal.toLocaleString()} Ks</span>
-                  </div>
-                  <div className="flex justify-between gap-[1mm] border-b border-dashed border-black/40 pb-[0.3mm]">
-                    <span className="text-black/70 font-semibold">Advance</span>
-                    <span className="tabular-nums">{receivedVal.toLocaleString()} Ks</span>
-                  </div>
-                  <div className="flex justify-between gap-[1mm] pt-[0.3mm] border-t-2 border-black">
-                    <span className="font-extrabold uppercase">Balance</span>
-                    <span className="tabular-nums font-extrabold">{balanceVal.toLocaleString()} Ks</span>
-                  </div>
+                <div className="w-[40%] min-w-[30mm] border border-black overflow-hidden">
+                  <table className="w-full border-collapse text-[0.9em]">
+                    <tbody>
+                      <tr className="border-b border-black/30">
+                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Total</td>
+                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-bold">{totalVal.toLocaleString()} Ks</td>
+                      </tr>
+                      <tr className="border-b border-black/30">
+                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Deli Fees</td>
+                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-semibold">{deliFeesVal.toLocaleString()} Ks</td>
+                      </tr>
+                      <tr className="border-b border-black/30">
+                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Advance</td>
+                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums">{advanceVal.toLocaleString()} Ks</td>
+                      </tr>
+                      <tr className="bg-black/5">
+                        <td className="px-[0.8mm] py-[0.5mm] font-extrabold uppercase border-r border-black/30">Balance</td>
+                        <td className="px-[0.8mm] py-[0.5mm] text-right tabular-nums font-extrabold">{balanceVal.toLocaleString()} Ks</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
+
+              {showBarcode && (
+                <div className="flex items-center justify-center py-[0.5mm]">
+                  <Code128Svg
+                    value={order.invoice_id}
+                    heightPx={Math.max(16, label.barcodeHeightPx)}
+                    barWidthPx={1}
+                    showText={true}
+                    fontSizePx={Math.max(8, Math.round(label.fontSizePx * 0.85))}
+                  />
+                </div>
+              )}
 
               <div className="pt-[0.5mm] text-center text-[0.9em] font-semibold border-t border-dashed border-black/40">
                 ❤ Thank you for shopping with us ❤

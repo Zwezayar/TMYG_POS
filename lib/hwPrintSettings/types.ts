@@ -29,6 +29,7 @@ export type LabelSizePreset =
   | 'short-40x30'
   | 'long-100x150'
   | 'A6'
+  | '3col-barcode'
   | 'custom';
 
 export interface LabelSettings {
@@ -38,6 +39,7 @@ export interface LabelSettings {
   fontFamily: string;
   fontSizePx: number;
   barcodeHeightPx: number;
+  showCompactItems: boolean;
   showProductName: boolean;
   showPrice: boolean;
   showBarcode: boolean;
@@ -89,11 +91,12 @@ export const DEFAULT_LABEL: LabelSettings = {
   fontFamily: 'Arial, sans-serif',
   fontSizePx: 10,
   barcodeHeightPx: 22,
+  showCompactItems: true,
   showProductName: true,
   showPrice: true,
   showBarcode: true,
   showSku: true,
-  showCustomerAddress: false,
+  showCustomerAddress: true,
   showCourier: false,
 };
 
@@ -126,10 +129,11 @@ export const LABEL_SIZE_OPTIONS: Array<{
   widthMm: number;
   heightMm: number;
 }> = [
-  { value: 'short-50x30', label: 'Short Sticker 50×30mm (Product)', widthMm: 50, heightMm: 30 },
-  { value: 'short-40x30', label: 'Short Sticker 40×30mm (Product)', widthMm: 40, heightMm: 30 },
+  { value: 'short-50x30', label: 'Short Sticker 50×30mm (Delivery)', widthMm: 50, heightMm: 30 },
+  { value: 'short-40x30', label: 'Short Sticker 40×30mm (Delivery Compact)', widthMm: 40, heightMm: 30 },
   { value: 'long-100x150', label: 'Long Sticker 100×150mm (4×6 / Waybill)', widthMm: 100, heightMm: 150 },
   { value: 'A6', label: 'A6 (105×148mm)', widthMm: 105, heightMm: 148 },
+  { value: '3col-barcode', label: '3-Column Barcode Roll (SKU/Price/Barcode)', widthMm: 90, heightMm: 30 },
   { value: 'custom', label: 'Custom Dimensions', widthMm: 50, heightMm: 30 },
 ];
 

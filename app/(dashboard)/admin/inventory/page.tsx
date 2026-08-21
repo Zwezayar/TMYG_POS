@@ -214,12 +214,25 @@ function PrintProductLabelModal({
   const primary = product.primary_barcode || product.barcode || product.default_code || String(product.id);
   const price = formatPrice(product.sale_price);
 
-  const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
-  const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
-  const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
+  const storeName = settings.receipt.storeName?.trim() || '';
+  const storeTagline = settings.receipt.storeTagline?.trim() || '';
+  const storeAddress = settings.receipt.storeAddress?.trim() || '';
+  const storePhone = settings.receipt.storePhone?.trim() || '';
 
-  const hasLeftContent = label.showProductName || label.showPrice || label.showSku;
-  const landscapeLayout = widthMm >= heightMm;
+  const skuValue = product.default_code || String(product.id);
+  const skuLabel = product.default_code ? 'SKU' : 'Product ID';
+
+  const showInfoBox = label.showCustomerAddress;
+  const showFooter = heightMm >= 30;
+  const isShort40x30 = label.sizePreset === 'short-40x30';
+
+  const infoBoxHasContent =
+    (label.showSku) ||
+    (label.showProductName && product.product_name) ||
+    (product.category) ||
+    (product.size || product.variant);
+
+  const showInfoBoxFinal = showInfoBox && infoBoxHasContent;
 
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
@@ -255,48 +268,151 @@ function PrintProductLabelModal({
               page: 'label-sheet' as any,
             }}
           >
-            <div className="flex flex-col h-full w-full justify-between gap-[0.5mm] min-h-0">
-              <div className="flex items-start gap-[0.8mm] border-b border-black/30 pb-[0.4mm]">
-                <div className="flex-shrink-0 w-[5mm] h-[5mm] rounded-sm border border-black bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center overflow-hidden">
-                  <Sparkles className="w-[3mm] h-[3mm] text-pink-600" strokeWidth={2} />
+            <div
+              className="w-full h-full flex flex-col min-h-0"
+              style={isShort40x30 ? {
+                transform: 'scale(0.82)',
+                transformOrigin: 'top left',
+                width: `${100 / 0.82}%`,
+                height: `${100 / 0.82}%`,
+              } : undefined}
+            >
+              <div className="flex items-start gap-[0.8mm]">
+                <div className="flex-shrink-0 w-[9mm] h-[9mm] rounded-[1.2mm] border border-black/70 overflow-hidden bg-white flex items-center justify-center">
+                  <img
+                    src="/logo.jpg"
+                    alt="Logo"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).onerror = null;
+                      (e.target as HTMLImageElement).src = '/icon-192.png';
+                    }}
+                  />
                 </div>
-                <div className="flex-1 min-w-0 leading-tight">
-                  <div className="font-bold truncate text-[0.95em]">{storeName}</div>
-                  <div className="text-[0.75em] text-black/70 truncate">{storeTagline}</div>
-                  <div className="text-[0.7em] font-mono truncate">Tel: {storePhone}</div>
+                <div className="flex-1 min-w-0 leading-tight text-right">
+                  {storeName && (
+                    <div className="font-bold truncate text-[0.95em]">{storeName}</div>
+                  )}
+                  {storeTagline && (
+                    <div className="text-[0.75em] text-black/70 truncate">{storeTagline}</div>
+                  )}
+                  {storeAddress && (
+                    <div className="text-[0.7em] text-black/60 truncate">{storeAddress}</div>
+                  )}
+                  {storePhone && (
+                    <div className="text-[0.7em] font-mono truncate">{storePhone}</div>
+                  )}
                 </div>
               </div>
 
-              <div className={`flex-1 min-h-0 gap-[0.8mm] ${landscapeLayout ? 'flex flex-row' : 'flex flex-col'}`}>
-                {hasLeftContent ? (
-                  <div className={`flex flex-col gap-[0.3mm] min-h-0 ${landscapeLayout ? 'flex-1 min-w-0 justify-center' : 'justify-center'}`}>
-                    {label.showProductName && (
-                      <div className="font-semibold break-words leading-tight">{product.product_name || '—'}</div>
-                    )}
-                    {label.showSku && product.default_code && (
-                      <div className="text-[0.8em] text-black/60 break-words leading-tight">SKU: {product.default_code}</div>
-                    )}
-                    {label.showPrice && (
-                      <div className="font-extrabold tabular-nums text-[1.1em] pt-[0.2mm]">{price}</div>
-                    )}
-                  </div>
-                ) : null}
-                {label.showBarcode && (
-                  <div className={`flex items-center justify-center min-h-0 ${hasLeftContent ? (landscapeLayout ? 'flex-1 min-w-0' : '') : 'flex-1'}`}>
-                    <Code128Svg
-                      value={primary}
-                      heightPx={landscapeLayout ? Math.max(label.barcodeHeightPx, heightMm - 14) : label.barcodeHeightPx}
-                      barWidthPx={1}
-                      showText={true}
-                      fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
-                    />
-                  </div>
-                )}
+              <div className="mt-[0.6mm] flex justify-center">
+                <div className="inline-flex items-center gap-[0.8mm] border border-black rounded-full px-[1.2mm] py-[0.3mm]">
+                  <span className="text-[0.65em] uppercase font-bold tracking-wider text-black/60">{skuLabel}:</span>
+                  <span className="font-mono font-bold text-[0.9em]">{skuValue}</span>
+                </div>
               </div>
 
-              <div className="text-center text-[0.75em] font-semibold border-t border-black/30 pt-[0.4mm] truncate">
-                Thanks for choosing us. See you again!
-              </div>
+              {showInfoBoxFinal && (
+                <div className="mt-[0.6mm] border border-black p-[0.8mm] flex-1 min-h-0">
+                  <div className="flex flex-col gap-[0.2mm] leading-[1.1]">
+                    {label.showSku && (
+                      <div className="text-[0.82em]">
+                        <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">SKU: </span>
+                        <span className="font-mono">{skuValue}</span>
+                      </div>
+                    )}
+                    {label.showProductName && product.product_name && (
+                      <div className="text-[0.9em] font-semibold break-words" style={{ lineHeight: 1.1 }}>
+                        <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Product: </span>
+                        <span>{product.product_name}</span>
+                      </div>
+                    )}
+                    <div className="text-[0.82em]">
+                      <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Category: </span>
+                      <span>{product.category || '—'}</span>
+                    </div>
+                    <div className="text-[0.82em]">
+                      <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Variant/Size: </span>
+                      <span>{product.size || product.variant || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!showInfoBoxFinal && label.showPrice && (
+                <div className="flex-1 min-h-0" />
+              )}
+
+              {label.showCompactItems && (
+                <div className="mt-[0.6mm] w-full border border-black overflow-hidden">
+                  <table className="w-full border-collapse text-[0.82em]">
+                    <thead>
+                      <tr className="bg-black text-white">
+                        <th className="border-r border-white/30 px-[0.6mm] py-[0.3mm] text-left font-bold text-[0.75em] w-[12%]">No</th>
+                        <th className="border-r border-white/30 px-[0.6mm] py-[0.3mm] text-left font-bold text-[0.75em]">Description</th>
+                        <th className="px-[0.6mm] py-[0.3mm] text-right font-bold text-[0.75em] w-[22%]">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-black/30">
+                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top">1</td>
+                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top break-words leading-[1.05] max-w-0">
+                          {product.product_name || '—'}
+                        </td>
+                        <td className="px-[0.6mm] py-[0.3mm] align-top text-right tabular-nums font-semibold">
+                          {formatPrice(product.sale_price)}
+                        </td>
+                      </tr>
+                      <tr className="border-t border-black/30">
+                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top">2</td>
+                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top break-words leading-[1.05] italic text-black/50">
+                          (sample item)
+                        </td>
+                        <td className="px-[0.6mm] py-[0.3mm] align-top text-right tabular-nums font-semibold text-black/50">
+                          —
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {label.showBarcode && (
+                <div className="mt-[0.6mm] flex items-center justify-center">
+                  <Code128Svg
+                    value={primary}
+                    heightPx={label.barcodeHeightPx}
+                    barWidthPx={1}
+                    showText={true}
+                    fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
+                  />
+                </div>
+              )}
+
+              {label.showPrice && (
+                <div className="mt-[0.6mm] ml-auto border border-black p-[0.6mm] min-w-[55%]">
+                  <div className="flex flex-col gap-[0.2mm] text-[0.85em]">
+                    <div className="flex justify-between items-baseline gap-[1mm]">
+                      <span className="text-black/70 font-semibold">Unit Price</span>
+                      <span className="tabular-nums font-bold text-right">{price}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline gap-[1mm]">
+                      <span className="text-black/70 font-semibold">Qty</span>
+                      <span className="tabular-nums font-bold text-right">1</span>
+                    </div>
+                    <div className="flex justify-between items-baseline gap-[1mm] border-t border-black/40 pt-[0.2mm] mt-[0.1mm]">
+                      <span className="font-extrabold uppercase">Total</span>
+                      <span className="tabular-nums font-extrabold text-right">{price}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showFooter && (
+                <div className="mt-[0.6mm] text-center text-[0.7em] font-semibold text-black/75 truncate">
+                  Thanks for choosing us. See you again!
+                </div>
+              )}
             </div>
           </div>
         </div>

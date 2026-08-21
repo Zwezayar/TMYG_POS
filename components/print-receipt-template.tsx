@@ -7,10 +7,9 @@ import type { ReceiptPayload } from '@/components/receipt-modal';
 
 interface PrintReceiptTemplateProps {
   receipt: ReceiptPayload | null | undefined;
-  logoUrl?: string;
 }
 
-export function PrintReceiptTemplate({ receipt, logoUrl }: PrintReceiptTemplateProps) {
+export function PrintReceiptTemplate({ receipt }: PrintReceiptTemplateProps) {
   const { settings } = useHWPrintSettings();
   if (!receipt) return null;
   const subtotal =
@@ -23,37 +22,48 @@ export function PrintReceiptTemplate({ receipt, logoUrl }: PrintReceiptTemplateP
   const amountDue = (receipt as any).amountDue ?? 0;
 
   const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
-  const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
-  const storeAddress = settings.receipt.storeAddress?.trim() || 'No.23 Thun Phayar Street, Near Kyakhat Wine Monastery, Bago City';
-  const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
-  const storeSocial = settings.receipt.storeSocial?.trim();
-  const footerText = settings.receipt.footerText?.trim();
+  const storeTagline = settings.receipt.storeTagline?.trim() || '';
+  const storeAddress = settings.receipt.storeAddress?.trim() || '';
+  const storePhone = settings.receipt.storePhone?.trim() || '';
+  const storeSocial = settings.receipt.storeSocial?.trim() || '';
+  const footerText = settings.receipt.footerText?.trim() || '';
 
   const hasStoreTagline = !!storeTagline;
   const hasStoreAddress = !!storeAddress;
   const hasStorePhone = !!storePhone;
   const hasStoreSocial = !!storeSocial;
   const hasFooterText = !!footerText;
-  const { showLogo, showBarcode, showQrCode } = settings.receipt;
+  const { showLogo, showBarcode } = settings.receipt;
 
   return (
     <div id="print-receipt">
-      {showLogo && logoUrl ? (
+      {showLogo && (
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
-          <img src={logoUrl} alt="logo" style={{ maxHeight: 24, maxWidth: '100%', objectFit: 'contain' }} />
+          <img
+            src="/logo.jpg"
+            alt="logo"
+            style={{ maxHeight: 24, maxWidth: '100%', objectFit: 'contain' }}
+            onError={(e) => {
+              const target = e.currentTarget;
+              target.onerror = null;
+              target.src = '/icon-192.png';
+            }}
+          />
         </div>
-      ) : null}
+      )}
       <div className="receipt-title">{storeName}</div>
       {hasStoreTagline && (
-        <div className="receipt-center" style={{ fontSize: '0.85em', marginBottom: 2 }}>{storeTagline}</div>
+        <div className="receipt-center" style={{ fontSize: '0.85em', marginBottom: 2 }}>
+          {storeTagline}
+        </div>
       )}
       {hasStoreAddress && <div className="receipt-center">{storeAddress}</div>}
       {hasStorePhone && <div className="receipt-center">Tel: {storePhone}</div>}
       {hasStoreSocial && <div className="receipt-center">{storeSocial}</div>}
       <div className="divider" />
       <div className="receipt-row">
-        <span>Invoice</span>
-        <span>{receipt.invoiceId || '—'}</span>
+        <span style={{ fontSize: '0.8em', textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>
+        <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{receipt.invoiceId || '—'}</span>
       </div>
       <div className="receipt-row">
         <span>Date</span>
