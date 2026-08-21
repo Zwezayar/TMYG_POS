@@ -219,7 +219,7 @@ function PrintProductLabelModal({
   const storePhone = settings.receipt.storePhone?.trim() || '';
 
   const skuValue = product.default_code || String(product.id);
-  const skuLabel = product.default_code ? 'SKU' : 'Product ID';
+  const skuLabel = product.default_code ? 'SKU:' : 'Product ID:';
 
   const isShort40x30 = label.sizePreset === 'short-40x30';
 
@@ -233,113 +233,166 @@ function PrintProductLabelModal({
   const unitPrice = product.sale_price || 0;
   const stockQty = product.stock_quantity;
 
-  const shortStickerCanvas = (
+  const shortStickerCanvas50x30 = (
     <div
+      id="print-label"
       style={{
         width: '50mm',
         height: '30mm',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1px',
-        padding: '2px',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        fontFamily: label.fontFamily,
-        fontSize: label.fontSizePx + 'px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        padding: '2px 3px',
         backgroundColor: 'white',
         page: 'label-sheet' as any,
-        position: 'relative',
       }}
     >
       <div
         style={{
-          minHeight: '18px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '4px',
+          width: '100%',
           borderBottom: '1px solid black',
           paddingBottom: '2px',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: '3px',
-          lineHeight: 1.1,
+          marginBottom: '1px',
         }}
       >
         <img
           src="/logo.jpg"
           alt="Logo"
           style={{
-            width: '18px',
-            height: '17px',
+            width: '14px',
+            height: '14px',
             borderRadius: '50%',
             objectFit: 'contain',
             flexShrink: 0,
+            marginTop: '1px',
           }}
           onError={(e) => {
-            (e.currentTarget.onerror = null as any);
-            e.currentTarget.src = '/icon-192.png';
+            const target = e.currentTarget;
+            target.onerror = null;
+            target.src = '/icon-192.png';
           }}
         />
-        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontWeight: 'bold' }}>{storeName}</span>
-            <span style={{ whiteSpace: 'nowrap' }}>
-              <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{skuLabel}:</span>{' '}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: 0,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <span
+              style={{
+                fontWeight: 'bold',
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '60%',
+              }}
+            >
+              {storeName}
+            </span>
+            <span
+              style={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textAlign: 'right',
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+              }}
+            >
+              <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{skuLabel}</span>{' '}
               <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{skuValue}</span>
             </span>
           </div>
           {storeTagline && (
-            <div style={{ opacity: 0.75, lineHeight: 1.05 }}>{storeTagline}</div>
+            <div
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {storeTagline}
+            </div>
           )}
           {storeAddress && (
-            <div style={{ lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               {storeAddress}
             </div>
           )}
           {storePhone && (
-            <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>
+            <div
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {storePhone}
+            </div>
           )}
         </div>
       </div>
 
-      {showInfoBox && (
+      {showInfoBox === true && (
         <>
           {showProductName && (
             <div
               style={{
-                minHeight: '11px',
+                fontSize: '6px',
+                padding: '1px 2px',
                 border: '1px solid black',
-                padding: '2px 2px',
-                fontSize: '7px',
-                lineHeight: 1.05,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '2px',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minHeight: 0,
               }}
             >
-              <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Product:</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {product.product_name || '—'}
-              </span>
+              <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em' }}>Product:</span>{' '}
+              <span>{product.product_name || '—'}</span>
             </div>
           )}
           {showSku && (
             <div
               style={{
-                minHeight: '7px',
+                fontSize: '6px',
+                padding: '1px 2px',
                 border: '1px solid black',
-                borderTop: showProductName ? 'none' : '1px solid black',
-                padding: '2px 2px',
-                fontSize: '7px',
-                lineHeight: 1.05,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '2px',
+                borderTop: 'none',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minHeight: 0,
               }}
             >
-              <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>
-                {product.default_code ? 'SKU:' : 'Variant/Size:'}
-              </span>
+              <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em' }}>
+                {product.default_code ? 'SKU:' : 'Variant:'}
+              </span>{' '}
               <span>
                 {product.default_code || product.size || product.variant || '—'}
               </span>
@@ -347,13 +400,16 @@ function PrintProductLabelModal({
           )}
           <div
             style={{
-              minHeight: '13px',
+              fontSize: '5.5px',
+              padding: '1px 2px',
               border: '1px solid black',
               borderTop: (showProductName || showSku) ? 'none' : '1px solid black',
-              padding: '2px 1px',
-              fontSize: '7px',
-              wordBreak: 'break-word',
-              lineHeight: 1.05,
+              lineHeight: 1.0,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: 0,
             }}
           >
             <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Category:</span>{' '}
@@ -362,14 +418,15 @@ function PrintProductLabelModal({
         </>
       )}
 
-      {showCompactItems && (
+      {showCompactItems === true && (
         <div
           style={{
             width: '100%',
             border: '1px solid black',
             borderTop: 'none',
-            fontSize: '6px',
+            fontSize: '5px',
             lineHeight: 1.0,
+            minHeight: 0,
             overflow: 'hidden',
           }}
         >
@@ -384,8 +441,8 @@ function PrintProductLabelModal({
             <tbody>
               <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
                 <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>1</td>
-                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                  {product.product_name || '—'}
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {(product.product_name || '—').slice(0, 28)}
                 </td>
                 <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600 }}>
                   {formatPrice(product.sale_price)}
@@ -393,7 +450,7 @@ function PrintProductLabelModal({
               </tr>
               <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
                 <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>2</td>
-                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', wordBreak: 'break-word', fontStyle: 'italic', opacity: 0.5 }}>
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', fontStyle: 'italic', opacity: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   (sample item)
                 </td>
                 <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600, opacity: 0.5 }}>
@@ -405,92 +462,90 @@ function PrintProductLabelModal({
         </div>
       )}
 
-      {showPrice && (
+      {showPrice === true && (
         <div
           style={{
-            width: '100%',
-            minHeight: '7px',
             display: 'flex',
-            border: '1px solid #000',
+            width: '100%',
+            border: '1px solid black',
             borderTop: 'none',
-            lineHeight: 1.05,
+            fontSize: '5.5px',
+            lineHeight: 1.0,
+            alignItems: 'center',
+            minHeight: 0,
           }}
         >
           <div
             style={{
               width: '45px',
-              borderRight: '1px solid #000',
+              borderRight: '1px solid black',
               padding: '1px 2px',
-              fontSize: '6.5px',
               display: 'flex',
               flexDirection: 'column',
-              lineHeight: 1.05,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Unit</div>
-            <div style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</div>
+            <span style={{ fontWeight: 600 }}>Unit:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</span>
           </div>
           <div
             style={{
               flex: 1,
-              borderRight: '1px solid #000',
+              borderRight: '1px solid black',
               padding: '1px 2px',
-              fontSize: '6.5px',
               display: 'flex',
               flexDirection: 'column',
-              lineHeight: 1.05,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Stock</div>
-            <div style={{ fontFamily: 'monospace' }}>{stockQty != null ? stockQty : '—'}</div>
+            <span style={{ fontWeight: 600 }}>Stock:</span>
+            <span style={{ fontFamily: 'monospace' }}>{stockQty != null ? stockQty : '—'}</span>
           </div>
           <div
             style={{
               flex: 1,
               padding: '1px 2px',
-              fontSize: '6.5px',
               fontWeight: 'bold',
               display: 'flex',
               flexDirection: 'column',
-              lineHeight: 1.05,
             }}
           >
-            <div>Total</div>
-            <div style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</div>
+            <span style={{ fontWeight: 600 }}>Total:</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</span>
           </div>
         </div>
       )}
 
       <div
         style={{
-          width: '100%',
-          minHeight: '14px',
-          border: '1px solid #000',
-          borderTop: 'none',
+          fontSize: '5.5px',
+          lineHeight: 1.0,
           padding: '1px 2px',
-          fontSize: '6.5px',
-          lineHeight: 1.05,
-          wordBreak: 'break-word',
+          border: '1px solid black',
+          borderTop: 'none',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          minHeight: 0,
         }}
       >
-        <span style={{ fontWeight: 600 }}>Remark: </span>
+        <span style={{ fontWeight: 600 }}>Remark:</span>{' '}
         <span>—</span>
       </div>
 
-      {showBarcode && (
+      {showBarcode === true && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            maxHeight: '18px',
+            width: '100%',
+            maxHeight: '14px',
             overflow: 'hidden',
-            lineHeight: 1.0,
+            minHeight: 0,
           }}
         >
           <Code128Svg
             value={primary}
-            heightPx={Math.min(label.barcodeHeightPx, 18)}
+            heightPx={12}
             barWidthPx={0.7}
             showText={false}
             quietZonePx={0.5}
@@ -500,12 +555,12 @@ function PrintProductLabelModal({
 
       <div
         style={{
-          width: '100%',
+          fontSize: '5px',
+          lineHeight: 1.0,
           textAlign: 'center',
-          fontSize: '6px',
+          width: '100%',
           marginTop: 'auto',
           paddingTop: '1px',
-          lineHeight: 1.0,
         }}
       >
         Thanks for choosing us. See you again!
@@ -515,9 +570,11 @@ function PrintProductLabelModal({
 
   const shortStickerSheet = isShort40x30 ? (
     <div
+      id="print-label"
       style={{
         width: '40mm',
         height: '30mm',
+        boxSizing: 'border-box',
         overflow: 'hidden',
         backgroundColor: 'white',
         page: 'label-sheet' as any,
@@ -528,13 +585,344 @@ function PrintProductLabelModal({
         style={{
           transform: 'scale(0.82)',
           transformOrigin: 'top left',
+          width: '50mm',
+          height: '30mm',
         }}
       >
-        {shortStickerCanvas}
+        <div
+          style={{
+            width: '50mm',
+            height: '30mm',
+            boxSizing: 'border-box',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            position: 'relative',
+            padding: '2px 3px',
+            backgroundColor: 'white',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '4px',
+              width: '100%',
+              borderBottom: '1px solid black',
+              paddingBottom: '2px',
+              marginBottom: '1px',
+            }}
+          >
+            <img
+              src="/logo.jpg"
+              alt="Logo"
+              style={{
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                objectFit: 'contain',
+                flexShrink: 0,
+                marginTop: '1px',
+              }}
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.onerror = null;
+                target.src = '/icon-192.png';
+              }}
+            />
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: 0,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: '5.5px',
+                    lineHeight: 1.0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '60%',
+                  }}
+                >
+                  {storeName}
+                </span>
+                <span
+                  style={{
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    textAlign: 'right',
+                    fontSize: '5.5px',
+                    lineHeight: 1.0,
+                  }}
+                >
+                  <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{skuLabel}</span>{' '}
+                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{skuValue}</span>
+                </span>
+              </div>
+              {storeTagline && (
+                <div
+                  style={{
+                    fontSize: '5.5px',
+                    lineHeight: 1.0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {storeTagline}
+                </div>
+              )}
+              {storeAddress && (
+                <div
+                  style={{
+                    fontSize: '5.5px',
+                    lineHeight: 1.0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {storeAddress}
+                </div>
+              )}
+              {storePhone && (
+                <div
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '5.5px',
+                    lineHeight: 1.0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {storePhone}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {showInfoBox === true && (
+            <>
+              {showProductName && (
+                <div
+                  style={{
+                    fontSize: '6px',
+                    padding: '1px 2px',
+                    border: '1px solid black',
+                    lineHeight: 1.1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minHeight: 0,
+                  }}
+                >
+                  <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em' }}>Product:</span>{' '}
+                  <span>{product.product_name || '—'}</span>
+                </div>
+              )}
+              {showSku && (
+                <div
+                  style={{
+                    fontSize: '6px',
+                    padding: '1px 2px',
+                    border: '1px solid black',
+                    borderTop: 'none',
+                    lineHeight: 1.1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minHeight: 0,
+                  }}
+                >
+                  <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em' }}>
+                    {product.default_code ? 'SKU:' : 'Variant:'}
+                  </span>{' '}
+                  <span>
+                    {product.default_code || product.size || product.variant || '—'}
+                  </span>
+                </div>
+              )}
+              <div
+                style={{
+                  fontSize: '5.5px',
+                  padding: '1px 2px',
+                  border: '1px solid black',
+                  borderTop: (showProductName || showSku) ? 'none' : '1px solid black',
+                  lineHeight: 1.0,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  minHeight: 0,
+                }}
+              >
+                <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Category:</span>{' '}
+                <span>{product.category || '—'}</span>
+              </div>
+            </>
+          )}
+
+          {showCompactItems === true && (
+            <div
+              style={{
+                width: '100%',
+                border: '1px solid black',
+                borderTop: 'none',
+                fontSize: '5px',
+                lineHeight: 1.0,
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'black', color: 'white' }}>
+                    <th style={{ borderRight: '1px solid rgba(255,255,255,0.3)', padding: '1px 2px', textAlign: 'left', fontWeight: 'bold', width: '12%' }}>No</th>
+                    <th style={{ borderRight: '1px solid rgba(255,255,255,0.3)', padding: '1px 2px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                    <th style={{ padding: '1px 2px', textAlign: 'right', fontWeight: 'bold', width: '22%' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
+                    <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>1</td>
+                    <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {(product.product_name || '—').slice(0, 28)}
+                    </td>
+                    <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600 }}>
+                      {formatPrice(product.sale_price)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
+                    <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>2</td>
+                    <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', fontStyle: 'italic', opacity: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      (sample item)
+                    </td>
+                    <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600, opacity: 0.5 }}>
+                      —
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {showPrice === true && (
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                border: '1px solid black',
+                borderTop: 'none',
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                alignItems: 'center',
+                minHeight: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: '45px',
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Unit:</span>
+                <span style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</span>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Stock:</span>
+                <span style={{ fontFamily: 'monospace' }}>{stockQty != null ? stockQty : '—'}</span>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  padding: '1px 2px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Total:</span>
+                <span style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</span>
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              fontSize: '5.5px',
+              lineHeight: 1.0,
+              padding: '1px 2px',
+              border: '1px solid black',
+              borderTop: 'none',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minHeight: 0,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>Remark:</span>{' '}
+            <span>—</span>
+          </div>
+
+          {showBarcode === true && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                maxHeight: '14px',
+                overflow: 'hidden',
+                minHeight: 0,
+              }}
+            >
+              <Code128Svg
+                value={primary}
+                heightPx={12}
+                barWidthPx={0.7}
+                showText={false}
+                quietZonePx={0.5}
+              />
+            </div>
+          )}
+
+          <div
+            style={{
+              fontSize: '5px',
+              lineHeight: 1.0,
+              textAlign: 'center',
+              width: '100%',
+              marginTop: 'auto',
+              paddingTop: '1px',
+            }}
+          >
+            Thanks for choosing us. See you again!
+          </div>
+        </div>
       </div>
     </div>
   ) : (
-    shortStickerCanvas
+    shortStickerCanvas50x30
   );
 
   return (
@@ -557,10 +945,16 @@ function PrintProductLabelModal({
         <div className="mb-3 text-xs text-muted-foreground">
           Label size: {widthMm}mm × {heightMm}mm. Font: {label.fontFamily} {label.fontSizePx}px. Adjust in Settings → Hardware &amp; Printers.
         </div>
-        <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60">
+        <div
+          className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60"
+          style={{ minHeight: `calc(${heightMm}mm + 48px)` }}
+        >
           <div
-            id="print-label"
             className="border border-black shadow-inner"
+            style={{
+              transform: 'scale(1)',
+              transformOrigin: 'top left',
+            }}
           >
             {shortStickerSheet}
           </div>

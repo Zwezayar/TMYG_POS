@@ -88,217 +88,395 @@ function WaybillModal({
     || (order.receipt_payload as any)?.remark
     || '';
 
-  const shortStickerCanvas = (
+  const shortStickerCanvas50x30 = (
     <div
       style={{
         width: '50mm',
         height: '30mm',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1px',
-        padding: '2px',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        fontFamily: label.fontFamily,
-        fontSize: label.fontSizePx + 'px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        padding: '2px 3px',
         backgroundColor: 'white',
         page: 'label-sheet' as any,
-        position: 'relative',
       }}
     >
       <div
         style={{
-          minHeight: '18px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '4px',
+          width: '100%',
           borderBottom: '1px solid black',
           paddingBottom: '2px',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: '3px',
-          lineHeight: 1.1,
+          marginBottom: '1px',
         }}
       >
         <img
           src="/logo.jpg"
-          alt="logo"
           style={{
-            width: '18px',
-            height: '17px',
+            width: '14px',
+            height: '14px',
             borderRadius: '50%',
             objectFit: 'contain',
             flexShrink: 0,
+            marginTop: '1px',
           }}
           onError={(e) => {
-            (e.currentTarget.onerror = null as any);
-            e.currentTarget.src = '/icon-192.png';
+            const t = e.currentTarget;
+            t.onerror = null;
+            t.src = '/icon-192.png';
           }}
         />
-        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontWeight: 'bold' }}>{storeName}</span>
-            <span style={{ whiteSpace: 'nowrap' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '65%',
+              }}
+            >
+              {storeName}
+            </span>
+            <span
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                textAlign: 'right',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>{' '}
               <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{order.invoice_id}</span>
             </span>
           </div>
           {storeTagline && (
-            <div style={{ opacity: 0.75, lineHeight: 1.05 }}>{storeTagline}</div>
+            <div
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {storeTagline}
+            </div>
           )}
           {storeAddress && (
-            <div style={{ lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               {storeAddress}
             </div>
           )}
           {storePhone && (
-            <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>
+            <div
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '5.5px',
+                lineHeight: 1.0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {storePhone}
+            </div>
           )}
         </div>
       </div>
 
       {showCustomerAddress && (
-        <>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            margin: 0,
+          }}
+        >
           <div
             style={{
-              minHeight: '11px',
+              fontSize: '6px',
+              padding: '1px 2px',
               border: '1px solid black',
-              padding: '2px 0',
-              fontSize: '7px',
-              lineHeight: 1.05,
+              lineHeight: 1.1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minHeight: 0,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
               gap: '2px',
-              paddingLeft: '2px',
-              paddingRight: '2px',
             }}
           >
-            <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Name:</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em', flexShrink: 0 }}>
+              Name:
+            </span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {order.customer_name || '—'}
             </span>
           </div>
           <div
             style={{
-              minHeight: '7px',
+              fontSize: '6px',
+              padding: '1px 2px',
               border: '1px solid black',
               borderTop: 'none',
-              padding: '2px 0',
-              fontSize: '7px',
-              lineHeight: 1.05,
+              lineHeight: 1.1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minHeight: 0,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
               gap: '2px',
-              paddingLeft: '2px',
-              paddingRight: '2px',
             }}
           >
-            <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Phone No:</span>
-            <span>{order.customer_phone || '—'}</span>
+            <span style={{ textTransform: 'uppercase', fontWeight: 600, fontSize: '0.9em', flexShrink: 0 }}>
+              Phone No:
+            </span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {order.customer_phone || '—'}
+            </span>
           </div>
           <div
             style={{
-              minHeight: '13px',
+              fontSize: '5.5px',
+              padding: '1px 2px',
               border: '1px solid black',
               borderTop: 'none',
-              padding: '2px 1px',
-              fontSize: '7px',
-              wordBreak: 'break-word',
-              lineHeight: 1.05,
+              lineHeight: 1.0,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: 0,
             }}
           >
             <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Address:</span>{' '}
             <span>{order.customer_address || '—'}</span>
           </div>
-        </>
+        </div>
+      )}
+
+      {(label as any).showCompactItems === true && (
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: '1px solid black',
+            borderTop: 'none',
+            fontSize: '5px',
+            lineHeight: 1.0,
+            minHeight: 0,
+          }}
+        >
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  width: '8px',
+                  textAlign: 'left',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                No
+              </td>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  textAlign: 'left',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Description
+              </td>
+              <td
+                style={{
+                  padding: '1px 2px',
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Amount
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid black' }}>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                }}
+              >
+                1
+              </td>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Sample Product
+              </td>
+              <td
+                style={{
+                  padding: '1px 2px',
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                0 Ks
+              </td>
+            </tr>
+            <tr style={{ borderTop: '1px solid black' }}>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                }}
+              >
+                2
+              </td>
+              <td
+                style={{
+                  borderRight: '1px solid black',
+                  padding: '1px 2px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Sample Product 2
+              </td>
+              <td
+                style={{
+                  padding: '1px 2px',
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                0 Ks
+              </td>
+            </tr>
+          </tbody>
+        </table>
       )}
 
       {showPrice && (
         <div
           style={{
-            width: '100%',
-            minHeight: '7px',
             display: 'flex',
-            border: '1px solid #000',
+            width: '100%',
+            border: '1px solid black',
             borderTop: 'none',
-            lineHeight: 1.05,
+            fontSize: '5.5px',
+            lineHeight: 1.0,
+            alignItems: 'center',
+            minHeight: 0,
           }}
         >
           <div
             style={{
               width: '45px',
-              borderRight: '1px solid #000',
+              borderRight: '1px solid black',
               padding: '1px 2px',
-              fontSize: '6.5px',
-              display: 'flex',
-              flexDirection: 'column',
-              lineHeight: 1.05,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flexShrink: 0,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Amount</div>
-            <div style={{ fontFamily: 'monospace' }}>{totalVal.toLocaleString()} Ks</div>
+            <span style={{ fontWeight: 600 }}>Amount:</span>{' '}
+            <span style={{ fontWeight: 'bold' }}>{totalVal.toLocaleString()} Ks</span>
           </div>
           <div
             style={{
               flex: 1,
-              borderRight: '1px solid #000',
+              borderRight: '1px solid black',
               padding: '1px 2px',
-              fontSize: '6.5px',
-              display: 'flex',
-              flexDirection: 'column',
-              lineHeight: 1.05,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Deli Fees</div>
-            <div style={{ fontFamily: 'monospace' }}>{deliFeesVal.toLocaleString()} Ks</div>
+            <span style={{ fontWeight: 600 }}>Deli Fees:</span>{' '}
+            <span>{deliFeesVal.toLocaleString()} Ks</span>
           </div>
           <div
             style={{
               flex: 1,
               padding: '1px 2px',
-              fontSize: '6.5px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               fontWeight: 'bold',
-              display: 'flex',
-              flexDirection: 'column',
-              lineHeight: 1.05,
+              minWidth: 0,
             }}
           >
-            <div>Total</div>
-            <div style={{ fontFamily: 'monospace' }}>{grandVal.toLocaleString()} Ks</div>
+            <span>Total:</span> {grandVal.toLocaleString()} Ks
           </div>
         </div>
       )}
 
       <div
         style={{
-          width: '100%',
-          minHeight: '14px',
-          border: '1px solid #000',
-          borderTop: 'none',
+          fontSize: '5.5px',
+          lineHeight: 1.0,
           padding: '1px 2px',
-          fontSize: '6.5px',
-          lineHeight: 1.05,
-          wordBreak: 'break-word',
+          border: '1px solid black',
+          borderTop: 'none',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          minHeight: 0,
         }}
       >
-        <span style={{ fontWeight: 600 }}>Remark: </span>
-        <span>{orderNotes || '—'}</span>
+        <span style={{ fontWeight: 600 }}>Remark:</span> —
       </div>
 
       {showBarcode && (
         <div
           style={{
+            width: '100%',
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
-            maxHeight: '18px',
+            alignItems: 'center',
+            maxHeight: '14px',
             overflow: 'hidden',
-            lineHeight: 1.0,
+            margin: 0,
+            minHeight: 0,
           }}
         >
           <Code128Svg
             value={order.invoice_id}
-            heightPx={Math.min(18, label.barcodeHeightPx)}
+            heightPx={12}
             barWidthPx={0.6}
             showText={false}
             quietZonePx={0.5}
@@ -308,12 +486,15 @@ function WaybillModal({
 
       <div
         style={{
-          width: '100%',
+          fontSize: '5px',
+          lineHeight: 1.0,
           textAlign: 'center',
-          fontSize: '6px',
+          width: '100%',
           marginTop: 'auto',
           paddingTop: '1px',
-          lineHeight: 1.0,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
         Thanks for choosing us. See you again!
@@ -323,6 +504,7 @@ function WaybillModal({
 
   const shortStickerSheet = isShort40x30 ? (
     <div
+      id="print-label"
       style={{
         width: '40mm',
         height: '30mm',
@@ -330,19 +512,22 @@ function WaybillModal({
         backgroundColor: 'white',
         page: 'label-sheet' as any,
         position: 'relative',
+        boxSizing: 'border-box',
       }}
     >
       <div
         style={{
           transform: 'scale(0.82)',
           transformOrigin: 'top left',
+          width: '50mm',
+          height: '30mm',
         }}
       >
-        {shortStickerCanvas}
+        {shortStickerCanvas50x30}
       </div>
     </div>
   ) : (
-    shortStickerCanvas
+    React.cloneElement(shortStickerCanvas50x30, { id: 'print-label' })
   );
 
   return (
@@ -367,10 +552,7 @@ function WaybillModal({
         </div>
         <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60 overflow-auto">
           {isShortPreset ? (
-            <div
-              id="print-label"
-              className="border border-black shadow-inner"
-            >
+            <div className="border border-black shadow-inner">
               {shortStickerSheet}
             </div>
           ) : (
