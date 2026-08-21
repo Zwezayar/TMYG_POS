@@ -212,7 +212,6 @@ function PrintProductLabelModal({
   if (!open || !product) return null;
 
   const primary = product.primary_barcode || product.barcode || product.default_code || String(product.id);
-  const price = formatPrice(product.sale_price);
 
   const storeName = settings.receipt.storeName?.trim() || '';
   const storeTagline = settings.receipt.storeTagline?.trim() || '';
@@ -222,17 +221,321 @@ function PrintProductLabelModal({
   const skuValue = product.default_code || String(product.id);
   const skuLabel = product.default_code ? 'SKU' : 'Product ID';
 
-  const showInfoBox = label.showCustomerAddress;
-  const showFooter = heightMm >= 30;
   const isShort40x30 = label.sizePreset === 'short-40x30';
 
-  const infoBoxHasContent =
-    (label.showSku) ||
-    (label.showProductName && product.product_name) ||
-    (product.category) ||
-    (product.size || product.variant);
+  const showInfoBox = label.showCustomerAddress;
+  const showPrice = label.showPrice;
+  const showBarcode = label.showBarcode;
+  const showCompactItems = label.showCompactItems;
+  const showProductName = label.showProductName;
+  const showSku = label.showSku;
 
-  const showInfoBoxFinal = showInfoBox && infoBoxHasContent;
+  const unitPrice = product.sale_price || 0;
+  const stockQty = product.stock_quantity;
+
+  const shortStickerCanvas = (
+    <div
+      style={{
+        width: '50mm',
+        height: '30mm',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1px',
+        padding: '2px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        fontFamily: label.fontFamily,
+        fontSize: label.fontSizePx + 'px',
+        backgroundColor: 'white',
+        page: 'label-sheet' as any,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          minHeight: '18px',
+          borderBottom: '1px solid black',
+          paddingBottom: '2px',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '3px',
+          lineHeight: 1.1,
+        }}
+      >
+        <img
+          src="/logo.jpg"
+          alt="Logo"
+          style={{
+            width: '18px',
+            height: '17px',
+            borderRadius: '50%',
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+          onError={(e) => {
+            (e.currentTarget.onerror = null as any);
+            e.currentTarget.src = '/icon-192.png';
+          }}
+        />
+        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontWeight: 'bold' }}>{storeName}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>
+              <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{skuLabel}:</span>{' '}
+              <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{skuValue}</span>
+            </span>
+          </div>
+          {storeTagline && (
+            <div style={{ opacity: 0.75, lineHeight: 1.05 }}>{storeTagline}</div>
+          )}
+          {storeAddress && (
+            <div style={{ lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {storeAddress}
+            </div>
+          )}
+          {storePhone && (
+            <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>
+          )}
+        </div>
+      </div>
+
+      {showInfoBox && (
+        <>
+          {showProductName && (
+            <div
+              style={{
+                minHeight: '11px',
+                border: '1px solid black',
+                padding: '2px 2px',
+                fontSize: '7px',
+                lineHeight: 1.05,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '2px',
+              }}
+            >
+              <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Product:</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {product.product_name || '—'}
+              </span>
+            </div>
+          )}
+          {showSku && (
+            <div
+              style={{
+                minHeight: '7px',
+                border: '1px solid black',
+                borderTop: showProductName ? 'none' : '1px solid black',
+                padding: '2px 2px',
+                fontSize: '7px',
+                lineHeight: 1.05,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '2px',
+              }}
+            >
+              <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>
+                {product.default_code ? 'SKU:' : 'Variant/Size:'}
+              </span>
+              <span>
+                {product.default_code || product.size || product.variant || '—'}
+              </span>
+            </div>
+          )}
+          <div
+            style={{
+              minHeight: '13px',
+              border: '1px solid black',
+              borderTop: (showProductName || showSku) ? 'none' : '1px solid black',
+              padding: '2px 1px',
+              fontSize: '7px',
+              wordBreak: 'break-word',
+              lineHeight: 1.05,
+            }}
+          >
+            <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Category:</span>{' '}
+            <span>{product.category || '—'}</span>
+          </div>
+        </>
+      )}
+
+      {showCompactItems && (
+        <div
+          style={{
+            width: '100%',
+            border: '1px solid black',
+            borderTop: 'none',
+            fontSize: '6px',
+            lineHeight: 1.0,
+            overflow: 'hidden',
+          }}
+        >
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: 'black', color: 'white' }}>
+                <th style={{ borderRight: '1px solid rgba(255,255,255,0.3)', padding: '1px 2px', textAlign: 'left', fontWeight: 'bold', width: '12%' }}>No</th>
+                <th style={{ borderRight: '1px solid rgba(255,255,255,0.3)', padding: '1px 2px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                <th style={{ padding: '1px 2px', textAlign: 'right', fontWeight: 'bold', width: '22%' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>1</td>
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', wordBreak: 'break-word' }}>
+                  {product.product_name || '—'}
+                </td>
+                <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600 }}>
+                  {formatPrice(product.sale_price)}
+                </td>
+              </tr>
+              <tr style={{ borderTop: '1px solid rgba(0,0,0,0.3)' }}>
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top' }}>2</td>
+                <td style={{ borderRight: '1px solid rgba(0,0,0,0.3)', padding: '1px 2px', verticalAlign: 'top', wordBreak: 'break-word', fontStyle: 'italic', opacity: 0.5 }}>
+                  (sample item)
+                </td>
+                <td style={{ padding: '1px 2px', verticalAlign: 'top', textAlign: 'right', fontWeight: 600, opacity: 0.5 }}>
+                  —
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showPrice && (
+        <div
+          style={{
+            width: '100%',
+            minHeight: '7px',
+            display: 'flex',
+            border: '1px solid #000',
+            borderTop: 'none',
+            lineHeight: 1.05,
+          }}
+        >
+          <div
+            style={{
+              width: '45px',
+              borderRight: '1px solid #000',
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Unit</div>
+            <div style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</div>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              borderRight: '1px solid #000',
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Stock</div>
+            <div style={{ fontFamily: 'monospace' }}>{stockQty != null ? stockQty : '—'}</div>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              fontWeight: 'bold',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div>Total</div>
+            <div style={{ fontFamily: 'monospace' }}>{formatPrice(unitPrice)}</div>
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          width: '100%',
+          minHeight: '14px',
+          border: '1px solid #000',
+          borderTop: 'none',
+          padding: '1px 2px',
+          fontSize: '6.5px',
+          lineHeight: 1.05,
+          wordBreak: 'break-word',
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>Remark: </span>
+        <span>—</span>
+      </div>
+
+      {showBarcode && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            maxHeight: '18px',
+            overflow: 'hidden',
+            lineHeight: 1.0,
+          }}
+        >
+          <Code128Svg
+            value={primary}
+            heightPx={Math.min(label.barcodeHeightPx, 18)}
+            barWidthPx={0.7}
+            showText={false}
+            quietZonePx={0.5}
+          />
+        </div>
+      )}
+
+      <div
+        style={{
+          width: '100%',
+          textAlign: 'center',
+          fontSize: '6px',
+          marginTop: 'auto',
+          paddingTop: '1px',
+          lineHeight: 1.0,
+        }}
+      >
+        Thanks for choosing us. See you again!
+      </div>
+    </div>
+  );
+
+  const shortStickerSheet = isShort40x30 ? (
+    <div
+      style={{
+        width: '40mm',
+        height: '30mm',
+        overflow: 'hidden',
+        backgroundColor: 'white',
+        page: 'label-sheet' as any,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          transform: 'scale(0.82)',
+          transformOrigin: 'top left',
+        }}
+      >
+        {shortStickerCanvas}
+      </div>
+    </div>
+  ) : (
+    shortStickerCanvas
+  );
 
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
@@ -257,163 +560,9 @@ function PrintProductLabelModal({
         <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60">
           <div
             id="print-label"
-            className="bg-white border border-black/60 shadow-inner overflow-hidden box-border flex flex-col"
-            style={{
-              width: `${widthMm}mm`,
-              height: `${heightMm}mm`,
-              padding: '1mm',
-              fontFamily: label.fontFamily,
-              fontSize: `${label.fontSizePx}px`,
-              lineHeight: 1.15,
-              page: 'label-sheet' as any,
-            }}
+            className="border border-black shadow-inner"
           >
-            <div
-              className="w-full h-full flex flex-col min-h-0"
-              style={isShort40x30 ? {
-                transform: 'scale(0.82)',
-                transformOrigin: 'top left',
-                width: `${100 / 0.82}%`,
-                height: `${100 / 0.82}%`,
-              } : undefined}
-            >
-              <div className="flex items-start gap-[0.8mm]">
-                <div className="flex-shrink-0 w-[9mm] h-[9mm] rounded-[1.2mm] border border-black/70 overflow-hidden bg-white flex items-center justify-center">
-                  <img
-                    src="/logo.jpg"
-                    alt="Logo"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).onerror = null;
-                      (e.target as HTMLImageElement).src = '/icon-192.png';
-                    }}
-                  />
-                </div>
-                <div className="flex-1 min-w-0 leading-tight text-right">
-                  {storeName && (
-                    <div className="font-bold truncate text-[0.95em]">{storeName}</div>
-                  )}
-                  {storeTagline && (
-                    <div className="text-[0.75em] text-black/70 truncate">{storeTagline}</div>
-                  )}
-                  {storeAddress && (
-                    <div className="text-[0.7em] text-black/60 truncate">{storeAddress}</div>
-                  )}
-                  {storePhone && (
-                    <div className="text-[0.7em] font-mono truncate">{storePhone}</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-[0.6mm] flex justify-center">
-                <div className="inline-flex items-center gap-[0.8mm] border border-black rounded-full px-[1.2mm] py-[0.3mm]">
-                  <span className="text-[0.65em] uppercase font-bold tracking-wider text-black/60">{skuLabel}:</span>
-                  <span className="font-mono font-bold text-[0.9em]">{skuValue}</span>
-                </div>
-              </div>
-
-              {showInfoBoxFinal && (
-                <div className="mt-[0.6mm] border border-black p-[0.8mm] flex-1 min-h-0">
-                  <div className="flex flex-col gap-[0.2mm] leading-[1.1]">
-                    {label.showSku && (
-                      <div className="text-[0.82em]">
-                        <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">SKU: </span>
-                        <span className="font-mono">{skuValue}</span>
-                      </div>
-                    )}
-                    {label.showProductName && product.product_name && (
-                      <div className="text-[0.9em] font-semibold break-words" style={{ lineHeight: 1.1 }}>
-                        <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Product: </span>
-                        <span>{product.product_name}</span>
-                      </div>
-                    )}
-                    <div className="text-[0.82em]">
-                      <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Category: </span>
-                      <span>{product.category || '—'}</span>
-                    </div>
-                    <div className="text-[0.82em]">
-                      <span className="font-bold uppercase tracking-wider text-black/65 text-[0.7em]">Variant/Size: </span>
-                      <span>{product.size || product.variant || '—'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!showInfoBoxFinal && label.showPrice && (
-                <div className="flex-1 min-h-0" />
-              )}
-
-              {label.showCompactItems && (
-                <div className="mt-[0.6mm] w-full border border-black overflow-hidden">
-                  <table className="w-full border-collapse text-[0.82em]">
-                    <thead>
-                      <tr className="bg-black text-white">
-                        <th className="border-r border-white/30 px-[0.6mm] py-[0.3mm] text-left font-bold text-[0.75em] w-[12%]">No</th>
-                        <th className="border-r border-white/30 px-[0.6mm] py-[0.3mm] text-left font-bold text-[0.75em]">Description</th>
-                        <th className="px-[0.6mm] py-[0.3mm] text-right font-bold text-[0.75em] w-[22%]">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-black/30">
-                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top">1</td>
-                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top break-words leading-[1.05] max-w-0">
-                          {product.product_name || '—'}
-                        </td>
-                        <td className="px-[0.6mm] py-[0.3mm] align-top text-right tabular-nums font-semibold">
-                          {formatPrice(product.sale_price)}
-                        </td>
-                      </tr>
-                      <tr className="border-t border-black/30">
-                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top">2</td>
-                        <td className="border-r border-black/30 px-[0.6mm] py-[0.3mm] align-top break-words leading-[1.05] italic text-black/50">
-                          (sample item)
-                        </td>
-                        <td className="px-[0.6mm] py-[0.3mm] align-top text-right tabular-nums font-semibold text-black/50">
-                          —
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {label.showBarcode && (
-                <div className="mt-[0.6mm] flex items-center justify-center">
-                  <Code128Svg
-                    value={primary}
-                    heightPx={label.barcodeHeightPx}
-                    barWidthPx={1}
-                    showText={true}
-                    fontSizePx={Math.max(6, Math.round(label.fontSizePx * 0.8))}
-                  />
-                </div>
-              )}
-
-              {label.showPrice && (
-                <div className="mt-[0.6mm] ml-auto border border-black p-[0.6mm] min-w-[55%]">
-                  <div className="flex flex-col gap-[0.2mm] text-[0.85em]">
-                    <div className="flex justify-between items-baseline gap-[1mm]">
-                      <span className="text-black/70 font-semibold">Unit Price</span>
-                      <span className="tabular-nums font-bold text-right">{price}</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-[1mm]">
-                      <span className="text-black/70 font-semibold">Qty</span>
-                      <span className="tabular-nums font-bold text-right">1</span>
-                    </div>
-                    <div className="flex justify-between items-baseline gap-[1mm] border-t border-black/40 pt-[0.2mm] mt-[0.1mm]">
-                      <span className="font-extrabold uppercase">Total</span>
-                      <span className="tabular-nums font-extrabold text-right">{price}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {showFooter && (
-                <div className="mt-[0.6mm] text-center text-[0.7em] font-semibold text-black/75 truncate">
-                  Thanks for choosing us. See you again!
-                </div>
-              )}
-            </div>
+            {shortStickerSheet}
           </div>
         </div>
       </div>

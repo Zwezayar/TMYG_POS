@@ -558,110 +558,83 @@ export default function HardwareSettingsPage() {
                        style={{ minHeight: `${lh + 20}mm` }}>
                     <div
                       style={{
-                        width: `${isCustom ? lw : 50}mm`,
-                        height: `${isCustom ? lh : 30}mm`,
-                        padding: '1.5mm',
+                        width: '100%',
+                        maxWidth: isCustom ? `${lw}mm` : '50mm',
+                        height: isCustom ? `${lh}mm` : '30mm',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1px',
+                        padding: '2px',
                         boxSizing: 'border-box',
-                        border: '1px solid #9ca3af',
-                        fontFamily: settings.label.fontFamily,
-                        fontSize: settings.label.fontSizePx,
-                        lineHeight: 1.1,
                         overflow: 'hidden',
-                        color: '#000',
-                        background: '#fff',
+                        fontFamily: 'sans-serif',
+                        backgroundColor: 'white',
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6mm' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1mm' }}>
-                          <ShopLogo sizeMm={10} />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3mm', minWidth: 0 }}>
-                            {storeName && (
-                              <div style={{ fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {storeName}
-                              </div>
-                            )}
-                            {storeTagline && (
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {storeTagline}
-                              </div>
-                            )}
-                            {(storeAddress || storePhone) && (
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {[storeAddress, storePhone].filter(Boolean).join(' · ')}
-                              </div>
-                            )}
+                      <div style={{ width: '100%', height: 'auto', minHeight: '18px', display: 'flex', alignItems: 'center', gap: '3px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
+                        <img
+                          src="/logo.jpg"
+                          alt="Logo"
+                          style={{ width: '18px', height: '17px', borderRadius: '50%', objectFit: 'contain', flexShrink: 0 }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).onerror = null;
+                            (e.currentTarget as HTMLImageElement).src = '/icon-192.png';
+                          }}
+                        />
+                        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', lineHeight: 1.05 }}>
+                            <span style={{ fontWeight: 'bold' }}>{storeName}</span>
+                            <span><span style={{ fontWeight: 600 }}>Invoice No:</span> SMPL-0001</span>
+                          </div>
+                          {storeTagline && <div style={{ fontStyle: 'italic', color: '#4b5563', lineHeight: 1.05 }}>{storeTagline}</div>}
+                          {storeAddress && <div style={{ lineHeight: 1.05 }}>{storeAddress}</div>}
+                          {storePhone && <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>}
+                        </div>
+                      </div>
+
+                      {settings.label.showCustomerAddress && (
+                        <>
+                          <div style={{ width: '100%', minHeight: '11px', border: '1px solid #000', padding: '2px 0px', fontSize: '7px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                              <span style={{ fontWeight: 600, textTransform: 'uppercase' }}>Name:</span>
+                              <span>May Thet Khine</span>
+                            </div>
+                          </div>
+                          <div style={{ width: '100%', minHeight: '7px', border: '1px solid #000', borderTop: 'none', padding: '2px 0px', fontSize: '7px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                              <span style={{ fontWeight: 600 }}>Phone No:</span>
+                              <span>09-123456789</span>
+                            </div>
+                          </div>
+                          <div style={{ width: '100%', minHeight: '13px', border: '1px solid #000', borderTop: 'none', padding: '2px 1px', fontSize: '7px', wordBreak: 'break-word' }}>
+                            <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                              <span style={{ fontWeight: 600 }}>Address:</span>
+                              <span>No.23 Thun Phayar Street, Bago City.</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {settings.label.showPrice && (
+                        <div style={{ width: '100%', minHeight: '7px', display: 'flex', border: '1px solid #000', borderTop: 'none' }}>
+                          <div style={{ width: '45px', borderRight: '1px solid #000', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                            <span style={{ fontWeight: 600 }}>Amount</span> 48,000 Ks
+                          </div>
+                          <div style={{ flex: 1, borderRight: '1px solid #000', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                            <span style={{ fontWeight: 600 }}>Deli Fees:</span> 2,000 Ks
+                          </div>
+                          <div style={{ flex: 1, padding: '1px 2px', fontSize: '6.5px', fontWeight: 'bold', lineHeight: 1.05 }}>
+                            Total: 50,000 Ks
                           </div>
                         </div>
+                      )}
 
-                        {settings.label.showCustomerAddress && (
-                          <div style={{ border: '0.6px solid #6b7280', padding: '0.6mm', display: 'flex', flexDirection: 'column', gap: '0.3mm' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                Invoice No:
-                              </div>
-                              <div style={{ fontWeight: 800 }}>INV-SAMPLE-0001</div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                Name:
-                              </div>
-                              <div style={{ fontWeight: 700 }}>Ma Khin Cho</div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm' }}>
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                Phone:
-                              </div>
-                              <div>09-123-456-789</div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1mm', alignItems: 'flex-start' }}>
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 3), fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', flexShrink: 0 }}>
-                                Address:
-                              </div>
-                              <div style={{ fontSize: Math.max(6, settings.label.fontSizePx - 2), textAlign: 'right' }}>{storeAddress}</div>
-                            </div>
-                          </div>
-                        )}
+                      <div style={{ width: '100%', minHeight: '14px', border: '1px solid #000', borderTop: 'none', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                        <span style={{ fontWeight: 600 }}>Remark:</span> —
+                      </div>
 
-                        {settings.label.showCompactItems && (
-                          <div style={{ flex: settings.label.showCustomerAddress ? '0 0 auto' : '1 1 auto', minHeight: 0 }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
-                              <thead>
-                                <tr style={{ borderBottom: '0.4px solid #d1d5db' }}>
-                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm', width: '4mm' }}>No</th>
-                                  <th style={{ textAlign: 'left', padding: '0.3mm 0.5mm' }}>Description</th>
-                                  <th style={{ textAlign: 'right', padding: '0.3mm 0.5mm', width: '10mm' }}>Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {SAMPLE_ITEMS.slice(0, 3).map((it) => (
-                                  <tr key={it.no}>
-                                    <td style={{ padding: '0.2mm 0.5mm' }}>{it.no}</td>
-                                    <td style={{ padding: '0.2mm 0.5mm', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.description}</td>
-                                    <td style={{ padding: '0.2mm 0.5mm', textAlign: 'right', fontWeight: 700 }}>{it.amount.toLocaleString()}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {settings.label.showPrice && (
-                          <div style={{ background: '#f3f4f6', padding: '0.5mm', display: 'flex', flexDirection: 'column', gap: '0.2mm' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
-                              <span>Amount</span><span style={{ textAlign: 'right' }}>{formatKs(70000)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: Math.max(6, settings.label.fontSizePx - 2) }}>
-                              <span>Deli Fees</span><span style={{ textAlign: 'right' }}>{formatKs(2000)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.4px solid #9ca3af', paddingTop: '0.2mm' }}>
-                              <span>Total</span><span style={{ textAlign: 'right' }}>{formatKs(72000)}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        <div style={{ textAlign: 'center', fontSize: Math.max(6, settings.label.fontSizePx - 2), color: '#6b7280', marginTop: 'auto' }}>
-                          Thanks for choosing us. See you again!
-                        </div>
+                      <div style={{ width: '100%', textAlign: 'center', fontSize: '6px', marginTop: 'auto', paddingTop: '1px', lineHeight: 1.0 }}>
+                        Thanks for choosing us. See you again!
                       </div>
                     </div>
                   </div>
@@ -674,107 +647,90 @@ export default function HardwareSettingsPage() {
                       style={{
                         width: '40mm',
                         height: '30mm',
-                        padding: '1mm',
-                        boxSizing: 'border-box',
-                        border: '1px solid #9ca3af',
-                        fontFamily: settings.label.fontFamily,
-                        fontSize: settings.label.fontSizePx,
-                        lineHeight: 1.05,
                         overflow: 'hidden',
-                        color: '#000',
-                        background: '#fff',
+                        border: '1px solid black',
+                        backgroundColor: 'white',
                       }}
                     >
-                      <div style={{ transform: 'scale(0.82)', transformOrigin: 'top left', width: `${100 / 0.82}%`, height: `${100 / 0.82}%` }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.5mm' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.8mm' }}>
-                            <ShopLogo sizeMm={8} />
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2mm', minWidth: 0 }}>
-                              {storeName && (
-                                <div style={{ fontWeight: 800, fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {storeName}
-                                </div>
-                              )}
-                              {storeTagline && (
-                                <div style={{ fontSize: 8, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {storeTagline}
-                                </div>
-                              )}
-                              {(storeAddress || storePhone) && (
-                                <div style={{ fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {[storeAddress, storePhone].filter(Boolean).join(' · ')}
-                                </div>
-                              )}
+                      <div style={{ transform: 'scale(0.82)', transformOrigin: 'top left', width: '50mm', height: '30mm' }}>
+                        <div
+                          style={{
+                            width: '100%',
+                            maxWidth: '50mm',
+                            height: '30mm',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1px',
+                            padding: '2px',
+                            boxSizing: 'border-box',
+                            overflow: 'hidden',
+                            fontFamily: 'sans-serif',
+                            backgroundColor: 'white',
+                          }}
+                        >
+                          <div style={{ width: '100%', height: 'auto', minHeight: '18px', display: 'flex', alignItems: 'center', gap: '3px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
+                            <img
+                              src="/logo.jpg"
+                              alt="Logo"
+                              style={{ width: '18px', height: '17px', borderRadius: '50%', objectFit: 'contain', flexShrink: 0 }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).onerror = null;
+                                (e.currentTarget as HTMLImageElement).src = '/icon-192.png';
+                              }}
+                            />
+                            <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', lineHeight: 1.05 }}>
+                                <span style={{ fontWeight: 'bold' }}>{storeName}</span>
+                                <span><span style={{ fontWeight: 600 }}>Invoice No:</span> SMPL-0001</span>
+                              </div>
+                              {storeTagline && <div style={{ fontStyle: 'italic', color: '#4b5563', lineHeight: 1.05 }}>{storeTagline}</div>}
+                              {storeAddress && <div style={{ lineHeight: 1.05 }}>{storeAddress}</div>}
+                              {storePhone && <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>}
                             </div>
                           </div>
 
                           {settings.label.showCustomerAddress && (
-                            <div style={{ border: '0.5px solid #6b7280', padding: '0.5mm', display: 'flex', flexDirection: 'column', gap: '0.2mm' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
-                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                  Invoice No:
+                            <>
+                              <div style={{ width: '100%', minHeight: '11px', border: '1px solid #000', padding: '2px 0px', fontSize: '7px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                                  <span style={{ fontWeight: 600, textTransform: 'uppercase' }}>Name:</span>
+                                  <span>May Thet Khine</span>
                                 </div>
-                                <div style={{ fontWeight: 800, fontSize: 9 }}>INV-SAMPLE-0001</div>
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
-                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                  Name:
+                              <div style={{ width: '100%', minHeight: '7px', border: '1px solid #000', borderTop: 'none', padding: '2px 0px', fontSize: '7px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                                  <span style={{ fontWeight: 600 }}>Phone No:</span>
+                                  <span>09-123456789</span>
                                 </div>
-                                <div style={{ fontWeight: 700, fontSize: 9 }}>Ma Khin Cho</div>
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm' }}>
-                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280' }}>
-                                  Phone:
+                              <div style={{ width: '100%', minHeight: '13px', border: '1px solid #000', borderTop: 'none', padding: '2px 1px', fontSize: '7px', wordBreak: 'break-word' }}>
+                                <div style={{ display: 'flex', flexDirection: 'row', gap: '3px', lineHeight: 1.05 }}>
+                                  <span style={{ fontWeight: 600 }}>Address:</span>
+                                  <span>No.23 Thun Phayar Street, Bago City.</span>
                                 </div>
-                                <div style={{ fontSize: 9 }}>09-123-456-789</div>
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8mm', alignItems: 'flex-start' }}>
-                                <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', color: '#6b7280', flexShrink: 0 }}>
-                                  Address:
-                                </div>
-                                <div style={{ fontSize: 8, textAlign: 'right' }}>{storeAddress}</div>
-                              </div>
-                            </div>
-                          )}
-
-                          {settings.label.showCompactItems && (
-                            <div style={{ flex: settings.label.showCustomerAddress ? '0 0 auto' : '1 1 auto', minHeight: 0 }}>
-                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 8 }}>
-                                <thead>
-                                  <tr style={{ borderBottom: '0.3px solid #d1d5db' }}>
-                                    <th style={{ textAlign: 'left', padding: '0.2mm 0.4mm', width: '3.5mm' }}>No</th>
-                                    <th style={{ textAlign: 'left', padding: '0.2mm 0.4mm' }}>Description</th>
-                                    <th style={{ textAlign: 'right', padding: '0.2mm 0.4mm', width: '9mm' }}>Amount</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {SAMPLE_ITEMS.slice(0, 3).map((it) => (
-                                    <tr key={it.no}>
-                                      <td style={{ padding: '0.15mm 0.4mm', fontSize: 8 }}>{it.no}</td>
-                                      <td style={{ padding: '0.15mm 0.4mm', fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.description}</td>
-                                      <td style={{ padding: '0.15mm 0.4mm', textAlign: 'right', fontWeight: 700, fontSize: 8 }}>{it.amount.toLocaleString()}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                            </>
                           )}
 
                           {settings.label.showPrice && (
-                            <div style={{ background: '#f3f4f6', padding: '0.4mm', display: 'flex', flexDirection: 'column', gap: '0.15mm' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
-                                <span>Amount</span><span style={{ textAlign: 'right' }}>{formatKs(70000)}</span>
+                            <div style={{ width: '100%', minHeight: '7px', display: 'flex', border: '1px solid #000', borderTop: 'none' }}>
+                              <div style={{ width: '45px', borderRight: '1px solid #000', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                                <span style={{ fontWeight: 600 }}>Amount</span> 48,000 Ks
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
-                                <span>Deli Fees</span><span style={{ textAlign: 'right' }}>{formatKs(2000)}</span>
+                              <div style={{ flex: 1, borderRight: '1px solid #000', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                                <span style={{ fontWeight: 600 }}>Deli Fees:</span> 2,000 Ks
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '0.3px solid #9ca3af', paddingTop: '0.15mm', fontSize: 9 }}>
-                                <span>Total</span><span style={{ textAlign: 'right' }}>{formatKs(72000)}</span>
+                              <div style={{ flex: 1, padding: '1px 2px', fontSize: '6.5px', fontWeight: 'bold', lineHeight: 1.05 }}>
+                                Total: 50,000 Ks
                               </div>
                             </div>
                           )}
 
-                          <div style={{ textAlign: 'center', fontSize: 8, color: '#6b7280', marginTop: 'auto' }}>
+                          <div style={{ width: '100%', minHeight: '14px', border: '1px solid #000', borderTop: 'none', padding: '1px 2px', fontSize: '6.5px', lineHeight: 1.05 }}>
+                            <span style={{ fontWeight: 600 }}>Remark:</span> —
+                          </div>
+
+                          <div style={{ width: '100%', textAlign: 'center', fontSize: '6px', marginTop: 'auto', paddingTop: '1px', lineHeight: 1.0 }}>
                             Thanks for choosing us. See you again!
                           </div>
                         </div>

@@ -37,33 +37,58 @@ export function PrintReceiptTemplate({ receipt }: PrintReceiptTemplateProps) {
 
   return (
     <div id="print-receipt">
-      {showLogo && (
-        <div style={{ textAlign: 'center', marginBottom: 6 }}>
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '3px',
+          borderBottom: '1px solid rgba(0,0,0,0.65)',
+          paddingBottom: '2px',
+          marginBottom: '4px',
+          lineHeight: 1.1,
+        }}
+      >
+        {showLogo && (
           <img
             src="/logo.jpg"
             alt="logo"
-            style={{ maxHeight: 24, maxWidth: '100%', objectFit: 'contain' }}
+            style={{
+              width: '18px',
+              height: '17px',
+              borderRadius: '50%',
+              objectFit: 'contain',
+              flexShrink: 0,
+            }}
             onError={(e) => {
               const target = e.currentTarget;
               target.onerror = null;
               target.src = '/icon-192.png';
             }}
           />
+        )}
+        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
+            <div className="receipt-title" style={{ lineHeight: 1.05, margin: 0, padding: 0, fontSize: '10.5px' }}>
+              {storeName}
+            </div>
+            <div style={{ lineHeight: 1.05, fontWeight: 700, fontFamily: 'monospace', fontSize: '6.5px' }}>
+              {receipt.invoiceId || '—'}
+            </div>
+          </div>
+          {hasStoreTagline && (
+            <div className="receipt-center" style={{ fontSize: '0.85em', lineHeight: 1.05, margin: 0, textAlign: 'left' }}>
+              {storeTagline}
+            </div>
+          )}
+          {hasStoreAddress && <div style={{ lineHeight: 1.05, fontSize: '6px' }}>{storeAddress}</div>}
+          {hasStorePhone && <div style={{ lineHeight: 1.05, fontSize: '6px', fontFamily: 'monospace' }}>Tel: {storePhone}</div>}
+          {hasStoreSocial && <div style={{ lineHeight: 1.05, fontSize: '6px' }}>{storeSocial}</div>}
         </div>
-      )}
-      <div className="receipt-title">{storeName}</div>
-      {hasStoreTagline && (
-        <div className="receipt-center" style={{ fontSize: '0.85em', marginBottom: 2 }}>
-          {storeTagline}
-        </div>
-      )}
-      {hasStoreAddress && <div className="receipt-center">{storeAddress}</div>}
-      {hasStorePhone && <div className="receipt-center">Tel: {storePhone}</div>}
-      {hasStoreSocial && <div className="receipt-center">{storeSocial}</div>}
-      <div className="divider" />
+      </div>
       <div className="receipt-row">
-        <span style={{ fontSize: '0.8em', textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>
-        <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{receipt.invoiceId || '—'}</span>
+        <span style={{ fontSize: '0.8em', textTransform: 'uppercase', fontWeight: 600, lineHeight: 1.05 }}>Invoice No:</span>
+        <span style={{ fontWeight: 'bold', fontFamily: 'monospace', lineHeight: 1.05 }}>{receipt.invoiceId || '—'}</span>
       </div>
       <div className="receipt-row">
         <span>Date</span>

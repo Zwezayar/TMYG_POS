@@ -49,6 +49,7 @@ function WaybillModal({
 
   const storeName = settings.receipt.storeName?.trim() || 'THE MORE YOU GLOW BY INGYIN';
   const storeTagline = settings.receipt.storeTagline?.trim() || 'USA Skincare and Cosmetics';
+  const storeAddress = settings.receipt.storeAddress?.trim() || '';
   const storePhone = settings.receipt.storePhone?.trim() || '09-777848379';
 
   const items = order.receipt_payload?.items ?? [];
@@ -66,6 +67,9 @@ function WaybillModal({
   const showSku = label.showSku;
   const showBarcode = label.showBarcode;
 
+  const isShortPreset = label.sizePreset === 'short-50x30' || label.sizePreset === 'short-40x30';
+  const isShort40x30 = label.sizePreset === 'short-40x30';
+
   const getItemVariant = (item: any): string => {
     if (!item) return '—';
     if (item.variant && typeof item.variant === 'string' && item.variant.trim()) return item.variant;
@@ -79,6 +83,267 @@ function WaybillModal({
   };
 
   const showItemsTable = hasItems && (showProductName || showPrice || showSku);
+
+  const orderNotes = (order.receipt_payload as any)?.notes
+    || (order.receipt_payload as any)?.remark
+    || '';
+
+  const shortStickerCanvas = (
+    <div
+      style={{
+        width: '50mm',
+        height: '30mm',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1px',
+        padding: '2px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        fontFamily: label.fontFamily,
+        fontSize: label.fontSizePx + 'px',
+        backgroundColor: 'white',
+        page: 'label-sheet' as any,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          minHeight: '18px',
+          borderBottom: '1px solid black',
+          paddingBottom: '2px',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '3px',
+          lineHeight: 1.1,
+        }}
+      >
+        <img
+          src="/logo.jpg"
+          alt="logo"
+          style={{
+            width: '18px',
+            height: '17px',
+            borderRadius: '50%',
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+          onError={(e) => {
+            (e.currentTarget.onerror = null as any);
+            e.currentTarget.src = '/icon-192.png';
+          }}
+        />
+        <div style={{ flex: 1, fontSize: '6.5px', lineHeight: 1.1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontWeight: 'bold' }}>{storeName}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>
+              <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>{' '}
+              <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{order.invoice_id}</span>
+            </span>
+          </div>
+          {storeTagline && (
+            <div style={{ opacity: 0.75, lineHeight: 1.05 }}>{storeTagline}</div>
+          )}
+          {storeAddress && (
+            <div style={{ lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {storeAddress}
+            </div>
+          )}
+          {storePhone && (
+            <div style={{ fontFamily: 'monospace', lineHeight: 1.05 }}>{storePhone}</div>
+          )}
+        </div>
+      </div>
+
+      {showCustomerAddress && (
+        <>
+          <div
+            style={{
+              minHeight: '11px',
+              border: '1px solid black',
+              padding: '2px 0',
+              fontSize: '7px',
+              lineHeight: 1.05,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '2px',
+              paddingLeft: '2px',
+              paddingRight: '2px',
+            }}
+          >
+            <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Name:</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {order.customer_name || '—'}
+            </span>
+          </div>
+          <div
+            style={{
+              minHeight: '7px',
+              border: '1px solid black',
+              borderTop: 'none',
+              padding: '2px 0',
+              fontSize: '7px',
+              lineHeight: 1.05,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '2px',
+              paddingLeft: '2px',
+              paddingRight: '2px',
+            }}
+          >
+            <span style={{ textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>Phone No:</span>
+            <span>{order.customer_phone || '—'}</span>
+          </div>
+          <div
+            style={{
+              minHeight: '13px',
+              border: '1px solid black',
+              borderTop: 'none',
+              padding: '2px 1px',
+              fontSize: '7px',
+              wordBreak: 'break-word',
+              lineHeight: 1.05,
+            }}
+          >
+            <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>Address:</span>{' '}
+            <span>{order.customer_address || '—'}</span>
+          </div>
+        </>
+      )}
+
+      {showPrice && (
+        <div
+          style={{
+            width: '100%',
+            minHeight: '7px',
+            display: 'flex',
+            border: '1px solid #000',
+            borderTop: 'none',
+            lineHeight: 1.05,
+          }}
+        >
+          <div
+            style={{
+              width: '45px',
+              borderRight: '1px solid #000',
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Amount</div>
+            <div style={{ fontFamily: 'monospace' }}>{totalVal.toLocaleString()} Ks</div>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              borderRight: '1px solid #000',
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Deli Fees</div>
+            <div style={{ fontFamily: 'monospace' }}>{deliFeesVal.toLocaleString()} Ks</div>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              padding: '1px 2px',
+              fontSize: '6.5px',
+              fontWeight: 'bold',
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.05,
+            }}
+          >
+            <div>Total</div>
+            <div style={{ fontFamily: 'monospace' }}>{grandVal.toLocaleString()} Ks</div>
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          width: '100%',
+          minHeight: '14px',
+          border: '1px solid #000',
+          borderTop: 'none',
+          padding: '1px 2px',
+          fontSize: '6.5px',
+          lineHeight: 1.05,
+          wordBreak: 'break-word',
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>Remark: </span>
+        <span>{orderNotes || '—'}</span>
+      </div>
+
+      {showBarcode && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            maxHeight: '18px',
+            overflow: 'hidden',
+            lineHeight: 1.0,
+          }}
+        >
+          <Code128Svg
+            value={order.invoice_id}
+            heightPx={Math.min(18, label.barcodeHeightPx)}
+            barWidthPx={0.6}
+            showText={false}
+            quietZonePx={0.5}
+          />
+        </div>
+      )}
+
+      <div
+        style={{
+          width: '100%',
+          textAlign: 'center',
+          fontSize: '6px',
+          marginTop: 'auto',
+          paddingTop: '1px',
+          lineHeight: 1.0,
+        }}
+      >
+        Thanks for choosing us. See you again!
+      </div>
+    </div>
+  );
+
+  const shortStickerSheet = isShort40x30 ? (
+    <div
+      style={{
+        width: '40mm',
+        height: '30mm',
+        overflow: 'hidden',
+        backgroundColor: 'white',
+        page: 'label-sheet' as any,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          transform: 'scale(0.82)',
+          transformOrigin: 'top left',
+        }}
+      >
+        {shortStickerCanvas}
+      </div>
+    </div>
+  ) : (
+    shortStickerCanvas
+  );
 
   return (
     <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-4" onClick={onClose}>
@@ -101,170 +366,179 @@ function WaybillModal({
           Label size: {widthMm}mm × {heightMm}mm. For 4×6 (100×150mm) or A6, choose the preset in Settings → Hardware &amp; Printers → Label / Sticker Printer.
         </div>
         <div className="flex justify-center bg-muted/40 p-6 rounded-xl border border-border/60 overflow-auto">
-          <div
-            id="print-label"
-            className="bg-white border border-black shadow-inner overflow-hidden box-border flex flex-col"
-            style={{
-              width: `${widthMm}mm`,
-              height: `${heightMm}mm`,
-              padding: '2mm',
-              fontFamily: label.fontFamily,
-              fontSize: `${label.fontSizePx}px`,
-              lineHeight: 1.2,
-              page: 'label-sheet' as any,
-            }}
-          >
-            <div className="w-full h-full flex flex-col gap-[1.5mm]">
-              {label.showCourier && (
-                <div className="w-full border-2 border-black font-extrabold uppercase text-center py-[1mm] px-[1mm] break-words leading-tight tracking-wider">
-                  {order.courier_name || 'COURIER'}
-                </div>
-              )}
-
-              <div className="flex items-start justify-between gap-[2mm] pb-[1mm] border-b-2 border-black">
-                <div className="flex-shrink-0 w-[10mm] h-[10mm] rounded-md border-2 border-black bg-white flex items-center justify-center overflow-hidden">
-                  <img
-                    src="/logo.jpg"
-                    alt="logo"
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      target.onerror = null;
-                      target.src = '/icon-192.png';
-                    }}
-                  />
-                </div>
-                <div className="flex-1 text-right min-w-0">
-                  <div className="font-extrabold leading-tight break-words text-[1.1em]">{storeName}</div>
-                  <div className="text-[0.85em] text-black/70 break-words leading-tight">{storeTagline}</div>
-                  <div className="text-[0.8em] font-mono break-words">Tel: {storePhone}</div>
-                </div>
-              </div>
-
-              <div className="w-full border border-black px-[1.5mm] py-[1mm] flex items-center justify-between gap-[1mm]">
-                <span style={{ fontSize: '0.75em', textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>
-                <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{order.invoice_id}</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-[1mm]">
-                <div className="break-words">
-                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Name</div>
-                  <div className="font-semibold leading-tight">{order.customer_name || '—'}</div>
-                </div>
-                <div className="break-words">
-                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Phone No</div>
-                  <div className="font-mono leading-tight">{order.customer_phone || '—'}</div>
-                </div>
-                {showCustomerAddress && (
-                  <div className="col-span-2 break-words">
-                    <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Address</div>
-                    <div className="leading-snug whitespace-pre-wrap">{order.customer_address || '—'}</div>
+          {isShortPreset ? (
+            <div
+              id="print-label"
+              className="border border-black shadow-inner"
+            >
+              {shortStickerSheet}
+            </div>
+          ) : (
+            <div
+              id="print-label"
+              className="bg-white border border-black shadow-inner overflow-hidden box-border flex flex-col"
+              style={{
+                width: `${widthMm}mm`,
+                height: `${heightMm}mm`,
+                padding: '2mm',
+                fontFamily: label.fontFamily,
+                fontSize: `${label.fontSizePx}px`,
+                lineHeight: 1.2,
+                page: 'label-sheet' as any,
+              }}
+            >
+              <div className="w-full h-full flex flex-col gap-[1.5mm]">
+                {label.showCourier && (
+                  <div className="w-full border-2 border-black font-extrabold uppercase text-center py-[1mm] px-[1mm] break-words leading-tight tracking-wider">
+                    {order.courier_name || 'COURIER'}
                   </div>
                 )}
-                <div className="col-span-2 break-words">
-                  <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Date</div>
-                  <div className="font-semibold leading-tight">{dateText}</div>
-                </div>
-              </div>
 
-              {showItemsTable && (
-                <div className="w-full border border-black overflow-hidden">
-                  <table className="w-full border-collapse text-[0.9em]">
-                    <thead>
-                      <tr className="bg-black text-white">
-                        <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">No</th>
-                        {showProductName && (
-                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Description</th>
-                        )}
-                        {showSku && (
-                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Size</th>
-                        )}
-                        {showPrice && (
-                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Price</th>
-                        )}
-                        {showPrice && (
-                          <th className="px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Amount</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, idx) => (
-                        <tr key={`${item.name}-${idx}`} className="border-t border-black/30">
-                          <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top">{idx + 1}</td>
+                <div className="flex items-start justify-between gap-[2mm] pb-[1mm] border-b-2 border-black">
+                  <div className="flex-shrink-0 w-[10mm] h-[10mm] rounded-md border-2 border-black bg-white flex items-center justify-center overflow-hidden">
+                    <img
+                      src="/logo.jpg"
+                      alt="logo"
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = '/icon-192.png';
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 text-right min-w-0">
+                    <div className="font-extrabold leading-tight break-words text-[1.1em]">{storeName}</div>
+                    <div className="text-[0.85em] text-black/70 break-words leading-tight">{storeTagline}</div>
+                    <div className="text-[0.8em] font-mono break-words">Tel: {storePhone}</div>
+                  </div>
+                </div>
+
+                <div className="w-full border border-black px-[1.5mm] py-[1mm] flex items-center justify-between gap-[1mm]">
+                  <span style={{ fontSize: '0.75em', textTransform: 'uppercase', fontWeight: 600 }}>Invoice No:</span>
+                  <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{order.invoice_id}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-[1mm]">
+                  <div className="break-words">
+                    <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Name</div>
+                    <div className="font-semibold leading-tight">{order.customer_name || '—'}</div>
+                  </div>
+                  <div className="break-words">
+                    <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Phone No</div>
+                    <div className="font-mono leading-tight">{order.customer_phone || '—'}</div>
+                  </div>
+                  {showCustomerAddress && (
+                    <div className="col-span-2 break-words">
+                      <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Address</div>
+                      <div className="leading-snug whitespace-pre-wrap">{order.customer_address || '—'}</div>
+                    </div>
+                  )}
+                  <div className="col-span-2 break-words">
+                    <div className="text-[0.7em] uppercase font-bold tracking-wider text-black/60">Date</div>
+                    <div className="font-semibold leading-tight">{dateText}</div>
+                  </div>
+                </div>
+
+                {showItemsTable && (
+                  <div className="w-full border border-black overflow-hidden">
+                    <table className="w-full border-collapse text-[0.9em]">
+                      <thead>
+                        <tr className="bg-black text-white">
+                          <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">No</th>
                           {showProductName && (
-                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top break-words leading-tight">
-                              {item.name}
-                              {item.qty > 1 && <span className="text-[0.85em]"> × {item.qty}</span>}
-                            </td>
+                            <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Description</th>
                           )}
                           {showSku && (
-                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top leading-tight">
-                              {getItemVariant(item)}
-                            </td>
+                            <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-left font-bold text-[0.8em]">Size</th>
                           )}
                           {showPrice && (
-                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums">
-                              {item.price.toLocaleString()}
-                            </td>
+                            <th className="border-r border-white/30 px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Price</th>
                           )}
                           {showPrice && (
-                            <td className="px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums font-semibold">
-                              {item.amount.toLocaleString()}
-                            </td>
+                            <th className="px-[0.8mm] py-[0.5mm] text-right font-bold text-[0.8em]">Amount</th>
                           )}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {items.map((item, idx) => (
+                          <tr key={`${item.name}-${idx}`} className="border-t border-black/30">
+                            <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top">{idx + 1}</td>
+                            {showProductName && (
+                              <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top break-words leading-tight">
+                                {item.name}
+                                {item.qty > 1 && <span className="text-[0.85em]"> × {item.qty}</span>}
+                              </td>
+                            )}
+                            {showSku && (
+                              <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top leading-tight">
+                                {getItemVariant(item)}
+                              </td>
+                            )}
+                            {showPrice && (
+                              <td className="border-r border-black/30 px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums">
+                                {item.price.toLocaleString()}
+                              </td>
+                            )}
+                            {showPrice && (
+                              <td className="px-[0.8mm] py-[0.4mm] align-top text-right tabular-nums font-semibold">
+                                {item.amount.toLocaleString()}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-              <div className="flex gap-[1.5mm] flex-1 min-h-0">
-                <div className="flex-1 border-2 border-dashed border-black/70 p-[1.2mm] min-w-0 flex flex-col">
-                  <div className="text-[0.75em] uppercase font-bold tracking-wider text-black/70 mb-[0.3mm]">Remark</div>
-                  <div className="flex-1 text-[0.9em] break-words whitespace-pre-wrap leading-snug"></div>
+                <div className="flex gap-[1.5mm] flex-1 min-h-0">
+                  <div className="flex-1 border-2 border-dashed border-black/70 p-[1.2mm] min-w-0 flex flex-col">
+                    <div className="text-[0.75em] uppercase font-bold tracking-wider text-black/70 mb-[0.3mm]">Remark</div>
+                    <div className="flex-1 text-[0.9em] break-words whitespace-pre-wrap leading-snug"></div>
+                  </div>
+                  <div className="w-[40%] min-w-[30mm] border border-black overflow-hidden">
+                    <table className="w-full border-collapse text-[0.9em]">
+                      <tbody>
+                        <tr className="border-b border-black/30">
+                          <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Total</td>
+                          <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-bold">{totalVal.toLocaleString()} Ks</td>
+                        </tr>
+                        <tr className="border-b border-black/30">
+                          <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Deli Fees</td>
+                          <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-semibold">{deliFeesVal.toLocaleString()} Ks</td>
+                        </tr>
+                        <tr className="border-b border-black/30">
+                          <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Advance</td>
+                          <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums">{advanceVal.toLocaleString()} Ks</td>
+                        </tr>
+                        <tr className="bg-black/5">
+                          <td className="px-[0.8mm] py-[0.5mm] font-extrabold uppercase border-r border-black/30">Balance</td>
+                          <td className="px-[0.8mm] py-[0.5mm] text-right tabular-nums font-extrabold">{balanceVal.toLocaleString()} Ks</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="w-[40%] min-w-[30mm] border border-black overflow-hidden">
-                  <table className="w-full border-collapse text-[0.9em]">
-                    <tbody>
-                      <tr className="border-b border-black/30">
-                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Total</td>
-                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-bold">{totalVal.toLocaleString()} Ks</td>
-                      </tr>
-                      <tr className="border-b border-black/30">
-                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Deli Fees</td>
-                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums font-semibold">{deliFeesVal.toLocaleString()} Ks</td>
-                      </tr>
-                      <tr className="border-b border-black/30">
-                        <td className="px-[0.8mm] py-[0.4mm] font-semibold text-black/70 border-r border-black/30">Advance</td>
-                        <td className="px-[0.8mm] py-[0.4mm] text-right tabular-nums">{advanceVal.toLocaleString()} Ks</td>
-                      </tr>
-                      <tr className="bg-black/5">
-                        <td className="px-[0.8mm] py-[0.5mm] font-extrabold uppercase border-r border-black/30">Balance</td>
-                        <td className="px-[0.8mm] py-[0.5mm] text-right tabular-nums font-extrabold">{balanceVal.toLocaleString()} Ks</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
 
-              {showBarcode && (
-                <div className="flex items-center justify-center py-[0.5mm]">
-                  <Code128Svg
-                    value={order.invoice_id}
-                    heightPx={Math.max(16, label.barcodeHeightPx)}
-                    barWidthPx={1}
-                    showText={true}
-                    fontSizePx={Math.max(8, Math.round(label.fontSizePx * 0.85))}
-                  />
-                </div>
-              )}
+                {showBarcode && (
+                  <div className="flex items-center justify-center py-[0.5mm]">
+                    <Code128Svg
+                      value={order.invoice_id}
+                      heightPx={Math.max(16, label.barcodeHeightPx)}
+                      barWidthPx={1}
+                      showText={true}
+                      fontSizePx={Math.max(8, Math.round(label.fontSizePx * 0.85))}
+                    />
+                  </div>
+                )}
 
-              <div className="pt-[0.5mm] text-center text-[0.9em] font-semibold border-t border-dashed border-black/40">
-                ❤ Thank you for shopping with us ❤
+                <div className="pt-[0.5mm] text-center text-[0.9em] font-semibold border-t border-dashed border-black/40">
+                  ❤ Thank you for shopping with us ❤
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
