@@ -18,6 +18,7 @@ export interface ReceiptSettings {
   storeAddress: string;
   storePhone: string;
   storeSocial: string;
+  storeLogo?: string;
   footerText: string;
   showLogo: boolean;
   showBarcode: boolean;
