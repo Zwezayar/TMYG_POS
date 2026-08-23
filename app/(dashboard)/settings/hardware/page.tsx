@@ -516,7 +516,7 @@ export default function HardwareSettingsPage() {
                           boxSizing: 'border-box', overflow: 'hidden',
                           display: 'flex', flexDirection: 'column',
                           justifyContent: 'flex-start', position: 'relative',
-                          padding: '1.5px 2px', backgroundColor: 'white',
+                          padding: '3px 2px 1.5px 2px', backgroundColor: 'white',
                         }}
                       >
                         {/* HEADER: logo + store meta */}
@@ -534,24 +534,24 @@ export default function HardwareSettingsPage() {
                           </div>
                         </div>
 
-                        {/* CUSTOMER INFO BOXES (3 stacked: Name / Phone+Courier / Address) */}
+                        {/* CUSTOMER INFO BOXES (3 stacked: Name / Phone (2-line) / Address) — COURIER MOVED TO BOTTOM NEAR FOOTER */}
                         {settings.label.showCustomerAddress && (
                           <div style={{ display:'flex', flexDirection:'column', flex: settings.label.showCompactItems ? '0 0 auto' : '1', width:'100%', marginBottom:'1px', overflow:'hidden' }}>
-                            <div style={{ fontSize: '6.5px', padding:'1px 2px', border:'1px solid #000', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0 }}>
+                            <div style={{ fontSize: '6px', padding:'1px 2px', border:'1px solid #000', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0 }}>
                               <span style={{ fontWeight:600, textTransform:'uppercase', fontSize:'0.9em' }}>Name:</span> May Thet Khine
                             </div>
-                            <div style={{ fontSize: '6.5px', padding:'1px 2px', border:'1px solid #000', borderTop:'none', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                              <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                                <span style={{ fontWeight:600 }}>Phone No:</span> 09-123456789
-                              </span>
-                              {settings.label.showCourier && (
-                                <span style={{ flexShrink:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'45%', fontSize:'5.5px' }}>{' '}| EXPRESS</span>
-                              )}
+                            <div style={{ fontSize: '5.5px', padding:'1px 2px', border:'1px solid #000', borderTop:'none', lineHeight:1.1, height: 'auto', minHeight: '13px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width: '100%' }}>
+                                <span style={{ fontWeight:600 }}>Phone 1:</span> 09-123456789
+                              </div>
+                              <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width: '100%' }}>
+                                <span style={{ fontWeight:600 }}>Phone 2:</span> 09-777848379
+                              </div>
                             </div>
                             <div style={settings.label.showCompactItems
-                              ? { height: 'auto', maxHeight: '18px', minHeight: '14px', fontSize: '4.8px', lineHeight: 1.0, padding: '1px 2px', border: '1px solid #000', borderTop: 'none',
+                              ? { height: 'auto', maxHeight: '14px', minHeight: '11px', fontSize: '4.5px', lineHeight: 1.0, padding: '1px 2px', border: '1px solid #000', borderTop: 'none',
                                   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', flexShrink: 0 }
-                              : { flex: 1, minHeight: '22px', fontSize: '6px', lineHeight: 1.1, padding: '2px', border: '1px solid #000', borderTop: 'none',
+                              : { flex: 1, minHeight: '18px', fontSize: '5.5px', lineHeight: 1.1, padding: '2px', border: '1px solid #000', borderTop: 'none',
                                   display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }
                             }>
                               <span style={{ fontWeight:600 }}>Address:</span> No.23 Thun Phayar Street, Bago City, Myanmar.
@@ -559,34 +559,48 @@ export default function HardwareSettingsPage() {
                           </div>
                         )}
 
-                        {/* COMPACT ITEMS TABLE: No / Description / Amount */}
+                        {/* 6-COLUMN PRODUCT LIST TABLE: No | Description | Size | Price | Qty | Amount (mirrors Long sticker micro-scaled) */}
                         {settings.label.showCompactItems && (
-                          <table style={{ width:'100%', border:'1px solid #000', borderTop:'none', fontSize: '4.8px', lineHeight:1.0, borderCollapse:'collapse', height: 'auto', flexShrink: 0 }}>
+                          <table style={{ width:'100%', border:'1px solid #000', borderTop:'none', fontSize: '3.8px', lineHeight:1.0, borderCollapse:'collapse', height: 'auto', flexShrink: 0 }}>
                             <tbody>
-                              <tr>
-                                <td style={{ padding:'0 1px', borderRight:'1px solid #000', width:'14px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>1</td>
-                                <td style={{ padding:'0 1px', borderRight:'1px solid #000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Aura Glow Serum 30ml</td>
-                                <td style={{ padding:'0 1px', textAlign:'right', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontWeight:700 }}>36,000</td>
-                              </tr>
-                              <tr>
-                                <td style={{ padding:'0 1px', borderRight:'1px solid #000', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>2</td>
-                                <td style={{ padding:'0 1px', borderRight:'1px solid #000', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Hydrating Mist Toner</td>
-                                <td style={{ padding:'0 1px', textAlign:'right', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontWeight:700 }}>12,000</td>
-                              </tr>
+                              {SAMPLE_ITEMS.map((it, idx) => (
+                                <tr key={it.no}>
+                                  <td style={{ padding: '0.5px 1px', borderRight: '1px solid #000', width: '7%', textAlign: 'center', fontWeight: 700, borderTop: idx > 0 ? '1px solid #d1d5db' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.no}</td>
+                                  <td style={{ padding: '0.5px 1px', borderRight: '1px solid #000', width: '36%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', borderTop: idx > 0 ? '1px solid #d1d5db' : 'none' }}>{it.description}</td>
+                                  <td style={{ padding: '0.5px 1px', borderRight: '1px solid #000', width: '14%', textAlign: 'center', borderTop: idx > 0 ? '1px solid #d1d5db' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.size}</td>
+                                  <td style={{ padding: '0.5px 1px', borderRight: '1px solid #000', width: '15%', textAlign: 'right', fontFamily: 'monospace', borderTop: idx > 0 ? '1px solid #d1d5db' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.price.toLocaleString()}</td>
+                                  <td style={{ padding: '0.5px 1px', borderRight: '1px solid #000', width: '8%', textAlign: 'center', fontWeight: 700, borderTop: idx > 0 ? '1px solid #d1d5db' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.qty}</td>
+                                  <td style={{ padding: '0.5px 1px', width: '20%', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, borderTop: idx > 0 ? '1px solid #d1d5db' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.amount.toLocaleString()}</td>
+                                </tr>
+                              ))}
                             </tbody>
                           </table>
                         )}
 
-                        {/* FINANCIAL STRIP + REMARK (paddingBottom 10px reserves room for absolute invoice caption below) */}
-                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0, paddingBottom: '10px' }}>
-                          <div style={{ display:'flex', flexDirection:'row', width:'100%', border:'1px solid #000', borderTop: settings.label.showCompactItems ? 'none' : '1px solid #000', fontSize: '4.8px', whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent:'space-between', alignItems:'center', padding: '1px 2px', height: 'auto', gap: '2px' }}>
-                            <span>[ Amt: 48,000,000 Ks ]</span>
-                            <span>|</span>
-                            <span>[ Deli: 2,000 Ks ]</span>
-                            <span>|</span>
-                            <span>[ Total: 48,002,000 Ks ]</span>
+                        {/* FINANCIAL STRIP (UNBRACKETED: 3 bordered cells) + COURIER (bottom, own space) + REMARK (paddingBottom 14px reserves absolute invoice room) */}
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0, paddingBottom: '14px', marginTop: settings.label.showCompactItems ? '0px' : '1px' }}>
+                          {/* UNBRACKETED FINANCIAL: 3 cells w/ borders, guaranteed enough horizontal space for 7-digit Ks */}
+                          <div style={{ display:'flex', flexDirection:'row', width:'100%', border:'1px solid #000', borderTop: settings.label.showCompactItems ? 'none' : '1px solid #000', fontSize: '4.5px', whiteSpace: 'nowrap', fontWeight: 'bold', alignItems:'center', height: 'auto', overflow:'hidden' }}>
+                            <div style={{ flex: '1 1 0', padding: '1px 2px', borderRight: '1px solid #000', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'left' }}>
+                              Amt: 48,000,000 Ks
+                            </div>
+                            <div style={{ flex: '0 0 32%', padding: '1px 2px', borderRight: '1px solid #000', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'left' }}>
+                              Deli: 2,000 Ks
+                            </div>
+                            <div style={{ flex: '1 1 0', padding: '1px 2px', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'right' }}>
+                              Total: 48,002,000 Ks
+                            </div>
                           </div>
-                          <div style={{ fontSize: '5.5px', lineHeight:1.0, padding:'1px 2px', border:'1px solid #000', borderTop: settings.label.showCompactItems ? 'none' : '1px solid #000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto' }}>
+
+                          {/* COURIER / DELIVERY PARTNER BLOCK (MOVED FROM PHONE INPUT → BOTTOM SECTION NEAR FOOTER) */}
+                          {settings.label.showCourier && (
+                            <div style={{ border: '1px solid #000', borderTop: 'none', fontSize: '4.8px', padding: '1px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 'auto', lineHeight: 1.0, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                              <span style={{ fontWeight: 700, textTransform: 'uppercase', color: '#111827', letterSpacing: '0.2px', flexShrink: 0 }}>Courier / Delivery</span>
+                              <span style={{ fontWeight: 800, color: '#059669', flexShrink: 0 }}>EXPRESS</span>
+                            </div>
+                          )}
+
+                          <div style={{ fontSize: '5.5px', lineHeight:1.0, padding:'1px 2px', border:'1px solid #000', borderTop: settings.label.showCourier ? 'none' : (settings.label.showCompactItems ? 'none' : '1px solid #000'), whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto' }}>
                             <span style={{ fontWeight:600 }}>Remark:</span> —
                           </div>
                         </div>
@@ -618,7 +632,7 @@ export default function HardwareSettingsPage() {
                               boxSizing: 'border-box', overflow: 'hidden',
                               display: 'flex', flexDirection: 'column',
                               justifyContent: 'flex-start', position: 'relative',
-                              padding: '1.5px 2px', backgroundColor: 'white',
+                              padding: '3px 2px 1.5px 2px', backgroundColor: 'white',
                             }}
                           >
                             {/* HEADER */}
@@ -636,59 +650,52 @@ export default function HardwareSettingsPage() {
                               </div>
                             </div>
 
-                            {/* CUSTOMER INFO */}
+                            {/* CUSTOMER INFO (40x30 basic delivery: Header + Customer Info) */}
                             {settings.label.showCustomerAddress && (
-                              <div style={{ display:'flex', flexDirection:'column', flex: settings.label.showCompactItems ? '0 0 auto' : '1', width:'100%', marginBottom:'1px', overflow:'hidden' }}>
-                                <div style={{ fontSize: '6.5px', padding:'1px 2px', border:'1px solid #000', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0 }}>
+                              <div style={{ display:'flex', flexDirection:'column', flex: 1, width:'100%', marginBottom:'1px', overflow:'hidden' }}>
+                                <div style={{ fontSize: '6px', padding:'1px 2px', border:'1px solid #000', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0 }}>
                                   <span style={{ fontWeight:600, textTransform:'uppercase', fontSize:'0.9em' }}>Name:</span> May Thet Khine
                                 </div>
-                                <div style={{ fontSize: '6.5px', padding:'1px 2px', border:'1px solid #000', borderTop:'none', lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto', flexShrink: 0, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                                    <span style={{ fontWeight:600 }}>Phone No:</span> 09-123456789
-                                  </span>
-                                  {settings.label.showCourier && (
-                                    <span style={{ flexShrink:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'45%', fontSize:'5.5px' }}>{' '}| EXPRESS</span>
-                                  )}
+                                <div style={{ fontSize: '5.5px', padding:'1px 2px', border:'1px solid #000', borderTop:'none', lineHeight:1.1, height: 'auto', minHeight: '13px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width: '100%' }}>
+                                    <span style={{ fontWeight:600 }}>Phone 1:</span> 09-123456789
+                                  </div>
+                                  <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width: '100%' }}>
+                                    <span style={{ fontWeight:600 }}>Phone 2:</span> 09-777848379
+                                  </div>
                                 </div>
-                                <div style={settings.label.showCompactItems
-                                  ? { height: 'auto', maxHeight: '18px', minHeight: '14px', fontSize: '4.8px', lineHeight: 1.0, padding: '1px 2px', border: '1px solid #000', borderTop: 'none',
-                                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', flexShrink: 0 }
-                                  : { flex: 1, minHeight: '22px', fontSize: '6px', lineHeight: 1.1, padding: '2px', border: '1px solid #000', borderTop: 'none',
-                                      display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }
-                                }>
+                                <div style={{ flex: 1, minHeight: '22px', fontSize: '5.5px', lineHeight: 1.1, padding: '2px', border: '1px solid #000', borderTop: 'none', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
                                   <span style={{ fontWeight:600 }}>Address:</span> No.23 Thun Phayar Street, Bago City, Myanmar.
                                 </div>
                               </div>
                             )}
 
-                            {/* COMPACT ITEMS TABLE */}
-                            {settings.label.showCompactItems && (
-                              <table style={{ width:'100%', border:'1px solid #000', borderTop:'none', fontSize: '4.8px', lineHeight:1.0, borderCollapse:'collapse', height: 'auto', flexShrink: 0 }}>
-                                <tbody>
-                                  <tr>
-                                    <td style={{ padding:'0 1px', borderRight:'1px solid #000', width:'14px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>1</td>
-                                    <td style={{ padding:'0 1px', borderRight:'1px solid #000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Aura Glow Serum 30ml</td>
-                                    <td style={{ padding:'0 1px', textAlign:'right', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontWeight:700 }}>36,000</td>
-                                  </tr>
-                                  <tr>
-                                    <td style={{ padding:'0 1px', borderRight:'1px solid #000', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>2</td>
-                                    <td style={{ padding:'0 1px', borderRight:'1px solid #000', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Hydrating Mist Toner</td>
-                                    <td style={{ padding:'0 1px', textAlign:'right', borderTop:'1px solid #d1d5db', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontWeight:700 }}>12,000</td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            )}
+                            {/* PRODUCT LIST TABLE: COMPLETELY REMOVED FOR 40x30 (Basic Delivery Only) */}
 
-                            {/* FINANCIAL STRIP + REMARK */}
-                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0, paddingBottom: '10px' }}>
-                              <div style={{ display:'flex', flexDirection:'row', width:'100%', border:'1px solid #000', borderTop: settings.label.showCompactItems ? 'none' : '1px solid #000', fontSize: '4.8px', whiteSpace: 'nowrap', fontWeight: 'bold', justifyContent:'space-between', alignItems:'center', padding: '1px 2px', height: 'auto', gap: '2px' }}>
-                                <span>[ Amt: 48,000,000 Ks ]</span>
-                                <span>|</span>
-                                <span>[ Deli: 2,000 Ks ]</span>
-                                <span>|</span>
-                                <span>[ Total: 48,002,000 Ks ]</span>
+                            {/* FINANCIAL STRIP (UNBRACKETED: 3 bordered cells) + COURIER (bottom, own space) + REMARK (paddingBottom 18px reserves absolute invoice room) */}
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0, paddingBottom: '18px', marginTop: '1px' }}>
+                              {/* UNBRACKETED FINANCIAL: 3 cells w/ clean borders */}
+                              <div style={{ display:'flex', flexDirection:'row', width:'100%', border:'1px solid #000', fontSize: '4.5px', whiteSpace: 'nowrap', fontWeight: 'bold', alignItems:'center', height: 'auto', overflow:'hidden' }}>
+                                <div style={{ flex: '1 1 0', padding: '1px 2px', borderRight: '1px solid #000', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'left' }}>
+                                  Amt: 48,000,000 Ks
+                                </div>
+                                <div style={{ flex: '0 0 32%', padding: '1px 2px', borderRight: '1px solid #000', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'left' }}>
+                                  Deli: 2,000 Ks
+                                </div>
+                                <div style={{ flex: '1 1 0', padding: '1px 2px', minWidth: 0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textAlign: 'right' }}>
+                                  Total: 48,002,000 Ks
+                                </div>
                               </div>
-                              <div style={{ fontSize: '5.5px', lineHeight:1.0, padding:'1px 2px', border:'1px solid #000', borderTop: settings.label.showCompactItems ? 'none' : '1px solid #000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto' }}>
+
+                              {/* COURIER / DELIVERY PARTNER BLOCK (MOVED FROM PHONE INPUT → BOTTOM SECTION NEAR FOOTER) */}
+                              {settings.label.showCourier && (
+                                <div style={{ border: '1px solid #000', borderTop: 'none', fontSize: '4.8px', padding: '1px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 'auto', lineHeight: 1.0, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontWeight: 700, textTransform: 'uppercase', color: '#111827', letterSpacing: '0.2px', flexShrink: 0 }}>Courier / Delivery</span>
+                                  <span style={{ fontWeight: 800, color: '#059669', flexShrink: 0 }}>EXPRESS</span>
+                                </div>
+                              )}
+
+                              <div style={{ fontSize: '5.5px', lineHeight:1.0, padding:'1px 2px', border:'1px solid #000', borderTop: settings.label.showCourier ? 'none' : 'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', height: 'auto' }}>
                                 <span style={{ fontWeight:600 }}>Remark:</span> —
                               </div>
                             </div>
@@ -762,7 +769,7 @@ export default function HardwareSettingsPage() {
                           </div>
                         </div>
 
-                        {/* 3 STACKED ROUNDED INPUT RECTANGLES */}
+                        {/* 3 STACKED ROUNDED INPUT RECTANGLES + COURIER (MOVED FROM PHONE → OWN 4th BLOCK) */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1mm' }}>
                           {/* NAME */}
                           <div style={{ border: '1px solid #000', borderRadius: '4px', padding: '2mm 2.5mm', display: 'flex', alignItems: 'center', minHeight: '7mm', background: '#fff' }}>
@@ -771,20 +778,22 @@ export default function HardwareSettingsPage() {
                               May Thet Khine
                             </span>
                           </div>
-                          {/* PHONE + COURIER */}
-                          <div style={{ border: '1px solid #000', borderRadius: '4px', padding: '2mm 2.5mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '7mm', gap: '2mm' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                              <span style={{ fontWeight: 700, fontSize: 9, textTransform: 'uppercase', color: '#374151', flexShrink: 0, width: '14mm' }}>Phone No</span>
-                              <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                09-123456789
-                              </span>
-                            </div>
-                            {settings.label.showCourier && (
-                              <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, borderLeft: '1px solid #d1d5db', paddingLeft: '2mm', gap: '1mm' }}>
-                                <span style={{ fontWeight: 700, fontSize: 9, textTransform: 'uppercase', color: '#374151' }}>Courier</span>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: '#059669' }}>EXPRESS</span>
+                          {/* PHONE No (2-line support for primary & secondary) */}
+                          <div style={{ border: '1px solid #000', borderRadius: '4px', padding: '2mm 2.5mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '9mm', gap: '2mm' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '0.5mm' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                                <span style={{ fontWeight: 700, fontSize: 9, textTransform: 'uppercase', color: '#374151', flexShrink: 0, width: '14mm' }}>Phone 1</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  09-123456789
+                                </span>
                               </div>
-                            )}
+                              <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                                <span style={{ fontWeight: 700, fontSize: 9, textTransform: 'uppercase', color: '#374151', flexShrink: 0, width: '14mm' }}>Phone 2</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  09-777848379
+                                </span>
+                              </div>
+                            </div>
                           </div>
                           {/* ADDRESS */}
                           <div style={{ border: '1px solid #000', borderRadius: '4px', padding: '2mm 2.5mm', display: 'flex', alignItems: 'flex-start', minHeight: '14mm' }}>
@@ -793,16 +802,25 @@ export default function HardwareSettingsPage() {
                               No.23 Thun Phyar Street, Near Kyakhat Wine Monastery, Bago City, Myanmar
                             </span>
                           </div>
+                          {/* COURIER / DELIVERY PARTNER (MOVED FROM PHONE INPUT → STANDALONE 4th BLOCK) */}
+                          {settings.label.showCourier && (
+                            <div style={{ border: '1px solid #000', borderRadius: '4px', padding: '2mm 2.5mm', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '7mm', gap: '2mm' }}>
+                              <span style={{ fontWeight: 700, fontSize: 9, textTransform: 'uppercase', color: '#111827', letterSpacing: '0.1mm' }}>
+                                Courier / Delivery Partner
+                              </span>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: '#059669' }}>EXPRESS</span>
+                            </div>
+                          )}
                         </div>
 
-                        {/* 6-COLUMN GRID TABLE (7 rows: 3 items + 4 empty pad) */}
+                        {/* 6-COLUMN GRID TABLE (7 rows: 3 items + 4 empty pad) — HEADER: SOLID WHITE, BLACK FONT (no dark inverted bg) */}
                         <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid #000', borderRadius: '5px', overflow: 'hidden', background: '#fff' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '7% 38% 13% 14% 10% 18%', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 9.5, textTransform: 'uppercase' }}>
-                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #fff', textAlign: 'center' }}>No</div>
-                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #fff' }}>Description</div>
-                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #fff', textAlign: 'center' }}>Size</div>
-                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #fff', textAlign: 'right' }}>Price</div>
-                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #fff', textAlign: 'center' }}>Qty</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '7% 38% 13% 14% 10% 18%', background: '#ffffff', color: '#000000', fontWeight: 800, fontSize: 9.5, textTransform: 'uppercase', borderBottom: '1.5px solid #000' }}>
+                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #000', textAlign: 'center' }}>No</div>
+                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #000' }}>Description</div>
+                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #000', textAlign: 'center' }}>Size</div>
+                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #000', textAlign: 'right' }}>Price</div>
+                            <div style={{ padding: '1.5mm 1mm', borderRight: '1px solid #000', textAlign: 'center' }}>Qty</div>
                             <div style={{ padding: '1.5mm 1mm', textAlign: 'right' }}>Amount</div>
                           </div>
                           {SAMPLE_ITEMS.map((it, idx) => (
@@ -827,12 +845,12 @@ export default function HardwareSettingsPage() {
                           ))}
                         </div>
 
-                        {/* BOTTOM: REMARK (LEFT) + FINANCIAL PILLS (RIGHT) */}
-                        <div style={{ display: 'flex', gap: '2mm', flex: 1, minHeight: 0 }}>
+                        {/* BOTTOM: REMARK (LEFT) + FINANCIAL PILLS (RIGHT) — NO flex:1/minHeight:0 to prevent overlap with Amount/Advance/Balance + Footer */}
+                        <div style={{ display: 'flex', gap: '2mm', flexShrink: 0, height: 'auto' }}>
                           <div style={{
                             flex: 1, border: '1.5px solid #000', borderRadius: '5px',
                             padding: '2mm 2.5mm', display: 'flex', flexDirection: 'column',
-                            background: '#fff', minHeight: 0,
+                            background: '#fff', minHeight: '24mm',
                           }}>
                             <div style={{
                               fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase',
@@ -841,7 +859,7 @@ export default function HardwareSettingsPage() {
                             }}>
                               Remark
                             </div>
-                            <div style={{ flex: 1, fontSize: 10, color: '#374151', lineHeight: 1.3, minHeight: 0 }}>
+                            <div style={{ flex: 1, fontSize: 10, color: '#374151', lineHeight: 1.3 }}>
                               &nbsp;
                             </div>
                           </div>
@@ -876,11 +894,15 @@ export default function HardwareSettingsPage() {
                           </div>
                         </div>
 
-                        {/* FOOTER TAGLINE */}
+                        {/* FOOTER TAGLINE — BLACK FONT, ENFORCED VERTICAL SPACING FROM FINANCIAL PILL BOX ABOVE */}
                         <div style={{
                           textAlign: 'center', fontWeight: 700, fontSize: 11,
-                          color: '#be185d', padding: '1mm 0 0 0',
-                          borderTop: '1.5px solid #000', letterSpacing: '0.2mm',
+                          color: '#000000',
+                          padding: '2mm 0 0 0',
+                          marginTop: '1.5mm',
+                          borderTop: '1.5px solid #000',
+                          letterSpacing: '0.2mm',
+                          flexShrink: 0,
                         }}>
                           ♥ Thank you for shopping with us ♥
                         </div>
