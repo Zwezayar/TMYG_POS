@@ -86,8 +86,8 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
 };
 
 export const DEFAULT_LABEL: LabelSettings = {
-  sizePreset: 'short-40x30',
-  customWidthMm: 40,
+  sizePreset: 'short-50x30',
+  customWidthMm: 50,
   customHeightMm: 30,
   fontFamily: 'Arial, sans-serif',
   fontSizePx: 10,
@@ -95,7 +95,7 @@ export const DEFAULT_LABEL: LabelSettings = {
   showCompactItems: true,
   showProductName: true,
   showPrice: true,
-  showBarcode: true,
+  showBarcode: false,
   showSku: true,
   showCustomerAddress: true,
   showCourier: false,
