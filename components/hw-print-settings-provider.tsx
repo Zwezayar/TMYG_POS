@@ -119,6 +119,19 @@ function buildReceiptPrintCss(settings: HWPrintSettings): string {
 
 function buildLabelPrintCss(settings: HWPrintSettings): string {
   const { widthMm, heightMm } = getLabelSizeMm(settings.label);
+  const preset = settings.label.sizePreset;
+  const presetCanvas: Record<string, { padMm: number; fontSizePt: number; lh: number }> = {
+    'short-40x30': { padMm: 1.5, fontSizePt: 5.5, lh: 1.1 },
+    'short-50x30': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
+    'long-100x150': { padMm: 5.0, fontSizePt: 9.5, lh: 1.25 },
+    'A6': { padMm: 5.0, fontSizePt: 9.5, lh: 1.25 },
+    '3col-barcode': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
+    'custom': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
+  };
+  const chosen = preset in presetCanvas
+    ? presetCanvas[preset]
+    : presetCanvas['custom'];
+  const courierFontAdd = preset === 'long-100x150' || preset === 'A6' ? 1.5 : 0.5;
   return `
 @media print {
   @page label-sheet {
@@ -143,27 +156,30 @@ function buildLabelPrintCss(settings: HWPrintSettings): string {
     width: ${widthMm}mm;
     height: ${heightMm}mm;
     box-sizing: border-box;
-    padding: 1mm;
+    padding: ${chosen.padMm}mm;
     page: label-sheet;
     overflow: hidden;
     font-family: ${settings.label.fontFamily};
-    font-size: ${settings.label.fontSizePx}px;
-    line-height: 1.15;
+    font-size: ${chosen.fontSizePt}pt;
+    line-height: ${chosen.lh};
     color: #000;
   }
   #print-label .label-stack {
     display: flex;
     flex-direction: column;
-    gap: 1mm;
+    gap: 0.4mm;
     height: 100%;
     width: 100%;
     justify-content: space-between;
+    box-sizing: border-box;
   }
   #print-label .label-row {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 2px;
+    gap: 1mm;
+    box-sizing: border-box;
+    width: 100%;
   }
   #print-label .label-title {
     font-weight: 700;
@@ -184,19 +200,50 @@ function buildLabelPrintCss(settings: HWPrintSettings): string {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 2mm;
+    gap: 1.2mm;
     justify-content: space-between;
+    box-sizing: border-box;
   }
   #print-label .label-waybill .courier {
     text-align: center;
     font-weight: 800;
-    font-size: ${settings.label.fontSizePx + 4}px;
-    border: 2px solid #000;
-    padding: 1mm;
+    font-size: ${chosen.fontSizePt + courierFontAdd}pt;
+    border: 1px solid #000;
+    padding: 0.5mm;
+    box-sizing: border-box;
   }
   #print-label .label-waybill .addr {
-    border: 1px dashed #000;
-    padding: 1mm;
+    border: 1px solid #000;
+    padding: 0.5mm;
+    box-sizing: border-box;
+    word-break: break-word;
+    white-space: normal;
+  }
+  #print-label table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    box-sizing: border-box;
+  }
+  #print-label th,
+  #print-label td {
+    padding: 0.4mm 0.6mm;
+    vertical-align: middle;
+    box-sizing: border-box;
+    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #print-label .label-grid {
+    display: grid;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #print-label *,
+  #print-label *::before,
+  #print-label *::after {
+    box-sizing: border-box;
   }
 }
 @media not print {

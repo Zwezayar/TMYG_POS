@@ -27,13 +27,20 @@ export function PrintReceiptTemplate({ receipt }: PrintReceiptTemplateProps) {
   const storePhone = settings.receipt.storePhone?.trim() || '';
   const storeSocial = settings.receipt.storeSocial?.trim() || '';
   const footerText = settings.receipt.footerText?.trim() || '';
+  const storeLogoSrc: string | null = settings.receipt.logoUrl || settings.receipt.storeLogo || null;
+  const logoShow = !!settings.receipt.showLogo;
+  const logoSizePx = Math.max(10, Math.min(40, Number(settings.receipt.logoSizePx) || 20));
+  const logoAlign = (['left','center','right'].includes(settings.receipt.logoAlignment as any)
+    ? settings.receipt.logoAlignment
+    : 'center') as 'left' | 'center' | 'right';
+  const logoMonochrome = !!settings.receipt.monochromeLogo;
 
   const hasStoreTagline = !!storeTagline;
   const hasStoreAddress = !!storeAddress;
   const hasStorePhone = !!storePhone;
   const hasStoreSocial = !!storeSocial;
   const hasFooterText = !!footerText;
-  const { showLogo, showBarcode } = settings.receipt;
+  const { showBarcode } = settings.receipt;
 
   return (
     <div id="print-receipt">
@@ -49,7 +56,57 @@ export function PrintReceiptTemplate({ receipt }: PrintReceiptTemplateProps) {
           lineHeight: 1.1,
         }}
       >
-        {showLogo && (
+        {logoShow && storeLogoSrc && (
+          <div
+            style={{
+              width: `${logoSizePx + 6}px`,
+              height: `${logoSizePx + 6}px`,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid #d1d5db',
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              flexShrink: 0,
+              textAlign: logoAlign,
+            }}
+          >
+            <div
+              style={{
+                width: `${logoSizePx}px`,
+                height: `${logoSizePx}px`,
+                padding: '2px',
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <img
+                src={storeLogoSrc}
+                alt="logo"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.onerror = null;
+                  target.src = '/icon-192.png';
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {(!logoShow || !storeLogoSrc) && (
           <img
             src="/logo.jpg"
             alt="logo"
