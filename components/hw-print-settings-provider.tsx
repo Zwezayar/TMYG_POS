@@ -121,12 +121,12 @@ function buildLabelPrintCss(settings: HWPrintSettings): string {
   const { widthMm, heightMm } = getLabelSizeMm(settings.label);
   const preset = settings.label.sizePreset;
   const presetCanvas: Record<string, { padMm: number; fontSizePt: number; lh: number }> = {
-    'short-40x30': { padMm: 1.5, fontSizePt: 5.5, lh: 1.1 },
-    'short-50x30': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
+    'short-40x30': { padMm: 1.0, fontSizePt: 5.0, lh: 1.05 },
+    'short-50x30': { padMm: 1.5, fontSizePt: 6.0, lh: 1.1 },
     'long-100x150': { padMm: 5.0, fontSizePt: 9.5, lh: 1.25 },
     'A6': { padMm: 5.0, fontSizePt: 9.5, lh: 1.25 },
-    '3col-barcode': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
-    'custom': { padMm: 2.0, fontSizePt: 6.5, lh: 1.15 },
+    '3col-barcode': { padMm: 1.5, fontSizePt: 6.0, lh: 1.1 },
+    'custom': { padMm: 1.5, fontSizePt: 6.0, lh: 1.1 },
   };
   const chosen = preset in presetCanvas
     ? presetCanvas[preset]

@@ -56,57 +56,44 @@ export function PrintReceiptTemplate({ receipt }: PrintReceiptTemplateProps) {
           lineHeight: 1.1,
         }}
       >
-        {logoShow && storeLogoSrc && (
+        {logoShow && (
           <div
             style={{
-              width: `${logoSizePx + 6}px`,
-              height: `${logoSizePx + 6}px`,
+              width: `${logoSizePx + 4}px`,
+              height: `${logoSizePx + 4}px`,
               borderRadius: '50%',
               overflow: 'hidden',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid #d1d5db',
+              border: '1px solid #000000',
               background: '#ffffff',
               boxSizing: 'border-box',
               flexShrink: 0,
-              textAlign: logoAlign,
             }}
           >
-            <div
+            <img
+              src={storeLogoSrc || '/logo.jpg'}
+              alt="logo"
               style={{
-                width: `${logoSizePx}px`,
-                height: `${logoSizePx}px`,
-                padding: '2px',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                padding: '1.5px',
                 boxSizing: 'border-box',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                display: 'block',
+                margin: '0 auto',
               }}
-            >
-              <img
-                src={storeLogoSrc}
-                alt="logo"
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
-                  display: 'block',
-                  margin: '0 auto',
-                }}
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  target.onerror = null;
-                  target.src = '/icon-192.png';
-                }}
-              />
-            </div>
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.onerror = null;
+                target.src = '/icon-192.png';
+              }}
+            />
           </div>
         )}
-        {(!logoShow || !storeLogoSrc) && (
+        {!logoShow && (
           <img
             src="/logo.jpg"
             alt="logo"
