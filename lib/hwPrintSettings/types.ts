@@ -2,6 +2,8 @@ export const HW_PRINT_SETTINGS_KEY = 'tmyg-hw-print-settings-v1';
 
 export type ReceiptPaperSize = '58mm' | '80mm' | 'A4' | 'custom';
 
+export type LogoAlignment = 'left' | 'center' | 'right';
+
 export interface ReceiptSettings {
   paperSize: ReceiptPaperSize;
   customWidthMm: number;
@@ -23,6 +25,10 @@ export interface ReceiptSettings {
   showLogo: boolean;
   showBarcode: boolean;
   showQrCode: boolean;
+  logoUrl?: string;
+  logoSizePx: number;
+  logoAlignment: LogoAlignment;
+  monochromeLogo: boolean;
 }
 
 export type LabelSizePreset =
@@ -80,9 +86,12 @@ export const DEFAULT_RECEIPT: ReceiptSettings = {
   storePhone: '09-777848379',
   storeSocial: '',
   footerText: 'Thank you for your purchase!',
-  showLogo: false,
+  showLogo: true,
   showBarcode: false,
   showQrCode: false,
+  logoSizePx: 20,
+  logoAlignment: 'center',
+  monochromeLogo: false,
 };
 
 export const DEFAULT_LABEL: LabelSettings = {
@@ -163,26 +172,38 @@ export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
+function typeMatch(a: unknown, b: unknown): boolean {
+  if (a === null || b === null) return typeof a === typeof b;
+  if (typeof a !== typeof b) return false;
+  return true;
+}
+
+function patchObject<T extends Record<string, unknown>>(target: T, src: Record<string, unknown>, defaults: T): T {
+  Object.keys(defaults).forEach((k) => {
+    if (!(k in src)) return;
+    const def = (defaults as any)[k];
+    const val = src[k];
+    if (typeof def === 'undefined') return;
+    if (k === 'storeLogo' || k === 'logoUrl') {
+      if (typeof val === 'string' || val === undefined || val === null) {
+        (target as any)[k] = val;
+      }
+      return;
+    }
+    if (!typeMatch(val, def)) return;
+    (target as any)[k] = val;
+  });
+  return target;
+}
+
 export function sanitizeSettings(raw: unknown): HWPrintSettings {
   const out: HWPrintSettings = JSON.parse(JSON.stringify(DEFAULT_HW_PRINT_SETTINGS));
   if (!isPlainObject(raw)) return out;
   const rSrc = isPlainObject((raw as any).receipt) ? (raw as any).receipt : {};
-  Object.keys(DEFAULT_RECEIPT).forEach((k) => {
-    if (k in rSrc && typeof rSrc[k] === typeof (DEFAULT_RECEIPT as any)[k]) {
-      (out.receipt as any)[k] = rSrc[k];
-    }
-  });
+  patchObject(out.receipt as any, rSrc, DEFAULT_RECEIPT as any);
   const lSrc = isPlainObject((raw as any).label) ? (raw as any).label : {};
-  Object.keys(DEFAULT_LABEL).forEach((k) => {
-    if (k in lSrc && typeof lSrc[k] === typeof (DEFAULT_LABEL as any)[k]) {
-      (out.label as any)[k] = lSrc[k];
-    }
-  });
+  patchObject(out.label as any, lSrc, DEFAULT_LABEL as any);
   const sSrc = isPlainObject((raw as any).scanner) ? (raw as any).scanner : {};
-  Object.keys(DEFAULT_SCANNER).forEach((k) => {
-    if (k in sSrc && typeof sSrc[k] === typeof (DEFAULT_SCANNER as any)[k]) {
-      (out.scanner as any)[k] = sSrc[k];
-    }
-  });
+  patchObject(out.scanner as any, sSrc, DEFAULT_SCANNER as any);
   return out;
 }

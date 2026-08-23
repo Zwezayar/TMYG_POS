@@ -9,6 +9,7 @@ import {
   ReceiptPaperSize,
   LabelSizePreset,
   ScannerPriority,
+  LogoAlignment,
 } from '@/lib/hwPrintSettings/types';
 import { useHWPrintSettings, getLabelSizeMm } from '@/components/hw-print-settings-provider';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Code128Svg } from '@/components/ui/code128-svg';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { RotateCcw, Printer as PrinterIcon, Save } from 'lucide-react';
+import { RotateCcw, Printer as PrinterIcon, Save, Upload, X } from 'lucide-react';
 
 type TabKey = 'receipt' | 'label' | 'scanner';
 
@@ -110,7 +111,29 @@ export default function HardwareSettingsPage() {
   const storeTagline = settings.receipt.storeTagline?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storeTagline;
   const storePhone = settings.receipt.storePhone?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storePhone;
   const storeAddress = settings.receipt.storeAddress?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storeAddress;
-  const storeLogoSrc: string | null = settings.receipt.storeLogo || null;
+  const storeLogoSrc: string | null = settings.receipt.logoUrl || settings.receipt.storeLogo || null;
+
+  const logoShow = !!settings.receipt.showLogo;
+  const logoSizePx = Math.max(10, Math.min(40, Number(settings.receipt.logoSizePx) || DEFAULT_HW_PRINT_SETTINGS.receipt.logoSizePx));
+  const logoAlign: LogoAlignment = (['left','center','right'].includes(settings.receipt.logoAlignment as any) ? settings.receipt.logoAlignment : 'center') as LogoAlignment;
+  const logoMonochrome = !!settings.receipt.monochromeLogo;
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const onLogoFile = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      patchReceipt({ logoUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [patchReceipt]);
+  const resetLogo = React.useCallback(() => {
+    patchReceipt({ logoUrl: undefined, showLogo: DEFAULT_HW_PRINT_SETTINGS.receipt.showLogo, logoSizePx: DEFAULT_HW_PRINT_SETTINGS.receipt.logoSizePx, logoAlignment: DEFAULT_HW_PRINT_SETTINGS.receipt.logoAlignment, monochromeLogo: DEFAULT_HW_PRINT_SETTINGS.receipt.monochromeLogo });
+  }, [patchReceipt]);
 
   const labelPreset = settings.label.sizePreset;
   const is3colBarcode = labelPreset === '3col-barcode';
@@ -287,6 +310,120 @@ export default function HardwareSettingsPage() {
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Shop Logo Settings</h2>
+                  </div>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <Label>Logo Preview</Label>
+                      <div className="flex items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 p-4 min-h-[110px]">
+                        {logoShow && storeLogoSrc ? (
+                          <img
+                            src={storeLogoSrc}
+                            alt="Shop Logo"
+                            style={{
+                              width: logoSizePx * 2,
+                              height: logoSizePx * 2,
+                              objectFit: 'contain',
+                              filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                              display: 'block',
+                            }}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{logoShow ? 'No logo uploaded. Click below to upload.' : 'Logo disabled. Enable Show Logo to preview.'}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="gap-1.5"
+                        >
+                          <Upload className="h-4 w-4" /> Upload Logo Image
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={resetLogo}
+                          className="gap-1.5"
+                        >
+                          <X className="h-4 w-4" /> Remove / Reset
+                        </Button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={onLogoFile}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm h-11">
+                          <input type="checkbox" className="h-4 w-4"
+                            checked={logoShow}
+                            onChange={(e) => patchReceipt({ showLogo: e.target.checked })} />
+                          <span className="font-medium">Show Logo</span>
+                        </label>
+                        <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm h-11">
+                          <input type="checkbox" className="h-4 w-4"
+                            checked={logoMonochrome}
+                            onChange={(e) => patchReceipt({ monochromeLogo: e.target.checked })} />
+                          <span className="font-medium">Monochrome (Thermal)</span>
+                        </label>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Logo Size: {logoSizePx}px (Small 12 · Medium 18 · Large 25 · Slider 10–40)</Label>
+                        <Input
+                          type="range"
+                          min={10}
+                          max={40}
+                          step={1}
+                          value={logoSizePx}
+                          onChange={(e) => patchReceipt({ logoSizePx: Number(e.target.value) })}
+                        />
+                        <div className="flex gap-2">
+                          {[
+                            { v: 12, label: 'Small' },
+                            { v: 18, label: 'Medium' },
+                            { v: 25, label: 'Large' },
+                          ].map((p) => (
+                            <Button
+                              key={p.v}
+                              type="button"
+                              variant={logoSizePx === p.v ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => patchReceipt({ logoSizePx: p.v })}
+                            >
+                              {p.label} · {p.v}px
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Logo Alignment</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['left','center','right'] as LogoAlignment[]).map((a) => (
+                            <Button
+                              key={a}
+                              type="button"
+                              variant={logoAlign === a ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => patchReceipt({ logoAlignment: a })}
+                              className="capitalize"
+                            >
+                              {a}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Template Fields</h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-1.5 md:col-span-2">
@@ -372,6 +509,21 @@ export default function HardwareSettingsPage() {
                 <div className="rounded-2xl border border-border bg-white p-4 shadow-sm mx-auto"
                      style={{ width: `${rw + 8}mm`, fontFamily: settings.receipt.fontFamily, fontSize: settings.receipt.baseFontSizePx, lineHeight: settings.receipt.lineHeight }}>
                   <div style={{ padding: `${settings.receipt.marginTopMm}mm ${settings.receipt.marginRightMm}mm ${settings.receipt.marginBottomMm}mm ${settings.receipt.marginLeftMm}mm` }}>
+                    {logoShow && storeLogoSrc && (
+                      <div style={{ textAlign: logoAlign, marginBottom: 4 }}>
+                        <img
+                          src={storeLogoSrc}
+                          alt="Logo"
+                          style={{
+                            width: logoSizePx,
+                            height: logoSizePx,
+                            objectFit: 'contain',
+                            filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                            display: 'inline-block',
+                          }}
+                        />
+                      </div>
+                    )}
                     <div style={{ fontSize: settings.receipt.headerFontSizePx, fontWeight: 700, textAlign: 'center', marginBottom: 2 }}>
                       {storeName}
                     </div>
@@ -519,24 +671,48 @@ export default function HardwareSettingsPage() {
                           padding: '3px 2px 1.5px 2px', backgroundColor: 'white',
                         }}
                       >
-                        {/* HEADER: logo + store meta + Invoice No upper right */}
-                        <div style={{
-                          display:'flex', alignItems:'flex-start', gap:'4px', width:'100%',
-                          borderBottom:'1px solid #000', paddingBottom:'2px', marginBottom:'1px',
-                          flexShrink: 0,
-                        }}>
-                          <ShopLogo sizePx20 logoSrc={storeLogoSrc} circular />
-                          <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'flex-start', minWidth: 0 }}>
-                            <span style={{ fontSize: '5.5px', lineHeight:1.0, fontWeight:700, letterSpacing:'0.02px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%' }}>{storeName}</span>
-                            {storeTagline && <div style={{ fontSize: '5px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storeTagline}</div>}
-                            {storeAddress && <div style={{ fontSize: '4.8px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storeAddress}</div>}
-                            {storePhone && <div style={{ fontSize: '4.8px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storePhone}</div>}
-                          </div>
-                          <div style={{ flexShrink: 0, display:'flex', flexDirection:'column', alignItems:'flex-end', justifyContent:'flex-start', minWidth: 0, paddingTop:'0.5px' }}>
-                            <div style={{ fontSize: '4px', lineHeight:1.0, fontWeight:700, textTransform:'uppercase', color:'#4b5563', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Invoice No</div>
-                            <div style={{ fontSize: '5.2px', lineHeight:1.0, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:'#111827' }}>SMPL-0001</div>
-                          </div>
-                        </div>
+                            {/* HEADER: logo (configurable) + store meta + Invoice No upper right */}
+                            <div style={{
+                              display:'flex', alignItems:'flex-start', gap:'4px', width:'100%',
+                              borderBottom:'1px solid #000', paddingBottom:'2px', marginBottom:'1px',
+                              flexShrink: 0,
+                              justifyContent: logoAlign === 'right' ? 'flex-end' : (logoAlign === 'left' ? 'flex-start' : 'center'),
+                            }}>
+                              {logoShow ? (
+                                <div style={{ display:'flex', alignItems:'flex-start', width: '20px', height: '20px', borderRadius: '50%', overflow: 'hidden', border: storeLogoSrc ? 'none' : '1px solid #9ca3af', background: '#fff', flexShrink: 0, justifyContent: 'center' }}>
+                                  <img
+                                    src={storeLogoSrc || '/icon-192.png'}
+                                    alt="Logo"
+                                    width="20"
+                                    height="20"
+                                    style={{
+                                      objectFit: storeLogoSrc ? 'contain' : 'cover',
+                                      filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                                      display: 'block',
+                                      width: '20px',
+                                      height: '20px',
+                                    }}
+                                    onError={(e) => {
+                                      const t = e.currentTarget as HTMLImageElement;
+                                      t.onerror = null;
+                                      t.src = '/icon-192.png';
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div style={{ display: 'none' }} />
+                              )}
+                              <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'flex-start', minWidth: 0 }}>
+                                <span style={{ fontSize: '5.5px', lineHeight:1.0, fontWeight:700, letterSpacing:'0.02px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%' }}>{storeName}</span>
+                                {storeTagline && <div style={{ fontSize: '5px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storeTagline}</div>}
+                                {storeAddress && <div style={{ fontSize: '4.8px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storeAddress}</div>}
+                                {storePhone && <div style={{ fontSize: '4.8px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storePhone}</div>}
+                              </div>
+                              <div style={{ flexShrink: 0, display:'flex', flexDirection:'column', alignItems:'flex-end', justifyContent:'flex-start', minWidth: 0, paddingTop:'0.5px' }}>
+                                <div style={{ fontSize: '4px', lineHeight:1.0, fontWeight:700, textTransform:'uppercase', color:'#4b5563', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Invoice No</div>
+                                <div style={{ fontSize: '5.2px', lineHeight:1.0, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:'#111827' }}>SMPL-0001</div>
+                              </div>
+                            </div>
 
                         {/* CUSTOMER INFO BOXES (3 stacked: Name / Phone (2-line) / Address) — COURIER MOVED TO BOTTOM NEAR FOOTER */}
                         {settings.label.showCustomerAddress && (
@@ -613,7 +789,7 @@ export default function HardwareSettingsPage() {
                   </div>
                 )}
 
-                {/* ============ SHORT STICKER 40×30mm (inner 0.82 scaled 50×30) ============ */}
+                {/* ============ SHORT STICKER 40×30mm (inner 0.75 scaled 50×30) ============ */}
                 {isShort40 && (
                   <div className="rounded-2xl border border-border bg-muted p-3 shadow-sm mx-auto flex overflow-auto"
                        style={{ minHeight: '32mm', aspectRatio: `${40/30}`, justifyContent: 'flex-start', alignItems: 'flex-start' }}>
@@ -625,7 +801,7 @@ export default function HardwareSettingsPage() {
                           boxSizing: 'border-box',
                         }}
                       >
-                        <div style={{ transform:'scale(0.82)', transformOrigin:'top left', width:'50mm', height:'30mm', overflow:'hidden' }}>
+                        <div style={{ transform:'scale(0.75)', transformOrigin:'top left', width:'50mm', height:'30mm', overflow:'hidden' }}>
                           <div
                             style={{
                               width: '50mm', height: '30mm', maxHeight: '30mm',
@@ -635,13 +811,36 @@ export default function HardwareSettingsPage() {
                               padding: '3px 2.5px 2px 2.5px', backgroundColor: 'white',
                             }}
                           >
-                            {/* HEADER — strictly fits 40mm (40/0.82=48.78mm usable; inner width capped 48.5mm with padding) */}
+                            {/* HEADER — strictly fits 40mm (40/0.75=53.33mm usable; scale 0.75 creates 12.5% buffer so even long strings don't clip) */}
                             <div style={{
                               display:'flex', alignItems:'flex-start', gap:'3px', width:'100%', maxWidth:'100%',
                               borderBottom:'1px solid #000', paddingBottom:'1.5px', marginBottom:'1px',
                               flexShrink: 0, overflow:'hidden', boxSizing:'border-box',
                             }}>
-                              <ShopLogo sizePx20 logoSrc={storeLogoSrc} circular />
+                              {logoShow ? (
+                                <div style={{ display:'flex', alignItems:'flex-start', width: '20px', height: '20px', borderRadius: '50%', overflow: 'hidden', border: storeLogoSrc ? 'none' : '1px solid #9ca3af', background: '#fff', flexShrink: 0, justifyContent: 'center' }}>
+                                  <img
+                                    src={storeLogoSrc || '/icon-192.png'}
+                                    alt="Logo"
+                                    width="20"
+                                    height="20"
+                                    style={{
+                                      objectFit: storeLogoSrc ? 'contain' : 'cover',
+                                      filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                                      display: 'block',
+                                      width: '20px',
+                                      height: '20px',
+                                    }}
+                                    onError={(e) => {
+                                      const t = e.currentTarget as HTMLImageElement;
+                                      t.onerror = null;
+                                      t.src = '/icon-192.png';
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div style={{ display: 'none' }} />
+                              )}
                               <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'flex-start', minWidth: 0, overflow:'hidden', maxWidth:'58%' }}>
                                 <span style={{ fontSize: '5px', lineHeight:1.0, fontWeight:700, letterSpacing:'0.02px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%' }}>{storeName}</span>
                                 {storeTagline && <div style={{ fontSize: '4.5px', lineHeight:1.0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{storeTagline}</div>}
@@ -723,16 +922,25 @@ export default function HardwareSettingsPage() {
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1.5mm' }}>
-                        {/* HEADER: 20mm circular logo + store info */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2.5mm', borderBottom: '1.5px solid #000', paddingBottom: '1.5mm' }}>
-                          <div style={{ width: '18mm', height: '18mm', borderRadius: '50%', overflow: 'hidden', border: '1px solid #9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#fff' }}>
-                            <img
-                              src={storeLogoSrc || '/logo.jpg'}
-                              alt="Store Logo"
-                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                              onError={(e)=>{ const t=e.currentTarget; t.onerror=null; t.src='/icon-192.png'; }}
-                            />
-                          </div>
+                        {/* HEADER: configurable logo + store info — honors showLogo/logoSize/logoAlign/monochromeLogo */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2.5mm', borderBottom: '1.5px solid #000', paddingBottom: '1.5mm', justifyContent: logoAlign === 'left' ? 'flex-start' : (logoAlign === 'right' ? 'flex-end' : 'flex-start') }}>
+                          {logoShow ? (
+                            <div style={{ width: '18mm', height: '18mm', borderRadius: '50%', overflow: 'hidden', border: '1px solid #9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#fff' }}>
+                              <img
+                                src={storeLogoSrc || '/logo.jpg'}
+                                alt="Store Logo"
+                                style={{
+                                  width: `${Math.min(logoSizePx / 2.2, 18)}mm`,
+                                  height: `${Math.min(logoSizePx / 2.2, 18)}mm`,
+                                  objectFit: 'contain',
+                                  filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+                                }}
+                                onError={(e)=>{ const t=e.currentTarget; t.onerror=null; t.src='/icon-192.png'; }}
+                              />
+                            </div>
+                          ) : (
+                            <div style={{ display: 'none' }} />
+                          )}
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4mm', minWidth: 0, paddingTop: '0.8mm' }}>
                             <div style={{ fontWeight: 800, fontSize: 13, letterSpacing: '0.2mm', textTransform: 'uppercase' }}>
                               {storeName}
