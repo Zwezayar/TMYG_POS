@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useCategories } from '@/lib/useCategories';
 import { cn } from "@/lib/utils";
+import { useDebounce } from '@/lib/hooks';
 import { formatDateDDMMYYYY, formatTimeHHMM } from '@/lib/date';
 import { ProductForm } from '@/components/forms/product-form';
 import { PrintReceiptTemplate } from '@/components/print-receipt-template';
@@ -649,7 +650,8 @@ export default function PosPage() {
   const [cartCollapsed, setCartCollapsed] = React.useState(false);
   const [checkoutMode, setCheckoutMode] = React.useState(false);
 
-  const [query, setQuery] = React.useState('');
+  const [inputQuery, setInputQuery] = React.useState('');
+  const debouncedQuery = useDebounce(inputQuery, 300);
   const [cart, setCart] = React.useState<CartLine[]>([]);
   const [checkingOut, setCheckingOut] = React.useState(false);
   const [isConfirmingCheckout, setIsConfirmingCheckout] = React.useState(false);
@@ -1116,8 +1118,8 @@ export default function PosPage() {
       const main = categoryStr.split('/').pop()?.trim() ?? '';
       return main === selectedMainCategory || categoryStr === selectedMainCategory;
     });
-    return applySearchThenSort(afterCategory, query, sortOption);
-  }, [products, query, selectedMainCategory, sortOption]);
+    return applySearchThenSort(afterCategory, debouncedQuery, sortOption);
+  }, [products, debouncedQuery, selectedMainCategory, sortOption]);
 
   const { mainCategories, allCategories } = React.useMemo(() => {
     if (dbCategories.length > 0) {
@@ -1182,7 +1184,7 @@ export default function PosPage() {
     };
   }, []);
 
-  function addToCart(product: Product, qty: number = 1) {
+  const addToCart = React.useCallback((product: Product, qty: number = 1) => {
     const stock = product.stock_quantity ?? 0;
     const inCart = cartQtyByProductId.get(product.id) ?? 0;
     const maxAdd = Math.max(0, stock - inCart);
@@ -1200,13 +1202,13 @@ export default function PosPage() {
       }
       return [...prev, { product, quantity: add }];
     });
-    setQuery('');
+    setInputQuery('');
     setSelectedMainCategory(null);
     requestAnimationFrame(() => {
       searchRef.current?.focus();
     });
     triggerCartPulse();
-  }
+  }, [cartQtyByProductId, addToast, triggerCartPulse]);
 
   function setCartQuantity(productId: number, quantity: number) {
     if (quantity <= 0) {
@@ -1422,7 +1424,7 @@ export default function PosPage() {
     setRemark('');
     setPaymentMethod('cash');
     setCustomerMatch(null);
-    setQuery('');
+    setInputQuery('');
     setMissingBarcode(null);
     clearPersistedPos();
   }, [clearPersistedPos]);
@@ -1805,8 +1807,8 @@ export default function PosPage() {
             {/* Product area */}
             <MemoProductBrowser
               products={matches}
-              query={query}
-              onQueryChange={setQuery}
+              query={inputQuery}
+              onQueryChange={setInputQuery}
               searchInputRef={searchRef}
               onScanClick={() => setScanOpen(true)}
               onAddNewProduct={() => {
