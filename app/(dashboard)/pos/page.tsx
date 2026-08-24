@@ -1794,12 +1794,6 @@ export default function PosPage() {
         .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.1);
         }
-        @media print {
-          body {
-            background: #fff;
-            color: #000;
-          }
-        }
       `}</style>
       {lastReceipt && (
         <PrintReceiptTemplate receipt={lastReceipt as any} />
