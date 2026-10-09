@@ -8,6 +8,7 @@ import {
   ReceiptPaperSize,
   ScannerPriority,
   LogoAlignment,
+  getReceiptWidthMm,
 } from '@/lib/hwPrintSettings/types';
 import { useHWPrintSettings } from '@/components/hw-print-settings-provider';
 import { Button } from '@/components/ui/button';
@@ -15,9 +16,83 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Code128Svg } from '@/components/ui/code128-svg';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DeliverySticker50x30 } from '@/components/DeliverySticker50x30';
 import { RotateCcw, Printer as PrinterIcon, Save, Upload, X } from 'lucide-react';
 
-type TabKey = 'receipt' | 'scanner';
+type TabKey = 'receipt' | 'delivery' | 'scanner';
+
+const DEFAULT_RECEIPT_PREVIEW_ITEMS: Array<{ name: string; qty: number; price: number; amount: number }> = [
+  { name: 'Aura Glow Serum 30ml', qty: 2, price: 18000, amount: 36000 },
+  { name: 'Hydrating Mist', qty: 1, price: 12000, amount: 12000 },
+  { name: 'Daily Sunscreen SPF50', qty: 1, price: 15000, amount: 15000 },
+];
+
+function useLogoFallbackState(): [number, () => void] {
+  const [srcIndex, setSrcIndex] = React.useState(0);
+  const nextSrc = React.useCallback(() => {
+    setSrcIndex((v) => v + 1);
+  }, []);
+  return [srcIndex, nextSrc];
+}
+
+function ShopLogoImg(props: {
+  customSrc: string | null;
+  show: boolean;
+  sizePx: number;
+  monochrome: boolean;
+  srcIndex: number;
+  onFallback: () => void;
+  circular?: boolean;
+  alt?: string;
+}) {
+  const { customSrc, sizePx, monochrome, srcIndex, onFallback, circular = true, alt = 'Shop Logo' } = props;
+  const fallbackChain = ['/logo.png', '/logo.jpg', '/icon-192.png'];
+  const base = customSrc?.trim();
+  const candidates = base ? [base, ...fallbackChain] : fallbackChain;
+  const idx = Math.max(0, Math.min(srcIndex, candidates.length - 1));
+  const src = candidates[idx];
+  const padding = circular ? 2 : 0;
+
+  if (!props.show) return null;
+  return (
+    <div
+      style={{
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
+        borderRadius: circular ? '50%' : '0px',
+        overflow: 'hidden',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '0.5px solid #000000',
+        background: '#ffffff',
+        boxSizing: 'border-box',
+        flexShrink: 0,
+        padding: 0,
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          padding: `${padding}px`,
+          boxSizing: 'border-box',
+          filter: monochrome ? 'grayscale(100%) contrast(200%)' : 'none',
+          display: 'block',
+          imageRendering: 'auto',
+        }}
+        onError={(e) => {
+          const t = e.currentTarget;
+          t.onerror = null;
+          onFallback();
+        }}
+      />
+    </div>
+  );
+}
 
 export default function HardwareSettingsPage() {
   const { role } = useDashboardAuth();
@@ -32,12 +107,10 @@ export default function HardwareSettingsPage() {
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [showResetConfirm, setShowResetConfirm] = React.useState(false);
 
-  const rw = (() => {
-    const opt = RECEIPT_PAPER_OPTIONS.find((o) => o.value === settings.receipt.paperSize);
-    return settings.receipt.paperSize === 'custom'
-      ? Math.max(20, Math.min(500, settings.receipt.customWidthMm || 80))
-      : opt?.widthMm ?? 80;
-  })();
+  const [deliveryLogoIdx, nextDeliveryLogoIdx] = useLogoFallbackState();
+  const [receiptPreviewLogoIdx, nextReceiptPreviewLogoIdx] = useLogoFallbackState();
+
+  const rw = getReceiptWidthMm(settings.receipt);
 
   const onReset = () => {
     setShowResetConfirm(true);
@@ -68,12 +141,17 @@ export default function HardwareSettingsPage() {
   const storeTagline = settings.receipt.storeTagline?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storeTagline;
   const storePhone = settings.receipt.storePhone?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storePhone;
   const storeAddress = settings.receipt.storeAddress?.trim() || DEFAULT_HW_PRINT_SETTINGS.receipt.storeAddress;
+  const storeSocial = settings.receipt.storeSocial?.trim() || '';
+  const footerText = settings.receipt.footerText?.trim() || '';
   const storeLogoSrc: string | null = settings.receipt.logoUrl || settings.receipt.storeLogo || null;
 
   const logoShow = !!settings.receipt.showLogo;
   const logoSizePx = Math.max(10, Math.min(40, Number(settings.receipt.logoSizePx) || DEFAULT_HW_PRINT_SETTINGS.receipt.logoSizePx));
   const logoAlign: LogoAlignment = (['left','center','right'].includes(settings.receipt.logoAlignment as any) ? settings.receipt.logoAlignment : 'center') as LogoAlignment;
   const logoMonochrome = !!settings.receipt.monochromeLogo;
+
+  const baseFont = Math.max(8, Math.min(20, Number(settings.receipt.baseFontSizePx) || 11));
+  const headerFont = Math.max(10, Math.min(24, Number(settings.receipt.headerFontSizePx) || 13));
 
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const onLogoFile = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,13 +176,40 @@ export default function HardwareSettingsPage() {
     });
   }, [patchReceipt]);
 
+  const deliveryStickerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const testPrintSticker = React.useCallback(() => {
+    const el = deliveryStickerRef.current;
+    if (!el) return;
+    const content = el.outerHTML;
+    const w = window.open('', '_blank', 'width=600,height=500');
+    if (!w) {
+      window.print();
+      return;
+    }
+    w.document.write(`<!doctype html><html><head><title>Print Delivery Sticker 50x30</title>
+<style>
+@page { size: 50mm 30mm; margin: 0; }
+@media print {
+  html, body { width: 50mm; height: 30mm; margin: 0; padding: 0; background:#fff; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body * { visibility: hidden; }
+  #print-delivery-sticker, #print-delivery-sticker * { visibility: visible; }
+  #print-delivery-sticker { position:absolute; left:0; top:0; width:50mm; height:30mm; overflow:hidden; box-sizing:border-box; page-break-inside:avoid; }
+}
+</style></head><body>${content}</body></html>`);
+    w.document.close();
+    setTimeout(() => {
+      try { w.focus(); w.print(); } catch { window.print(); }
+    }, 200);
+  }, []);
+
   return (
     <div className="flex h-full flex-col gap-6 overflow-hidden">
       <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 pb-4 backdrop-blur md:flex-row md:items-center md:justify-between md:border-b-0 md:pb-0">
         <div>
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Hardware &amp; Printers</h1>
           <p className="text-sm text-muted-foreground">
-            Receipt paper, barcode scanner behavior. Persists per device via local storage.
+            Receipt printer, delivery sticker, barcode scanner. Per-device settings via localStorage.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -131,7 +236,7 @@ export default function HardwareSettingsPage() {
       <div className="overflow-y-auto pr-1">
         <div className="space-y-6">
           <div className="flex gap-2 border-b border-border">
-            {(['receipt', 'scanner'] as TabKey[]).map((k) => (
+            {(['receipt', 'delivery', 'scanner'] as TabKey[]).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -142,17 +247,18 @@ export default function HardwareSettingsPage() {
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {k === 'receipt' ? 'Receipt Printer' : 'Barcode Scanner'}
+                {k === 'receipt' ? 'Receipt Printer (80mm)' : k === 'delivery' ? 'Delivery Sticker (50×30mm)' : 'Barcode Scanner'}
               </button>
             ))}
           </div>
 
           {tab === 'receipt' && (
             <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+              {/* RECEIPT LEFT CONTROLS */}
               <div className="space-y-5">
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Paper &amp; Font</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Paper &amp; Font — 80mm Thermal</h2>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-1.5">
@@ -167,7 +273,7 @@ export default function HardwareSettingsPage() {
                         ))}
                       </select>
                       <p className="text-[10px] text-muted-foreground">
-                        Current width: <strong>{rw}mm</strong>
+                        Current width: <strong>{rw}mm</strong> · Default 80mm
                       </p>
                     </div>
                     {settings.receipt.paperSize === 'custom' && (
@@ -200,7 +306,7 @@ export default function HardwareSettingsPage() {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Base Font Size: {settings.receipt.baseFontSizePx}px</Label>
+                      <Label>Base Font Size: {baseFont}px</Label>
                       <Input
                         type="range"
                         min={8}
@@ -211,7 +317,7 @@ export default function HardwareSettingsPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Header Font Size: {settings.receipt.headerFontSizePx}px</Label>
+                      <Label>Header Font Size: {headerFont}px</Label>
                       <Input
                         type="range"
                         min={10}
@@ -269,7 +375,7 @@ export default function HardwareSettingsPage() {
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Shop Logo Settings</h2>
                     <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/30 font-semibold">
-                      Applied to Receipt Printer
+                      Applied to Receipt + Sticker
                     </span>
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
@@ -279,37 +385,26 @@ export default function HardwareSettingsPage() {
                         {logoShow ? (
                           <div
                             style={{
-                              width: `${logoSizePx * 2 + 6}px`,
-                              height: `${logoSizePx * 2 + 6}px`,
+                              width: `${logoSizePx * 2 + 10}px`,
+                              height: `${logoSizePx * 2 + 10}px`,
                               borderRadius: '50%',
                               overflow: 'hidden',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              border: '1px solid #000000',
+                              border: '0.5px solid #000000',
                               background: '#ffffff',
                               flexShrink: 0,
                               boxSizing: 'border-box',
                             }}
                           >
-                            <img
-                              src={storeLogoSrc || '/logo.jpg'}
-                              alt="Shop Logo"
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'contain',
-                                padding: '3px',
-                                boxSizing: 'border-box',
-                                filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
-                                display: 'block',
-                                margin: '0 auto',
-                              }}
-                              onError={(e) => {
-                                const t = e.currentTarget as HTMLImageElement;
-                                t.onerror = null;
-                                t.src = '/icon-192.png';
-                              }}
+                            <ShopLogoImg
+                              customSrc={storeLogoSrc}
+                              show={logoShow}
+                              sizePx={logoSizePx * 2}
+                              monochrome={logoMonochrome}
+                              srcIndex={receiptPreviewLogoIdx}
+                              onFallback={nextReceiptPreviewLogoIdx}
                             />
                           </div>
                         ) : (
@@ -386,7 +481,7 @@ export default function HardwareSettingsPage() {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Logo Alignment</Label>
+                        <Label>Logo Alignment (Receipt Only)</Label>
                         <div className="grid grid-cols-3 gap-2">
                           {(['left','center','right'] as LogoAlignment[]).map((a) => (
                             <Button
@@ -418,7 +513,7 @@ export default function HardwareSettingsPage() {
                       />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
-                      <Label>Store Tagline</Label>
+                      <Label>Store Tagline / Category</Label>
                       <Input
                         value={settings.receipt.storeTagline}
                         onChange={(e) => patchReceipt({ storeTagline: e.target.value })}
@@ -478,7 +573,7 @@ export default function HardwareSettingsPage() {
                       <span className="font-medium">Show QR Code (Placeholder)</span>
                     </label>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 flex-wrap">
                     <Button onClick={triggerSaved} className="gap-1.5"><Save className="h-4 w-4" /> Save &amp; Apply</Button>
                     <Button variant="outline" onClick={() => window.print()} className="gap-1.5">
                       <PrinterIcon className="h-4 w-4" /> Print Test (Receipt)
@@ -487,91 +582,235 @@ export default function HardwareSettingsPage() {
                 </div>
               </div>
 
+              {/* RECEIPT LIVE PREVIEW (RIGHT) */}
               <div className="space-y-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Live Preview</h3>
-                <div className="rounded-2xl border border-border bg-white p-4 shadow-sm mx-auto"
-                     style={{ width: `${rw + 8}mm`, fontFamily: settings.receipt.fontFamily, fontSize: settings.receipt.baseFontSizePx, lineHeight: settings.receipt.lineHeight }}>
-                  <div style={{ padding: `${settings.receipt.marginTopMm}mm ${settings.receipt.marginRightMm}mm ${settings.receipt.marginBottomMm}mm ${settings.receipt.marginLeftMm}mm` }}>
-                    {logoShow && (
-                      <div style={{ textAlign: logoAlign, marginBottom: 4 }}>
-                        <div
-                          style={{
-                            width: `${logoSizePx + 4}px`,
-                            height: `${logoSizePx + 4}px`,
-                            borderRadius: '50%',
-                            overflow: 'hidden',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid #000000',
-                            background: '#ffffff',
-                            boxSizing: 'border-box',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <img
-                            src={storeLogoSrc || '/logo.jpg'}
-                            alt="Logo"
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'contain',
-                              padding: '1.5px',
-                              boxSizing: 'border-box',
-                              filter: logoMonochrome ? 'grayscale(100%) contrast(200%)' : 'none',
-                              display: 'block',
-                              margin: '0 auto',
-                            }}
-                            onError={(e) => {
-                              const t = e.currentTarget as HTMLImageElement;
-                              t.onerror = null;
-                              t.src = '/icon-192.png';
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ fontSize: settings.receipt.headerFontSizePx, fontWeight: 700, textAlign: 'center', marginBottom: 2 }}>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Live Preview — 80mm (≈300px)</h3>
+                <div
+                  className="rounded-2xl border border-border bg-white shadow-sm mx-auto overflow-auto p-4"
+                  style={{ width: 'min(340px, 100%)', maxWidth: '100%' }}
+                >
+                  {/* 80mm canvas: 300px ≈ 80mm at 96dpi (80/25.4*96 ≈ 302px) */}
+                  <div
+                    id="print-receipt"
+                    style={{
+                      width: '300px',
+                      fontFamily: settings.receipt.fontFamily,
+                      fontSize: `${baseFont}px`,
+                      lineHeight: settings.receipt.lineHeight,
+                      background: '#ffffff',
+                      color: '#000000',
+                      padding: `${settings.receipt.marginTopMm}mm ${settings.receipt.marginRightMm}mm ${settings.receipt.marginBottomMm}mm ${settings.receipt.marginLeftMm}mm`,
+                      boxSizing: 'border-box',
+                      margin: '0 auto',
+                      wordWrap: 'break-word',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    <div style={{ textAlign: logoAlign, marginBottom: '4px' }}>
+                      <ShopLogoImg
+                        customSrc={storeLogoSrc}
+                        show={logoShow}
+                        sizePx={logoSizePx + 4}
+                        monochrome={logoMonochrome}
+                        srcIndex={receiptPreviewLogoIdx}
+                        onFallback={nextReceiptPreviewLogoIdx}
+                      />
+                    </div>
+                    <div style={{ fontSize: `${headerFont}px`, fontWeight: 700, textAlign: 'center', marginBottom: '2px', letterSpacing: '0.3px' }}>
                       {storeName}
                     </div>
-                    {storeTagline && <div style={{ textAlign: 'center', fontSize: Math.max(8, settings.receipt.baseFontSizePx - 1), marginBottom: 4 }}>{storeTagline}</div>}
+                    {storeTagline && (
+                      <div style={{ textAlign: 'center', fontSize: `${Math.max(9, baseFont - 1)}px`, marginBottom: '3px' }}>
+                        {storeTagline}
+                      </div>
+                    )}
                     {storeAddress && <div style={{ textAlign: 'center' }}>{storeAddress}</div>}
                     {storePhone && <div style={{ textAlign: 'center' }}>Tel: {storePhone}</div>}
-                    {settings.receipt.storeSocial?.trim() && <div style={{ textAlign: 'center' }}>{settings.receipt.storeSocial}</div>}
+                    {storeSocial && <div style={{ textAlign: 'center' }}>{storeSocial}</div>}
                     <div style={{ borderTop: '1px dashed #888', margin: '6px 0' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>Invoice</span><span>INV-TEST-001</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>Date</span><span>19/08/2026</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Invoice</span><span style={{ fontFamily: 'monospace' }}>INV-TEST-001</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Date</span><span>19/08/2026</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Cashier</span><span>Staff</span></div>
                     <div style={{ borderTop: '1px dashed #888', margin: '6px 0' }} />
                     <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                       <thead>
-                        <tr style={{ fontSize: Math.max(8, settings.receipt.baseFontSizePx - 1) }}>
-                          <th align="left">Item</th><th align="right">Qty</th><th align="right">Price</th><th align="right">Amt</th>
+                        <tr style={{ fontSize: `${Math.max(8, baseFont - 1)}px` }}>
+                          <th align="left" style={{ padding: '2px 4px', textTransform: 'uppercase' }}>Item</th>
+                          <th align="right" style={{ padding: '2px 4px', width: '38px', textTransform: 'uppercase' }}>Qty</th>
+                          <th align="right" style={{ padding: '2px 4px', width: '60px', textTransform: 'uppercase' }}>Price</th>
+                          <th align="right" style={{ padding: '2px 4px', width: '64px', textTransform: 'uppercase' }}>Amt</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr>
-                          <td style={{ wordBreak: 'break-word' }}>Aura Glow Serum 30ml</td>
-                          <td align="right">2</td><td align="right">18,000</td><td align="right"><strong>36,000</strong></td>
-                        </tr>
-                        <tr>
-                          <td style={{ wordBreak: 'break-word' }}>Hydrating Mist</td>
-                          <td align="right">1</td><td align="right">12,000</td><td align="right"><strong>12,000</strong></td>
-                        </tr>
+                        {DEFAULT_RECEIPT_PREVIEW_ITEMS.map((it) => (
+                          <tr key={it.name}>
+                            <td style={{ padding: '2px 4px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{it.name}</td>
+                            <td align="right" style={{ padding: '2px 4px' }}>{it.qty}</td>
+                            <td align="right" style={{ padding: '2px 4px', fontFamily: 'monospace' }}>{it.price.toLocaleString()}</td>
+                            <td align="right" style={{ padding: '2px 4px', fontFamily: 'monospace', fontWeight: 700 }}>{it.amount.toLocaleString()}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                     <div style={{ borderTop: '1px dashed #888', margin: '6px 0' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Grand Total</strong><strong>48,000 Ks</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Subtotal</span><span style={{ fontFamily: 'monospace' }}>63,000 Ks</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Delivery Fee (+)</span><span style={{ fontFamily: 'monospace' }}>3,000 Ks</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span>Discount (-)</span><span style={{ fontFamily: 'monospace' }}>0 Ks</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '2px' }}><strong>Grand Total</strong><strong style={{ fontFamily: 'monospace' }}>66,000 Ks</strong></div>
                     {settings.receipt.showBarcode && (
-                      <div style={{ textAlign: 'center', marginTop: 6 }}>
+                      <div style={{ textAlign: 'center', marginTop: '6px' }}>
                         <Code128Svg value="INVTEST001" heightPx={26} barWidthPx={1} showText fontSizePx={9} />
                       </div>
                     )}
-                    {settings.receipt.footerText?.trim() && (
-                      <div style={{ textAlign: 'center', marginTop: 8 }}>{settings.receipt.footerText}</div>
+                    {footerText && (
+                      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: `${Math.max(9, baseFont - 1)}px` }}>
+                        {footerText}
+                      </div>
                     )}
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground text-center">Preview mirrors actual @media print output.</p>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Preview = 1:1 with @media print output. Paper 80mm × auto, margin 0.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {tab === 'delivery' && (
+            <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
+              {/* DELIVERY LEFT CONTROLS */}
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Delivery Sticker 50×30mm</h2>
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-sky-500/10 text-sky-700 border border-sky-500/30 font-semibold">
+                      Xprinter XP-480B
+                    </span>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm h-11">
+                        <input type="checkbox" className="h-4 w-4"
+                          checked={logoShow}
+                          onChange={(e) => patchReceipt({ showLogo: e.target.checked })} />
+                        <span className="font-medium">Logo Visible</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm h-11">
+                        <input type="checkbox" className="h-4 w-4"
+                          checked={logoMonochrome}
+                          onChange={(e) => patchReceipt({ monochromeLogo: e.target.checked })} />
+                        <span className="font-medium">Monochrome Logo Filter</span>
+                      </label>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Custom Category / Tagline Text</Label>
+                      <Input
+                        value={settings.receipt.storeTagline}
+                        onChange={(e) => patchReceipt({ storeTagline: e.target.value })}
+                        placeholder={DEFAULT_HW_PRINT_SETTINGS.receipt.storeTagline}
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Appears as line 2 of the header (e.g. &quot;USA Skincare and Cosmetics&quot;).
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Logo Size: {logoSizePx}px (Sticker Header Circular Logo)</Label>
+                      <Input
+                        type="range"
+                        min={12}
+                        max={30}
+                        step={1}
+                        value={logoSizePx}
+                        onChange={(e) => patchReceipt({ logoSizePx: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-1.5 md:grid-cols-2 grid gap-3">
+                      <div className="space-y-1.5">
+                        <Label>Shop Name</Label>
+                        <Input value={settings.receipt.storeName}
+                          onChange={(e) => patchReceipt({ storeName: e.target.value })}
+                          placeholder={DEFAULT_HW_PRINT_SETTINGS.receipt.storeName} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Phone</Label>
+                        <Input value={settings.receipt.storePhone}
+                          onChange={(e) => patchReceipt({ storePhone: e.target.value })}
+                          placeholder={DEFAULT_HW_PRINT_SETTINGS.receipt.storePhone} />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Shop Address</Label>
+                        <Input value={settings.receipt.storeAddress}
+                          onChange={(e) => patchReceipt({ storeAddress: e.target.value })}
+                          placeholder={DEFAULT_HW_PRINT_SETTINGS.receipt.storeAddress} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 flex-wrap pt-2">
+                    <Button onClick={triggerSaved} className="gap-1.5">
+                      <Save className="h-4 w-4" /> Save &amp; Apply
+                    </Button>
+                    <Button variant="outline" onClick={testPrintSticker} className="gap-1.5">
+                      <PrinterIcon className="h-4 w-4" /> Test Print (50×30mm)
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-3 text-xs text-muted-foreground">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Spec</h3>
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li><strong>Paper:</strong> 50mm × 30mm thermal sticker (XP-480B)</li>
+                    <li><strong>@page:</strong> strict size 50mm × 30mm, margin 0 (1:1)</li>
+                    <li><strong>Logo fallback:</strong> <code className="rounded bg-muted px-1">/logo.png</code> → <code className="rounded bg-muted px-1">/logo.jpg</code></li>
+                    <li><strong>Samples:</strong> Demo Customer + sample totals so you can preview layout with real proportions.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* DELIVERY RIGHT LIVE PREVIEW */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Live Preview — 50×30mm (1:1 Scale)</h3>
+                <div
+                  className="rounded-2xl border border-border bg-muted/40 p-8 flex items-start justify-center shadow-sm"
+                  style={{ minHeight: '380px' }}
+                >
+                  {/* 142px × 85px = exact 50×30 at 72dpi (50/25.4*72 ≈ 141.7, 30/25.4*72 ≈ 85.0) */}
+                  <div
+                    style={{
+                      border: '1px solid rgba(0,0,0,0.45)',
+                      borderRadius: '4px',
+                      padding: '4px',
+                      background: '#f5f5f4',
+                      display: 'inline-block',
+                    }}
+                  >
+                    <div
+                      ref={deliveryStickerRef}
+                      style={{ width: '142px', height: '85px', display: 'block' }}
+                    >
+                      <DeliverySticker50x30
+                        id="print-delivery-sticker"
+                        storeName={storeName}
+                        storeCategory={storeTagline}
+                        storeAddress={storeAddress}
+                        storePhone={storePhone}
+                        storeLogoSrc={storeLogoSrc}
+                        logoShow={logoShow}
+                        monochromeLogo={logoMonochrome}
+                        invoiceNo="INV-2026-0819-00421"
+                        customerName="Ma Aye Chan Myae"
+                        customerPhone="09-987654321"
+                        customerAddress="No. 123, Mahar Bandula Street, 3rd Quarter, Chan Aye Thar Zan Township, Mandalay, Myanmar"
+                        amountKs={63000}
+                        deliFeesKs={3000}
+                        totalKs={66000}
+                        remark="Please call before arrival. Leave at gate if no answer."
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Preview box: 142×85px @ 72dpi = 50×30mm physical. Outer guide shows full sticker with 0.5px inner black border.
+                </p>
               </div>
             </div>
           )}
