@@ -5,18 +5,37 @@ import * as React from 'react';
 export interface DeliverySticker50x30Props {
   storeName?: string;
   storeCategory?: string;
+  /** @deprecated Alias of storeCategory — line 2 of the header */
+  storeTagline?: string;
   storeAddress?: string;
   storePhone?: string;
   storeLogoSrc?: string | null;
   logoShow?: boolean;
   monochromeLogo?: boolean;
   invoiceNo?: string;
+  /** @deprecated No field in the 50×30 Figma layout; accepted but ignored */
+  dateText?: string;
   customerName?: string | null;
   customerPhone?: string | null;
   customerAddress?: string | null;
+  /** @deprecated No field in the 50×30 Figma layout; accepted but ignored */
+  courierName?: string | null;
+  /** @deprecated No field in the 50×30 Figma layout; accepted but ignored */
+  items?: unknown[] | null;
+  /** Amount (subtotal) — mapped to the "Amt" cell */
   amountKs?: number | string;
+  /** @deprecated Alias of amountKs */
+  subtotalKs?: number | string;
+  /** Delivery fees — mapped to the "Deli" cell */
   deliFeesKs?: number | string;
+  /** @deprecated Alias of deliFeesKs */
+  deliveryFeeKs?: number | string;
+  /** @deprecated No field in the 50×30 Figma layout; accepted but ignored */
+  advanceKs?: number | string;
+  /** Grand total — mapped to the "Total" cell */
   totalKs?: number | string;
+  /** @deprecated No field in the 50×30 Figma layout; accepted but ignored */
+  balanceKs?: number | string;
   remark?: string | null;
   footerText?: string;
   id?: string;
@@ -40,7 +59,8 @@ function num(v: number | string | null | undefined): string {
 export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
   const {
     storeName = DEFAULT_STORE.name,
-    storeCategory = DEFAULT_STORE.category,
+    storeCategory,
+    storeTagline,
     storeAddress = DEFAULT_STORE.address,
     storePhone = DEFAULT_STORE.phone,
     storeLogoSrc,
@@ -50,15 +70,20 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
     customerName,
     customerPhone,
     customerAddress,
-    amountKs = 0,
-    deliFeesKs = 0,
+    amountKs,
+    subtotalKs,
+    deliFeesKs,
+    deliveryFeeKs,
     totalKs = 0,
     remark,
     footerText = DEFAULT_STORE.footer,
     id = 'print-delivery-sticker',
   } = props;
 
-  const logoSrc = storeLogoSrc || '/logo.jpg';
+  const effectiveStoreCategory = storeCategory ?? storeTagline ?? DEFAULT_STORE.category;
+  const effectiveAmount = amountKs ?? subtotalKs ?? 0;
+  const effectiveDeli = deliFeesKs ?? deliveryFeeKs ?? 0;
+
   const logoFilter = monochromeLogo ? 'grayscale(100%) contrast(200%)' : 'none';
   const invoice = invoiceNo || DEFAULT_STORE.invoice;
 
@@ -66,7 +91,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
     if (storeLogoSrc && typeof storeLogoSrc === 'string' && storeLogoSrc.trim()) {
       return storeLogoSrc.trim();
     }
-    return '/logo.jpg';
+    return '/logo.png';
   }, [storeLogoSrc]);
 
   return (
@@ -225,7 +250,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
                 marginTop: '0.5px',
               }}
             >
-              {storeCategory}
+              {effectiveStoreCategory}
             </div>
             {/* Address (3px semi-bold) */}
             <div
@@ -386,7 +411,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
           </span>
         </div>
 
-        {/* Address Field: Height ~13px, word-wrap/break-word */}
+        {/* Address Field: Height ~13px, word-wrap/break-word, label inline with content */}
         <div
           style={{
             width: '100%',
@@ -400,9 +425,6 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
             paddingRight: '1px',
             paddingTop: '0.5px',
             paddingBottom: '0.5px',
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
@@ -415,20 +437,20 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
             style={{
               fontSize: '4px',
               fontWeight: 600,
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Address :
-          </span>
-          <span
-            style={{
-              fontSize: '4px',
-              fontWeight: 600,
+              lineHeight: 1.1,
               wordBreak: 'break-word',
               overflowWrap: 'break-word',
             }}
           >
+            <span
+              style={{
+                fontSize: '4px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Address :{' '}
+            </span>
             {customerAddress || '—'}
           </span>
         </div>
@@ -493,7 +515,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
                 fontFamily: 'monospace',
               }}
             >
-              {num(amountKs)}
+              {num(effectiveAmount)}
             </span>
           </div>
 
@@ -541,7 +563,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
                 fontFamily: 'monospace',
               }}
             >
-              {num(deliFeesKs)}
+              {num(effectiveDeli)}
             </span>
           </div>
 
@@ -569,7 +591,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
               style={{
                 fontSize: '3px',
                 lineHeight: 1.0,
-                fontWeight: 700,
+                fontWeight: 600,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -582,7 +604,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
               style={{
                 fontSize: '3px',
                 lineHeight: 1.0,
-                fontWeight: 700,
+                fontWeight: 600,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -594,7 +616,7 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
           </div>
         </div>
 
-        {/* === REMARK BOX (Height ~14px, full width, outline 0.3px #262626, pl 1px) === */}
+        {/* === REMARK BOX (Height ~14px, full width, outline 0.3px #262626, pl 1px, label inline) === */}
         <div
           style={{
             width: '100%',
@@ -608,9 +630,6 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
             paddingRight: '1px',
             paddingTop: '0.5px',
             paddingBottom: '0.5px',
-            display: '-webkit-box',
-            WebkitLineClamp: 4,
-            WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
@@ -624,21 +643,19 @@ export function DeliverySticker50x30(props: DeliverySticker50x30Props) {
               fontSize: '3px',
               lineHeight: 1.1,
               fontWeight: 600,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            Remark :
-          </span>
-          <span
-            style={{
-              fontSize: '3px',
-              lineHeight: 1.1,
-              fontWeight: 600,
               wordBreak: 'break-word',
               overflowWrap: 'break-word',
             }}
           >
+            <span
+              style={{
+                fontSize: '3px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Remark :{' '}
+            </span>
             {remark || '—'}
           </span>
         </div>
